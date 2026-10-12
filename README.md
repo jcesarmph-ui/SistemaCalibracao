@@ -1,10 +1,10 @@
-﻿# CALIB — Sistema de Gestão de Calibração
+﻿# Sistema de Gestão de Calibração
 
-Sistema desenvolvido para digitalizar e otimizar o gerenciamento de calibrações de equipamentos, substituindo uma planilha Excel complexa por uma aplicação centralizada.
+Sistema desenvolvido para digitalizar e otimizar o gerenciamento de calibrações de equipamentos, substituindo uma planilha Excel complexa por uma aplicação estruturada.
 
 ## Objetivo
 
-Simplificar o controle de equipamentos, o planejamento de calibrações e o registro dos resultados, melhorando a organização, a rastreabilidade e a eficiência operacional.
+Simplificar o controle de equipamentos, o planejamento de calibrações e o registro de resultados, melhorando a organização, a rastreabilidade e a eficiência operacional.
 
 ## Tecnologias utilizadas
 
@@ -17,7 +17,7 @@ Simplificar o controle de equipamentos, o planejamento de calibrações e o regi
 ## Funcionalidades
 
 - Cadastro e gerenciamento de equipamentos.
-- Organização dos equipamentos por tipos.
+- Organização de equipamentos por tipos.
 - Associação de equipamentos a planos de calibração.
 - Cadastro e consulta de pontos de calibração.
 - Suporte a pontos numéricos, qualitativos, funcionais e de valor mínimo.
@@ -45,27 +45,21 @@ Equipamentos, planos, pontos e registros
 
 ## Como executar
 
-### 1. Pré-requisitos
+### Pré-requisitos
 
 - Python instalado.
-- Git, caso deseje clonar o repositório.
+- Dependências do projeto instaladas.
 
-### 2. Acessar a pasta do projeto
+### Criar e ativar o ambiente virtual
 
-```powershell
-cd SistemaCalibracao
-```
-
-### 3. Criar e ativar o ambiente virtual
-
-No Windows:
+No Windows, execute na pasta do projeto:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-### 4. Instalar as dependências
+### Instalar as dependências
 
 Se o projeto possuir um arquivo `requirements.txt`:
 
@@ -73,9 +67,7 @@ Se o projeto possuir um arquivo `requirements.txt`:
 pip install -r requirements.txt
 ```
 
-Caso contrário, instale as dependências necessárias conforme os imports do código, incluindo o Streamlit.
-
-### 5. Executar a aplicação
+### Executar a aplicação
 
 Na pasta que contém o arquivo `main.py`:
 
@@ -83,19 +75,19 @@ Na pasta que contém o arquivo `main.py`:
 streamlit run main.py
 ```
 
-O Streamlit normalmente disponibiliza a aplicação em:
+A aplicação normalmente ficará disponível em:
 
 `http://localhost:8501`
 
 ## Banco de dados
 
-O SQLite armazena os dados localmente em um arquivo de banco de dados. Esse arquivo deve ser preservado para evitar perda dos registros.
+O SQLite armazena os dados em um arquivo local. Esse arquivo deve ser preservado para evitar a perda dos registros.
 
-Para uso compartilhado, é necessário definir uma estratégia adequada de armazenamento, permissões, backup e acesso simultâneo.
+Para uso compartilhado, é necessário definir uma estratégia adequada de armazenamento, backup, permissões e acesso simultâneo.
 
-## Implantação e segurança
+## Segurança e implantação
 
-A aplicação pode ser empacotada ou implantada em um ambiente acessível aos usuários autorizados. Para utilização empresarial, devem ser considerados:
+Para utilização empresarial, devem ser considerados:
 
 - Controle de acesso e permissões.
 - Backup periódico do banco de dados.
