@@ -1,100 +1,141 @@
-﻿# Sistema de Gestão de Calibração
+# Sistema de Gestão de Calibração
 
-Sistema desenvolvido para digitalizar e otimizar o gerenciamento de calibrações de equipamentos, substituindo uma planilha Excel complexa por uma aplicação estruturada.
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"/>
+  <img src="https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="Streamlit"/>
+  <img src="https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite"/>
+  <img src="https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white" alt="Pandas"/>
+  <img src="https://img.shields.io/badge/Git-F05032?style=for-the-badge&logo=git&logoColor=white" alt="Git"/>
+  <img src="https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub"/>
+</p>
 
-## Objetivo
+<p align="center">
+  Aplicação para digitalização e gerenciamento de processos de calibração, com organização de equipamentos, planos, pontos de medição e registros históricos.
+</p>
 
-Simplificar o controle de equipamentos, o planejamento de calibrações e o registro de resultados, melhorando a organização, a rastreabilidade e a eficiência operacional.
+---
 
-## Tecnologias utilizadas
+## Visão Geral
 
-- **Python:** linguagem principal da aplicação.
-- **Streamlit:** interface web interativa.
-- **SQLite:** banco de dados relacional local.
-- **Pandas:** manipulação e organização de dados.
-- **Git e GitHub:** versionamento e gerenciamento do código-fonte.
+O Sistema de Gestão de Calibração é uma aplicação desenvolvida para estruturar e simplificar o gerenciamento de calibrações de equipamentos, substituindo um fluxo de trabalho baseado em planilhas extensas por uma solução com interface interativa e armazenamento estruturado.
+
+A aplicação centraliza informações técnicas e registros operacionais, facilitando a consulta dos equipamentos, a organização dos planos de calibração e o acompanhamento do histórico.
+
+O projeto aplica conceitos de desenvolvimento de software, modelagem de dados, automação de processos administrativos e melhoria contínua em um cenário relacionado à gestão da qualidade.
+
+## Objetivos
+
+- Digitalizar o gerenciamento de calibrações.
+- Organizar os cadastros de equipamentos e seus respectivos tipos.
+- Estruturar planos e pontos de calibração.
+- Centralizar os registros e o histórico das calibrações.
+- Facilitar a consulta e a manutenção das informações.
+- Reduzir a dependência de planilhas extensas e de operações manuais.
+- Melhorar a organização e a rastreabilidade das informações técnicas.
 
 ## Funcionalidades
 
-- Cadastro e gerenciamento de equipamentos.
-- Organização de equipamentos por tipos.
-- Associação de equipamentos a planos de calibração.
-- Cadastro e consulta de pontos de calibração.
-- Suporte a pontos numéricos, qualitativos, funcionais e de valor mínimo.
-- Registro e consulta de calibrações.
-- Armazenamento estruturado das informações em banco de dados.
-- Interface para facilitar as operações do usuário.
+### Gestão de Equipamentos
 
-## Arquitetura
+- Cadastro e gerenciamento de equipamentos.
+- Organização por tipos de equipamento.
+- Associação entre equipamentos e planos de calibração.
+- Consulta das informações cadastradas.
+
+### Planos e Pontos de Calibração
+
+- Cadastro e organização de planos de calibração.
+- Definição de pontos de calibração.
+- Suporte a diferentes categorias de pontos:
+  - Numéricos.
+  - Qualitativos.
+  - Funcionais.
+  - De valor mínimo.
+
+### Registros e Histórico
+
+- Registro das calibrações realizadas.
+- Consulta dos registros armazenados.
+- Organização dos dados para acompanhamento do histórico.
+- Armazenamento persistente em banco de dados local.
+
+## Arquitetura da Aplicação
+
+A aplicação segue uma arquitetura organizada em camadas, separando a interface, a lógica de processamento e a persistência dos dados.
 
 ```text
-Usuário
-   |
-   v
-Interface Streamlit
-   |
-   v
-Lógica da aplicação Python
-   |
-   v
-Banco de dados SQLite
-   |
-   v
-Equipamentos, planos, pontos e registros
+┌──────────────────────────────────────┐
+│                Usuário               │
+└──────────────────┬───────────────────┘
+                   │
+                   ▼
+┌──────────────────────────────────────┐
+│        Interface Streamlit           │
+│       Navegação e formulários        │
+└──────────────────┬───────────────────┘
+                   │
+                   ▼
+┌──────────────────────────────────────┐
+│          Lógica em Python            │
+│   Regras e processamento dos dados   │
+└──────────────────┬───────────────────┘
+                   │
+                   ▼
+┌──────────────────────────────────────┐
+│             Banco SQLite             │
+│       Persistência dos registros     │
+└──────────────────┬───────────────────┘
+                   │
+                   ▼
+┌──────────────────────────────────────┐
+│ Equipamentos, planos, pontos e       │
+│ registros de calibração              │
+└──────────────────────────────────────┘
 ```
 
-## Como executar
+## Tecnologias e Ferramentas
 
-### Pré-requisitos
+| Tecnologia | Aplicação no projeto |
+|---|---|
+| Python | Implementação da lógica e das regras da aplicação. |
+| Streamlit | Construção da interface interativa. |
+| SQLite | Armazenamento estruturado dos dados. |
+| Pandas | Manipulação e organização de dados tabulares. |
+| Git | Controle de versão do código-fonte. |
+| GitHub | Hospedagem e documentação do repositório. |
 
-- Python instalado.
-- Dependências do projeto instaladas.
+## Estrutura do Repositório
 
-### Criar e ativar o ambiente virtual
-
-No Windows, execute na pasta do projeto:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+```text
+SistemaCalibracao/
+├── app/
+├── assets/
+├── data/
+├── scripts/
+├── .vscode/
+├── Abrir_CALIB.bat
+├── main.py
+├── requirements.txt
+└── README.md
 ```
 
-### Instalar as dependências
+- `app/`: componentes e módulos da aplicação.
+- `assets/`: recursos utilizados pela interface.
+- `data/`: arquivos relacionados ao armazenamento dos dados.
+- `scripts/`: scripts auxiliares.
+- `main.py`: ponto de entrada da aplicação.
+- `requirements.txt`: dependências do projeto.
+- `Abrir_CALIB.bat`: arquivo auxiliar para iniciar a aplicação no Windows.
 
-Se o projeto possuir um arquivo `requirements.txt`:
+## Aplicações e Competências Demonstradas
 
-```powershell
-pip install -r requirements.txt
-```
+- Desenvolvimento de aplicações em Python.
+- Construção de interfaces com Streamlit.
+- Modelagem e persistência de dados relacionais.
+- Digitalização de processos de qualidade.
+- Organização e rastreabilidade de informações técnicas.
+- Estruturação de software para resolução de problemas operacionais.
 
-### Executar a aplicação
+---
 
-Na pasta que contém o arquivo `main.py`:
-
-```powershell
-streamlit run main.py
-```
-
-A aplicação normalmente ficará disponível em:
-
-`http://localhost:8501`
-
-## Banco de dados
-
-O SQLite armazena os dados em um arquivo local. Esse arquivo deve ser preservado para evitar a perda dos registros.
-
-Para uso compartilhado, é necessário definir uma estratégia adequada de armazenamento, backup, permissões e acesso simultâneo.
-
-## Segurança e implantação
-
-Para utilização empresarial, devem ser considerados:
-
-- Controle de acesso e permissões.
-- Backup periódico do banco de dados.
-- Proteção das informações da empresa.
-- Testes de integridade e recuperação dos dados.
-- Definição do ambiente de execução e das atualizações do sistema.
-
-## Status
-
-Projeto em desenvolvimento, voltado à digitalização do processo de gestão de calibração de equipamentos e à melhoria da eficiência operacional.
+**Projeto de desenvolvimento de software aplicado à gestão da qualidade, com foco na organização de dados, digitalização de processos e melhoria da eficiência operacional.**
