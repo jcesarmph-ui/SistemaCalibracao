@@ -3,24 +3,33 @@ from datetime import date
 from dateutil.relativedelta import relativedelta
 
 from app.database.db import conectar
-from app.services.incertezas_referencia import (
-    obter_incerteza_referencia,
-    AVISO_HISTORICO,
-)
+
+
+def _validar_edicao(conexao, calibracao_id):
+    registro = conexao.execute(
+        """SELECT 1 FROM calibracoes c JOIN equipamentos e ON e.id = c.equipamento_id
+           WHERE c.id = ? AND c.excluido_em IS NULL AND e.excluido_em IS NULL""",
+        (calibracao_id,),
+    ).fetchone()
+    if registro is None:
+        raise ValueError("Calibração indisponível. Restaure a calibração e o equipamento antes de editar.")
 
 
 def obter_equipamento(equipamento_id):
     conexao = conectar()
 
     try:
-        return conexao.execute(
+        equipamento = conexao.execute(
             """
-            SELECT e.*
+            SELECT
+                e.*
             FROM equipamentos e
-            WHERE e.id = ?
+            WHERE e.id = ? AND e.excluido_em IS NULL
             """,
             (equipamento_id,),
         ).fetchone()
+
+        return equipamento
 
     finally:
         conexao.close()
@@ -52,8 +61,11 @@ def obter_pontos_plano(plano_id):
                 NULL AS secao
             FROM pontos_plano pp
             WHERE pp.plano_id = ?
-              AND pp.ativo = 1
-            ORDER BY pp.ordem, pp.id
+              AND pp.ativo = 1 AND pp.excluido_em IS NULL
+              AND EXISTS (SELECT 1 FROM planos_calibracao p WHERE p.id = pp.plano_id AND p.excluido_em IS NULL)
+            ORDER BY
+                pp.ordem,
+                pp.id
             """,
             (plano_id,),
         ).fetchall()
@@ -70,6 +82,8 @@ def criar_calibracao(
     certificado=None,
     observacoes=None,
     resultado_final=None,
+    localizacao=None,
+    custo_calibracao=None,
 ):
     conexao = conectar()
 
@@ -78,22 +92,17 @@ def criar_calibracao(
             """
             SELECT
                 id,
-                codigo,
                 plano_id,
                 periodicidade_meses
             FROM equipamentos
-            WHERE id = ?
-              AND ativo = 1
+            WHERE id = ? AND excluido_em IS NULL
             """,
             (equipamento_id,),
         ).fetchone()
 
         if equipamento is None:
-            raise ValueError(
-                "Equipamento não encontrado ou inativo."
-            )
+            raise ValueError("Equipamento não encontrado.")
 
-        codigo_equipamento = equipamento["codigo"]
         plano_id = equipamento["plano_id"]
 
         if plano_id is None:
@@ -103,11 +112,15 @@ def criar_calibracao(
 
         pontos_plano = conexao.execute(
             """
-            SELECT pp.*
+            SELECT
+                pp.*
             FROM pontos_plano pp
             WHERE pp.plano_id = ?
-              AND pp.ativo = 1
-            ORDER BY pp.ordem, pp.id
+              AND pp.ativo = 1 AND pp.excluido_em IS NULL
+              AND EXISTS (SELECT 1 FROM planos_calibracao p WHERE p.id = pp.plano_id AND p.excluido_em IS NULL)
+            ORDER BY
+                pp.ordem,
+                pp.id
             """,
             (plano_id,),
         ).fetchall()
@@ -118,9 +131,7 @@ def criar_calibracao(
             )
 
         if isinstance(data_calibracao, str):
-            data_calibracao_obj = date.fromisoformat(
-                data_calibracao
-            )
+            data_calibracao_obj = date.fromisoformat(data_calibracao)
         else:
             data_calibracao_obj = data_calibracao
 
@@ -128,8 +139,7 @@ def criar_calibracao(
 
         if periodicidade is None:
             raise ValueError(
-                "Este equipamento não possui periodicidade "
-                "de calibração cadastrada."
+                "Este equipamento não possui periodicidade de calibração cadastrada."
             )
 
         data_proxima = (
@@ -148,9 +158,11 @@ def criar_calibracao(
                 certificado,
                 resultado,
                 resultado_final,
-                observacoes
+                observacoes,
+                localizacao,
+                custo_calibracao
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 equipamento_id,
@@ -162,44 +174,14 @@ def criar_calibracao(
                 "Pendente",
                 resultado_final,
                 observacoes,
+                localizacao,
+                custo_calibracao,
             ),
         )
 
         calibracao_id = cursor.lastrowid
 
-        for indice, ponto in enumerate(pontos_plano):
-            incerteza_referencia, aviso = (
-                obter_incerteza_referencia(
-                    codigo_equipamento,
-                    ponto,
-                    indice,
-                )
-            )
-
-            if incerteza_referencia is not None:
-                # Converter para texto preserva também o zero:
-                # o valor "0" não é confundido com campo vazio.
-                incerteza = str(incerteza_referencia)
-                observacao_ponto = aviso
-
-            elif ponto["incerteza"] is not None:
-                # Se não há correspondência no catálogo histórico,
-                # preservar a incerteza que já estava no plano.
-                incerteza = str(ponto["incerteza"])
-                observacao_ponto = (
-                    "Incerteza mantida do plano existente. "
-                    "Confirmar unidade e validade metrológica. "
-                    + (aviso or "")
-                )
-
-            else:
-                incerteza = None
-                observacao_ponto = (
-                    aviso
-                    or "Incerteza não localizada. "
-                    "Consultar a planilha original."
-                )
-
+        for ponto in pontos_plano:
             conexao.execute(
                 """
                 INSERT INTO pontos_calibracao (
@@ -239,13 +221,13 @@ def criar_calibracao(
                     ponto["unidade"],
                     ponto["tolerancia_inferior"],
                     ponto["tolerancia_superior"],
-                    incerteza,
+                    ponto["incerteza"],
                     ponto["criterio"],
                     ponto["valor_minimo"],
                     ponto["valor_maximo"],
                     ponto["classe_exigida"],
                     "Pendente",
-                    observacao_ponto,
+                    None,
                 ),
             )
 
@@ -290,7 +272,7 @@ def obter_calibracao(calibracao_id):
             FROM calibracoes c
             INNER JOIN equipamentos e
                 ON e.id = c.equipamento_id
-            WHERE c.id = ?
+            WHERE c.id = ? AND c.excluido_em IS NULL AND e.excluido_em IS NULL
             """,
             (calibracao_id,),
         ).fetchone()
@@ -315,6 +297,13 @@ def obter_pontos_calibracao(calibracao_id):
                 pc.descricao,
                 pc.valor_nominal,
                 pc.valor_encontrado,
+                CASE
+                    WHEN pc.valor_encontrado IS NOT NULL
+                     AND pc.valor_nominal IS NOT NULL
+                     AND UPPER(COALESCE(pc.tipo_ponto, 'NUMERICO')) NOT LIKE '%QUALITATIVO%'
+                    THEN pc.valor_encontrado - pc.valor_nominal
+                    ELSE NULL
+                END AS desvio,
                 pc.unidade,
                 pc.tolerancia_inferior,
                 pc.tolerancia_superior,
@@ -328,7 +317,11 @@ def obter_pontos_calibracao(calibracao_id):
                 NULL AS secao
             FROM pontos_calibracao pc
             WHERE pc.calibracao_id = ?
-            ORDER BY pc.ordem, pc.id
+              AND EXISTS (SELECT 1 FROM calibracoes c JOIN equipamentos e ON e.id = c.equipamento_id
+                          WHERE c.id = pc.calibracao_id AND c.excluido_em IS NULL AND e.excluido_em IS NULL)
+            ORDER BY
+                pc.ordem,
+                pc.id
             """,
             (calibracao_id,),
         ).fetchall()
@@ -377,6 +370,7 @@ def salvar_pontos_calibracao(calibracao_id, pontos):
     conexao = conectar()
 
     try:
+        _validar_edicao(conexao, calibracao_id)
         for ponto in pontos:
             conexao.execute(
                 """
@@ -413,18 +407,12 @@ def salvar_pontos_calibracao(calibracao_id, pontos):
             and str(row["resultado"]).strip()
         ]
 
-        if any(
-            resultado == "Reprovado"
-            for resultado in lista_resultados
-        ):
+        if any(resultado == "Reprovado" for resultado in lista_resultados):
             resultado_geral = "Reprovado"
 
         elif (
             lista_resultados
-            and all(
-                resultado == "Aprovado"
-                for resultado in lista_resultados
-            )
+            and all(resultado == "Aprovado" for resultado in lista_resultados)
         ):
             resultado_geral = "Aprovado"
 
@@ -467,6 +455,7 @@ def atualizar_resultado_calibracao(
     conexao = conectar()
 
     try:
+        _validar_edicao(conexao, calibracao_id)
         conexao.execute(
             """
             UPDATE calibracoes
@@ -490,34 +479,22 @@ def atualizar_resultado_calibracao(
     finally:
         conexao.close()
 
-
-def atualizar_resultado_final_calibracao(
-    calibracao_id,
-    resultado_final,
-):
-    """Salva o parecer final escolhido pelo responsável."""
+def atualizar_resultado_final_calibracao(calibracao_id, resultado_final):
+    """Salva o parecer final escolhido pelo responsável pela calibração."""
     conexao = conectar()
-
     try:
+        _validar_edicao(conexao, calibracao_id)
         conexao.execute(
             """
             UPDATE calibracoes
-            SET
-                resultado_final = ?,
-                atualizado_em = CURRENT_TIMESTAMP
+            SET resultado_final = ?, atualizado_em = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
-            (
-                resultado_final,
-                calibracao_id,
-            ),
+            (resultado_final, calibracao_id),
         )
-
         conexao.commit()
-
     except Exception:
         conexao.rollback()
         raise
-
     finally:
         conexao.close()

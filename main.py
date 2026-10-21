@@ -1,10 +1,14 @@
 import sqlite3
+from io import BytesIO
 from datetime import date, datetime, timedelta
 
 import pandas as pd
 import streamlit as st
+import matplotlib.pyplot as plt
 
 from app.database.db import conectar, criar_banco
+from app.interface import botao_lixeira, pagina_lixeira, tabela_status, sucesso
+from app.services.lixeira_service import contadores
 from app.services.calibracao_service import (
     criar_calibracao,
     obter_calibracao,
@@ -406,9 +410,9 @@ st.markdown(
 # INICIALIZAÇÃO DO BANCO
 # ============================================================
 
-if "banco_inicializado" not in st.session_state:
+if "banco_lixeira_inicializado" not in st.session_state:
     criar_banco()
-    st.session_state["banco_inicializado"] = True
+    st.session_state["banco_lixeira_inicializado"] = True
 
 
 # ============================================================
@@ -460,6 +464,8 @@ def buscar_equipamentos():
         """
         SELECT
             e.*,
+            (SELECT c.data_calibracao FROM calibracoes c WHERE c.equipamento_id = e.id AND c.excluido_em IS NULL ORDER BY c.data_calibracao DESC, c.id DESC LIMIT 1) AS ultima_visivel,
+            (SELECT c.data_proxima_calibracao FROM calibracoes c WHERE c.equipamento_id = e.id AND c.excluido_em IS NULL ORDER BY c.data_calibracao DESC, c.id DESC LIMIT 1) AS proxima_visivel,
             ti.nome AS tipo_instrumento,
             p.nome AS plano_nome,
             p.faixa AS plano_faixa,
@@ -470,7 +476,7 @@ def buscar_equipamentos():
             ON ti.id = e.tipo_instrumento_id
         LEFT JOIN planos_calibracao p
             ON p.id = e.plano_id
-        WHERE e.ativo = 1
+        WHERE e.ativo = 1 AND e.excluido_em IS NULL
         ORDER BY e.codigo
         """
     )
@@ -499,7 +505,7 @@ def buscar_planos():
         FROM planos_calibracao p
         LEFT JOIN tipos_instrumento ti
             ON ti.id = p.tipo_instrumento_id
-        WHERE p.ativo = 1
+        WHERE p.ativo = 1 AND p.excluido_em IS NULL
         ORDER BY ti.nome, p.nome
         """
     )
@@ -515,7 +521,7 @@ def buscar_calibracoes_equipamento(equipamento_id):
         FROM calibracoes c
         INNER JOIN equipamentos e
             ON e.id = c.equipamento_id
-        WHERE c.equipamento_id = ?
+        WHERE c.equipamento_id = ? AND c.excluido_em IS NULL AND e.excluido_em IS NULL
         ORDER BY c.data_calibracao DESC, c.id DESC
         """,
         (equipamento_id,),
@@ -544,6 +550,7 @@ def buscar_todas_calibracoes():
             ON e.id = c.equipamento_id
         LEFT JOIN tipos_instrumento ti
             ON ti.id = e.tipo_instrumento_id
+        WHERE c.excluido_em IS NULL AND e.excluido_em IS NULL AND e.ativo = 1
         ORDER BY
             c.data_proxima_calibracao,
             e.codigo
@@ -557,7 +564,8 @@ def buscar_pontos_plano(plano_id):
         SELECT *
         FROM pontos_plano
         WHERE plano_id = ?
-          AND ativo = 1
+          AND ativo = 1 AND excluido_em IS NULL
+          AND EXISTS (SELECT 1 FROM planos_calibracao WHERE id = pontos_plano.plano_id AND excluido_em IS NULL)
         ORDER BY ordem
         """,
         (plano_id,),
@@ -619,49 +627,81 @@ def formatar_valor(valor):
 # RESULTADO DOS PONTOS
 # ============================================================
 
+def _numero_incerteza(valor):
+    """Converte incerteza textual (ex.: '0,2', '±0.2', '0.2 mm') em número."""
+    if valor is None:
+        return None
+    texto = str(valor).strip().replace(",", ".")
+    if not texto:
+        return None
+    import re
+    encontrado = re.search(r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?", texto)
+    if not encontrado:
+        raise ValueError(f"Incerteza inválida: {valor!r}")
+    try:
+        return abs(float(encontrado.group(0)))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+
+# FUNCAO DO DESVIO FINAL COM SINAL
+
+def desvio_final_com_incerteza(encontrado, nominal, incerteza):
+    if encontrado is None or nominal is None:
+        return None
+
+    desvio = float(encontrado) - float(nominal)
+    u = _numero_incerteza(incerteza)
+    if u is None:
+        return None
+    u = abs(u)
+
+    if desvio < 0:
+        return desvio - u
+
+    return desvio + u
+
+
+
 def calcular_resultado_ponto(ponto, valor):
     if valor is None or valor == "":
         return "Não informado"
 
     try:
         valor_numerico = float(valor)
-
-    except Exception:
+    except (TypeError, ValueError):
         return "Não informado"
 
     valor_minimo = ponto["valor_minimo"]
     valor_maximo = ponto["valor_maximo"]
-
     tolerancia_inferior = ponto["tolerancia_inferior"]
     tolerancia_superior = ponto["tolerancia_superior"]
+    incerteza = _numero_incerteza(ponto["incerteza"] if "incerteza" in ponto.keys() else None)
 
-    if valor_minimo is not None:
-        if valor_numerico < float(valor_minimo):
-            return "Reprovado"
+    if incerteza is None:
+        return "Não avaliado: incerteza ausente"
 
-    if valor_maximo is not None:
-        if valor_numerico > float(valor_maximo):
-            return "Reprovado"
+    # Avalia a faixa completa considerando a incerteza: [valor - U, valor + U].
+    # Assim, a incerteza é somada ao desvio em módulo para a verificação de aceitação.
+    faixa_inferior = valor_numerico - incerteza
+    faixa_superior = valor_numerico + incerteza
+
+    if valor_minimo is not None and faixa_inferior < float(valor_minimo):
+        return "Reprovado"
+    if valor_maximo is not None and faixa_superior > float(valor_maximo):
+        return "Reprovado"
 
     nominal = ponto["valor_nominal"]
-
     if nominal is not None:
         nominal = float(nominal)
-
         if tolerancia_inferior is not None:
-            limite_inferior = (
-                nominal + float(tolerancia_inferior)
-            )
-
-            if valor_numerico < limite_inferior:
+            limite_inferior = nominal + float(tolerancia_inferior)
+            if faixa_inferior < limite_inferior:
                 return "Reprovado"
-
         if tolerancia_superior is not None:
-            limite_superior = (
-                nominal + float(tolerancia_superior)
-            )
-
-            if valor_numerico > limite_superior:
+            limite_superior = nominal + float(tolerancia_superior)
+            if faixa_superior > limite_superior:
                 return "Reprovado"
 
     return "Aprovado"
@@ -717,6 +757,9 @@ with col_titulo:
 # CARREGAMENTO
 # ============================================================
 
+if "mensagem_operacao" in st.session_state:
+    st.success(st.session_state.pop("mensagem_operacao"))
+
 equipamentos = buscar_equipamentos()
 tipos_instrumento = buscar_tipos_instrumento()
 planos = buscar_planos()
@@ -737,7 +780,13 @@ proximos_30 = []
 limite_30 = hoje + timedelta(days=30)
 
 
-for calibracao in calibracoes_todas:
+ultimas_calibracoes = {}
+for registro in calibracoes_todas:
+    atual = ultimas_calibracoes.get(registro["equipamento_id"])
+    if atual is None or (registro["data_calibracao"], registro["id"]) > (atual["data_calibracao"], atual["id"]):
+        ultimas_calibracoes[registro["equipamento_id"]] = registro
+
+for calibracao in ultimas_calibracoes.values():
 
     data_proxima = converter_data(
         calibracao["data_proxima_calibracao"]
@@ -783,6 +832,7 @@ with col4:
     )
 
 
+st.caption(f"Registros na lixeira: {sum(contadores().values())}")
 st.divider()
 
 
@@ -790,10 +840,11 @@ st.divider()
 # ABAS PRINCIPAIS
 # ============================================================
 
-aba_equipamentos, aba_cronograma = st.tabs(
+aba_equipamentos, aba_cronograma, aba_lixeira = st.tabs(
     [
         "Equipamentos",
         "Cronograma",
+        "Lixeira",
     ]
 )
 
@@ -895,6 +946,10 @@ with aba_equipamentos:
                     responsavel = st.text_input(
                         "Responsável"
                     )
+                    custo_compra = st.number_input(
+                        "Custo de compra (R$)", min_value=0.0,
+                        value=0.0, step=50.0, format="%.2f"
+                    )
 
 
                 col3, col4 = st.columns(2)
@@ -924,7 +979,7 @@ with aba_equipamentos:
                 cadastrar = st.form_submit_button(
                     "Cadastrar equipamento",
                     type="primary",
-                    use_container_width=True,
+                    width="stretch",
                 )
 
 
@@ -962,11 +1017,12 @@ with aba_equipamentos:
                                     responsavel,
                                     periodicidade_meses,
                                     status,
-                                    observacoes
+                                    observacoes,
+                                    custo_compra
                                 )
                                 VALUES (
                                     ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                                    ?, ?, ?, 'ATIVO', ?
+                                    ?, ?, ?, 'ATIVO', ?, ?
                                 )
                                 """,
                                 (
@@ -985,14 +1041,11 @@ with aba_equipamentos:
                                     responsavel.strip(),
                                     periodicidade,
                                     observacoes.strip(),
+                                    custo_compra,
                                 ),
                             )
 
-                            st.success(
-                                "Equipamento cadastrado com sucesso."
-                            )
-
-                            st.rerun()
+                            sucesso("Equipamento cadastrado com sucesso.")
 
                         except sqlite3.IntegrityError:
 
@@ -1007,6 +1060,109 @@ with aba_equipamentos:
                                 f"Erro ao cadastrar equipamento: {erro}"
                             )
 
+
+    with st.expander("Gerenciar tipos, planos e pontos nominais", expanded=False):
+        st.markdown("### Criar plano para um tipo de instrumento")
+        tipo_existente_labels = {f"{t['nome']} (ID {t['id']})": t['id'] for t in tipos_instrumento}
+        tipo_opcao = st.radio("Tipo de instrumento", ["Usar tipo existente", "Criar novo tipo"], horizontal=True, key="tipo_opcao_criar_plano")
+        with st.form("form_criar_plano_novo"):
+            tipo_id_existente = None
+            novo_tipo_nome = ""
+            novo_tipo_descricao = ""
+            if tipo_opcao == "Usar tipo existente":
+                if tipo_existente_labels:
+                    tipo_label = st.selectbox("Tipo cadastrado", list(tipo_existente_labels))
+                    tipo_id_existente = tipo_existente_labels[tipo_label]
+                else:
+                    st.info("Ainda não há tipos cadastrados; escolha criar um novo tipo.")
+            else:
+                novo_tipo_nome = st.text_input("Nome do novo tipo *")
+                novo_tipo_descricao = st.text_input("Descrição do tipo")
+            nome_plano = st.text_input("Nome do plano *")
+            faixa_plano = st.text_input("Faixa do instrumento")
+            resolucao_plano = st.text_input("Resolução")
+            periodicidade_plano = st.number_input("Periodicidade (meses)", min_value=1, value=12, step=1)
+            observacoes_plano = st.text_area("Observações do plano")
+            criar_plano_btn = st.form_submit_button("Criar tipo/plano", type="primary")
+        if criar_plano_btn:
+            try:
+                if not nome_plano.strip():
+                    st.error("Informe o nome do plano.")
+                elif tipo_opcao == "Usar tipo existente" and tipo_id_existente is None:
+                    st.error("Cadastre um tipo antes de criar o plano.")
+                else:
+                    conn = conectar()
+                    try:
+                        conn.execute("BEGIN")
+                        if tipo_opcao == "Criar novo tipo":
+                            if not novo_tipo_nome.strip():
+                                raise ValueError("Informe o nome do novo tipo.")
+                            cur = conn.execute("INSERT INTO tipos_instrumento (nome, descricao, ativo) VALUES (?, ?, 1)", (novo_tipo_nome.strip(), novo_tipo_descricao.strip() or None))
+                            tipo_id = cur.lastrowid
+                        else:
+                            tipo_id = tipo_id_existente
+                        conn.execute("INSERT INTO planos_calibracao (tipo_instrumento_id, nome, faixa, resolucao, periodicidade_meses, observacoes, ativo) VALUES (?, ?, ?, ?, ?, ?, 1)", (tipo_id, nome_plano.strip(), faixa_plano.strip() or None, resolucao_plano.strip() or None, int(periodicidade_plano), observacoes_plano.strip() or None))
+                        conn.commit()
+                    except Exception:
+                        conn.rollback()
+                        raise
+                    finally:
+                        conn.close()
+                    sucesso("Tipo/plano criado. Agora adicione os pontos nominais abaixo.")
+            except Exception as erro:
+                st.error(f"Não foi possível criar o tipo/plano: {erro}")
+
+        st.divider()
+        st.markdown("### Adicionar ou editar pontos nominais")
+        planos_ativos = buscar_planos()
+        if planos_ativos:
+            mapa_planos = {f"{pl['tipo_instrumento'] or 'Sem tipo'} — {pl['nome']} (ID {pl['id']})": pl['id'] for pl in planos_ativos}
+            plano_pontos_label = st.selectbox("Plano a editar", list(mapa_planos), key="plano_editar_pontos")
+            plano_pontos_id = mapa_planos[plano_pontos_label]
+            botao_lixeira("Planos", plano_pontos_id, plano_pontos_label)
+            pontos_ativos = buscar_pontos_plano(plano_pontos_id)
+            if pontos_ativos:
+                mapa_pontos = {f"{pt['ordem_original'] or pt['ordem']} — {pt['descricao'] or 'Sem descrição'} (ID {pt['id']})": pt for pt in pontos_ativos}
+                ponto_label = st.selectbox("Ponto existente para editar", list(mapa_pontos), key="ponto_existente_editar")
+                pt_edit = mapa_pontos[ponto_label]
+                botao_lixeira("Pontos dos planos", pt_edit["id"], ponto_label)
+                with st.form(f"form_editar_ponto_{pt_edit['id']}"):
+                    tipo_pt_edit = st.selectbox("Tipo", ["NUMERICO", "QUALITATIVO"], index=1 if "QUALIT" in (pt_edit['tipo_ponto'] or "").upper() else 0)
+                    descricao_pt_edit = st.text_input("Descrição/verificação *", value=pt_edit['descricao'] or "")
+                    nominal_pt_edit = st.number_input("Valor nominal", value=float(pt_edit['valor_nominal'] or 0.0), format="%.6f", disabled=(tipo_pt_edit == "QUALITATIVO"))
+                    unidade_pt_edit = st.text_input("Unidade (ex.: mm, °C, V)", value=pt_edit['unidade'] or "", disabled=(tipo_pt_edit == "QUALITATIVO"))
+                    tol_inf_edit = st.number_input("Tolerância inferior (desvio)", value=float(pt_edit['tolerancia_inferior'] or 0.0), format="%.6f", disabled=(tipo_pt_edit == "QUALITATIVO"))
+                    tol_sup_edit = st.number_input("Tolerância superior (desvio)", value=float(pt_edit['tolerancia_superior'] or 0.0), format="%.6f", disabled=(tipo_pt_edit == "QUALITATIVO"))
+                    inc_edit = st.text_input("Incerteza", value=str(pt_edit['incerteza'] or ""))
+                    salvar_pt_edit = st.form_submit_button("Salvar alterações do ponto", type="primary")
+                if salvar_pt_edit:
+                    try:
+                        executar_comando("UPDATE pontos_plano SET tipo_ponto=?, descricao=?, valor_nominal=?, unidade=?, tolerancia_inferior=?, tolerancia_superior=?, incerteza=? WHERE id=?", (tipo_pt_edit, descricao_pt_edit.strip(), None if tipo_pt_edit == "QUALITATIVO" else nominal_pt_edit, None if tipo_pt_edit == "QUALITATIVO" else (unidade_pt_edit.strip() or None), None if tipo_pt_edit == "QUALITATIVO" else tol_inf_edit, None if tipo_pt_edit == "QUALITATIVO" else tol_sup_edit, inc_edit.strip() or None, pt_edit['id']))
+                        sucesso("Ponto atualizado. Isso afeta novos registros; calibrações históricas preservam os valores já copiados.")
+                    except Exception as erro:
+                        st.error(f"Erro ao atualizar ponto: {erro}")
+            with st.form(f"form_adicionar_ponto_{plano_pontos_id}"):
+                st.markdown("**Adicionar novo ponto ao plano selecionado**")
+                novo_tipo_ponto = st.selectbox("Tipo do novo ponto", ["NUMERICO", "QUALITATIVO"], key=f"novo_tipo_ponto_{plano_pontos_id}")
+                nova_descricao_ponto = st.text_input("Descrição/verificação do ponto *", key=f"nova_desc_{plano_pontos_id}")
+                novo_nominal = st.number_input("Valor nominal", value=0.0, format="%.6f", key=f"novo_nominal_{plano_pontos_id}", disabled=(novo_tipo_ponto == "QUALITATIVO"))
+                nova_unidade = st.text_input("Unidade (ex.: mm, °C, V)", key=f"nova_unidade_{plano_pontos_id}", disabled=(novo_tipo_ponto == "QUALITATIVO"))
+                nova_tol_inf = st.number_input("Tolerância inferior (desvio)", value=0.0, format="%.6f", key=f"nova_tol_inf_{plano_pontos_id}", disabled=(novo_tipo_ponto == "QUALITATIVO"))
+                nova_tol_sup = st.number_input("Tolerância superior (desvio)", value=0.0, format="%.6f", key=f"nova_tol_sup_{plano_pontos_id}", disabled=(novo_tipo_ponto == "QUALITATIVO"))
+                nova_incerteza = st.text_input("Incerteza", key=f"nova_incerteza_{plano_pontos_id}")
+                adicionar_ponto_btn = st.form_submit_button("Adicionar ponto")
+            if adicionar_ponto_btn:
+                try:
+                    if not nova_descricao_ponto.strip():
+                        st.error("Informe a descrição/verificação do ponto.")
+                    else:
+                        ordem_nova = max([int(pt['ordem'] or 0) for pt in pontos_ativos], default=0) + 1
+                        executar_comando("INSERT INTO pontos_plano (plano_id, ordem, ordem_original, tipo_ponto, descricao, valor_nominal, unidade, tolerancia_inferior, tolerancia_superior, incerteza, ativo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)", (plano_pontos_id, ordem_nova, str(ordem_nova), novo_tipo_ponto, nova_descricao_ponto.strip(), None if novo_tipo_ponto == "QUALITATIVO" else novo_nominal, None if novo_tipo_ponto == "QUALITATIVO" else (nova_unidade.strip() or None), None if novo_tipo_ponto == "QUALITATIVO" else nova_tol_inf, None if novo_tipo_ponto == "QUALITATIVO" else nova_tol_sup, nova_incerteza.strip() or None))
+                        sucesso("Ponto adicionado ao plano.")
+                except Exception as erro:
+                    st.error(f"Erro ao adicionar ponto: {erro}")
+        else:
+            st.info("Cadastre um tipo e um plano para começar a adicionar pontos.")
 
     st.subheader("Equipamentos")
 
@@ -1130,6 +1286,19 @@ with aba_equipamentos:
             )
 
 
+            historico_status = buscar_calibracoes_equipamento(equipamento_id)
+            proxima_status = converter_data(historico_status[0]["data_proxima_calibracao"]) if historico_status else None
+            if (equipamento["status"] or "").upper() in ("INATIVO", "DESATIVADO"):
+                st.badge("Equipamento inativo", color="gray")
+            elif proxima_status and proxima_status < hoje:
+                st.badge("Calibração vencida", color="red")
+            elif proxima_status and proxima_status <= limite_30:
+                st.badge("Próxima do vencimento", color="orange")
+            elif proxima_status:
+                st.badge("Calibração em dia", color="green")
+            else:
+                st.badge("Sem calibração", color="gray")
+
             aba_dados, aba_edicao, aba_calibracoes = st.tabs(
                 [
                     "Dados",
@@ -1228,7 +1397,7 @@ with aba_equipamentos:
                         "**Última calibração:**",
                         formatar_data(
                             equipamento[
-                                "data_ultima_calibracao"
+                                "ultima_visivel"
                             ]
                         ),
                     )
@@ -1237,7 +1406,7 @@ with aba_equipamentos:
                         "**Próxima calibração:**",
                         formatar_data(
                             equipamento[
-                                "data_proxima_calibracao"
+                                "proxima_visivel"
                             ]
                         ),
                     )
@@ -1291,13 +1460,13 @@ with aba_equipamentos:
 
 
                 if plano_atual_label is None:
-
-                    plano_atual_label = (
-                        list(
-                            opcoes_planos.keys()
-                        )[0]
-                    )
-
+                    # Preserva o vínculo original ao editar outros campos, mesmo
+                    # quando o plano estiver inativo ou na lixeira.
+                    plano_original = executar_consulta_unica("SELECT * FROM planos_calibracao WHERE id = ?", (equipamento["plano_id"],))
+                    if plano_original:
+                        plano_atual_label = f"{plano_original['nome']} (plano indisponível para novas calibrações)"
+                        opcoes_planos[plano_atual_label] = plano_original
+                        st.warning("O plano associado está inativo ou na lixeira. Restaure-o para criar novas calibrações.")
 
                 with st.form(
                     f"form_edicao_{equipamento_id}"
@@ -1364,9 +1533,7 @@ with aba_equipamentos:
                         plano_edit_label = st.selectbox(
                             "Plano de calibração",
                             lista_planos,
-                            index=lista_planos.index(
-                                plano_atual_label
-                            ),
+                            index=lista_planos.index(plano_atual_label) if plano_atual_label in lista_planos else None,
                         )
 
 
@@ -1422,11 +1589,14 @@ with aba_equipamentos:
                     salvar_edicao = st.form_submit_button(
                         "Salvar alterações",
                         type="primary",
-                        use_container_width=True,
+                        width="stretch",
+                        disabled=not opcoes_planos,
                     )
 
 
-                    if salvar_edicao:
+                    if salvar_edicao and plano_edit_label is None:
+                        st.error("Selecione um plano de calibração para salvar as alterações.")
+                    elif salvar_edicao:
 
                         plano_edit = (
                             opcoes_planos[
@@ -1476,11 +1646,7 @@ with aba_equipamentos:
                             )
 
 
-                            st.success(
-                                "Equipamento atualizado."
-                            )
-
-                            st.rerun()
+                            sucesso("Equipamento atualizado.")
 
 
                         except Exception as erro:
@@ -1491,45 +1657,7 @@ with aba_equipamentos:
 
 
                 st.divider()
-                st.warning(
-                    "A exclusão remove o equipamento e todo o histórico associado. "
-                    "Essa ação é definitiva."
-                )
-                chave_confirmar = f"confirmar_exclusao_{equipamento_id}"
-                if st.button("Excluir equipamento", key=f"excluir_{equipamento_id}"):
-                    st.session_state[chave_confirmar] = True
-                if st.session_state.get(chave_confirmar, False):
-                    st.error("Confirme a exclusão definitiva deste equipamento.")
-                    col_confirmar, col_cancelar = st.columns(2)
-                    with col_confirmar:
-                        if st.button("Sim, excluir definitivamente", key=f"confirmar_excluir_{equipamento_id}", type="primary"):
-                            conexao = conectar()
-                            try:
-                                conexao.execute("BEGIN")
-                                ids = conexao.execute(
-                                    "SELECT id FROM calibracoes WHERE equipamento_id = ?",
-                                    (equipamento_id,),
-                                ).fetchall()
-                                for registro in ids:
-                                    conexao.execute(
-                                        "DELETE FROM pontos_calibracao WHERE calibracao_id = ?",
-                                        (registro["id"],),
-                                    )
-                                conexao.execute("DELETE FROM calibracoes WHERE equipamento_id = ?", (equipamento_id,))
-                                conexao.execute("DELETE FROM equipamentos WHERE id = ?", (equipamento_id,))
-                                conexao.commit()
-                                st.session_state.pop(chave_confirmar, None)
-                                st.success("Equipamento e histórico excluídos.")
-                                st.rerun()
-                            except Exception as erro:
-                                conexao.rollback()
-                                st.error(f"Não foi possível excluir o equipamento: {erro}")
-                            finally:
-                                conexao.close()
-                    with col_cancelar:
-                        if st.button("Cancelar", key=f"cancelar_excluir_{equipamento_id}"):
-                            st.session_state.pop(chave_confirmar, None)
-                            st.rerun()
+                botao_lixeira("Equipamentos", equipamento_id, f"{equipamento['codigo']} — {equipamento['descricao']}")
 
 
             with aba_calibracoes:
@@ -1559,14 +1687,12 @@ with aba_equipamentos:
                         certificado = st.text_input("Certificado")
 
                     with col2:
-                        opcoes_resultado_final = [
-                            "APROVADO",
-                            "REPROVADO - ORIENTAÇÃO INDICATIVA",
-                            "REPROVADO - DESATIVADO",
-                        ]
-                        resultado_final_novo = st.selectbox(
-                            "Resultado final *",
-                            opcoes_resultado_final,
+                        localizacao_calibracao = st.text_input(
+                            "Localização durante a calibração"
+                        )
+                        custo_calibracao = st.number_input(
+                            "Custo de calibração (R$)", min_value=0.0,
+                            value=0.0, step=25.0, format="%.2f"
                         )
                         observacoes_calibracao = st.text_area("Observações")
 
@@ -1574,7 +1700,7 @@ with aba_equipamentos:
                     criar = st.form_submit_button(
                         "Criar calibração",
                         type="primary",
-                        use_container_width=True,
+                        width="stretch",
                     )
 
 
@@ -1586,7 +1712,9 @@ with aba_equipamentos:
                                 equipamento_id=equipamento_id,
                                 data_calibracao=data_calibracao,
                                 responsavel=(responsavel_calibracao.strip() or None),
-                                resultado_final=resultado_final_novo,
+                                resultado_final=None,
+                                localizacao=(localizacao_calibracao.strip() or None),
+                                custo_calibracao=custo_calibracao,
                                 laboratorio=(
                                     laboratorio.strip()
                                     or None
@@ -1608,12 +1736,7 @@ with aba_equipamentos:
                             ] = calibracao_id
 
 
-                            st.success(
-                                f"Calibração #{calibracao_id} criada."
-                            )
-
-
-                            st.rerun()
+                            sucesso(f"Calibração #{calibracao_id} criada.")
 
 
                         except Exception as erro:
@@ -1732,6 +1855,7 @@ with aba_equipamentos:
 
 
                     if calibracao:
+                        botao_lixeira("Calibrações", calibracao_selecionada, f"Calibração #{calibracao_selecionada} — {calibracao['data_calibracao']}")
 
                         col1, col2, col3, col4 = (
                             st.columns(4)
@@ -1755,9 +1879,7 @@ with aba_equipamentos:
                             st.write(
                                 "**Próxima:**",
                                 formatar_data(
-                                    calibracao[
-                                        "data_proxima_calibracao"
-                                    ]
+                                    calibracao["data_proxima_calibracao"]
                                 ),
                             )
 
@@ -1773,14 +1895,22 @@ with aba_equipamentos:
 
 
                         with col4:
-                            st.write(
-                                "**Resultado final:**",
-                                calibracao["resultado_final"] or "Resultado não definido",
-                            )
+                            resultado_visual = calibracao["resultado_final"] or "Resultado não definido"
+                            cor_resultado = "red" if resultado_visual.upper().startswith("REPROVADO") else "green" if resultado_visual.upper() == "APROVADO" else "gray"
+                            st.badge(resultado_visual, color=cor_resultado)
 
                         st.write(
                             "**Responsável pela calibração:**",
                             calibracao["responsavel"] or "Não informado",
+                        )
+                        st.write(
+                            "**Localização da calibração:**",
+                            calibracao["localizacao"] or "Não informada",
+                        )
+                        custo_hist = calibracao["custo_calibracao"]
+                        st.write(
+                            "**Custo da calibração:**",
+                            f"R$ {float(custo_hist):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if custo_hist is not None else "Não informado",
                         )
 
 
@@ -1836,48 +1966,143 @@ with aba_equipamentos:
                                 calibracao_selecionada,
                                 resultado_final_editado,
                             )
-                            st.success("Resultado final salvo.")
-                            st.rerun()
+                            sucesso("Resultado final salvo.")
                         except Exception as erro:
                             st.error(f"Erro ao salvar resultado final: {erro}")
 
                     st.divider()
-                    st.subheader(f"Referência de calibração — pontos nominais ({len(pontos)})")
-                    st.caption(
-                        "Consulte estes critérios durante a verificação física do instrumento. "
-                        "O sistema não solicita valores encontrados nem calcula erros ou aprovações por ponto."
-                    )
+                    st.subheader(f"Pontos da calibração — {len(pontos)}")
                     if not pontos:
-                        st.warning("Este plano não possui pontos de referência cadastrados.")
+                        st.warning("Esta calibração não possui pontos registrados.")
                     else:
-                        linhas_referencia = []
+
+                        if any(p["incerteza"] in (None, "") and "QUALIT" not in (p["tipo_ponto"] or "NUMERICO").upper() for p in pontos):
+                            st.warning("Há pontos numéricos sem incerteza histórica. Os valores originais foram preservados; não será usado zero nem a incerteza do plano atual. Valide o registro técnico antes de recalcular resultados.")
+                        pontos_editados = []
+                        with st.form(f"form_pontos_calibracao_{calibracao_selecionada}"):
+                            for indice, ponto in enumerate(pontos, start=1):
+                                st.markdown(f"**Ponto {ponto['ordem_original'] or indice}: {ponto['descricao'] or 'Sem descrição'}**")
+                                tipo_ponto = (ponto["tipo_ponto"] or "NUMERICO").upper()
+                                c1, c2, c3 = st.columns([2, 1, 2])
+                                if "QUALIT" in tipo_ponto:
+                                    opcoes_q = ["Pendente", "Aprovado", "Reprovado", "Não aplicável"]
+                                    atual_q = ponto["resultado"] if ponto["resultado"] in opcoes_q else "Pendente"
+                                    with c1:
+                                        resultado_ponto = st.selectbox("Resultado qualitativo", opcoes_q, index=opcoes_q.index(atual_q), key=f"qual_{ponto['id']}")
+                                    valor_encontrado = None
+                                    with c2:
+                                        st.write("**Nominal:** —")
+                                    with c3:
+                                        obs_ponto = None
+                                else:
+                                    nominal = ponto["valor_nominal"]
+                                    valor_atual = float(ponto["valor_encontrado"]) if ponto["valor_encontrado"] is not None else float(nominal or 0.0)
+                                    with c1:
+                                        valor_encontrado = st.number_input(
+                                            (f"Valor encontrado ({ponto['unidade']})" if ponto["unidade"] else "Valor encontrado"),
+                                            value=(float(ponto["valor_encontrado"]) if ponto["valor_encontrado"] is not None else None), key=f"valor_{ponto['id']}", format="%.6f", placeholder="Digite o valor encontrado"
+                                        )
+                                    desvio = desvio_final_com_incerteza(valor_encontrado, nominal, ponto["incerteza"]) if valor_encontrado is not None and nominal is not None else None
+                                    with c2:
+                                        st.write("**Nominal:**", f"{formatar_valor(nominal)} {ponto['unidade'] or ''}".strip())
+                                        st.write("**Desvio:**", f"{formatar_valor(desvio)} {ponto['unidade'] or ''}".strip() if desvio is not None else "—")
+                                    resultado_ponto = calcular_resultado_ponto(ponto, valor_encontrado)
+                                    with c3:
+                                        obs_ponto = None
+                                pontos_editados.append({"id": ponto["id"], "valor_encontrado": valor_encontrado, "resultado": resultado_ponto, "observacoes": obs_ponto})
+                                st.divider()
+                            salvar_pontos = st.form_submit_button("Salvar valores encontrados", type="primary", width="stretch")
+                        if salvar_pontos:
+                            try:
+                                if any(p["resultado"] == "Não avaliado: incerteza ausente" for p in pontos_editados):
+                                    raise ValueError("Operação bloqueada: há valores que exigem incerteza histórica ausente. Nenhum resultado foi alterado.")
+                                salvar_pontos_calibracao(calibracao_selecionada, pontos_editados)
+                                sucesso("Valores encontrados, desvios e resultados salvos no histórico.")
+                            except Exception as erro:
+                                st.error(f"Não foi possível salvar os pontos: {erro}")
+
+                        # Histórico legível: permanece disponível ao reabrir a calibração.
+                        linhas_pontos = []
                         for indice, ponto in enumerate(pontos, start=1):
-                            tipo_ponto = (ponto["tipo_ponto"] or "NUMERICO").replace("_", " ").title()
-                            nominal = formatar_valor(ponto["valor_nominal"])
-                            minimo = formatar_valor(ponto["valor_minimo"])
-                            maximo = formatar_valor(ponto["valor_maximo"])
-                            tol_inf = formatar_valor(ponto["tolerancia_inferior"])
-                            tol_sup = formatar_valor(ponto["tolerancia_superior"])
-                            criterios = ponto["criterio"] or ""
-                            if ponto["classe_exigida"]:
-                                criterios = (criterios + " | " if criterios else "") + f"Classe exigida: {ponto['classe_exigida']}"
-                            if minimo != "-" or maximo != "-":
-                                criterios = (criterios + " | " if criterios else "") + f"Faixa permitida: {minimo} a {maximo}"
-                            linhas_referencia.append({
-                                "Ponto": ponto["ordem_original"] or indice,
-                                "Tipo": tipo_ponto,
+                            tipo_ponto = (ponto["tipo_ponto"] or "NUMERICO").upper()
+                            nominal = ponto["valor_nominal"]
+                            encontrado = ponto["valor_encontrado"]
+                            desvio = desvio_final_com_incerteza(encontrado, nominal, ponto["incerteza"]) if encontrado is not None and nominal is not None and "QUALIT" not in tipo_ponto else None
+                            unidade = ponto["unidade"] or ""
+                            linhas_pontos.append({
                                 "Verificação / descrição": ponto["descricao"] or "-",
-                                "Nominal": f"{nominal} {ponto['unidade'] or ''}".strip() if nominal != "-" else "-",
-                                "Tolerância inferior": tol_inf,
-                                "Tolerância superior": tol_sup,
-                                "Incerteza": ponto["incerteza"] or "-",
-                                "Critério / observações": criterios or "-",
+                                "Nominal": f"{formatar_valor(nominal)} {unidade}".strip() if nominal is not None else "-",
+                                "Valor encontrado": f"{formatar_valor(encontrado)} {unidade}".strip() if encontrado is not None else (ponto["resultado"] or "Pendente" if "QUALIT" in tipo_ponto else "Não informado"),
+                                "Desvio": f"{formatar_valor(desvio)} {unidade}".strip() if desvio is not None else "—",
+                                "Tolerância inferior": f"{formatar_valor(ponto['tolerancia_inferior'])} {unidade}".strip() if ponto["tolerancia_inferior"] is not None else "-",
+                                "Tolerância superior": f"{formatar_valor(ponto['tolerancia_superior'])} {unidade}".strip() if ponto["tolerancia_superior"] is not None else "-",
+                                "Incerteza": f"{ponto['incerteza']} {unidade}".strip() if ponto["incerteza"] not in (None, "") else "-",
+                                "Resultado": ponto["resultado"] or "Pendente",
                             })
-                        st.dataframe(
-                            pd.DataFrame(linhas_referencia),
-                            use_container_width=True,
-                            hide_index=True,
-                        )
+                        st.dataframe(tabela_status(pd.DataFrame(linhas_pontos)), width="stretch", hide_index=True)
+
+                    st.divider()
+                    st.subheader("Gráfico de tendência do equipamento")
+
+                    if st.button("Gerar gráfico de tendência", key=f"gerar_grafico_{equipamento_id}", type="primary"):
+                        conexao_grafico = conectar()
+                        try:
+                            dados_grafico = conexao_grafico.execute(
+                                """SELECT c.data_calibracao, pc.ordem_original, pc.descricao, pc.valor_nominal,
+                                          pc.valor_encontrado, pc.unidade, pc.tolerancia_inferior, pc.tolerancia_superior,
+                                          pc.tipo_ponto, pc.incerteza
+                                   FROM calibracoes c JOIN pontos_calibracao pc ON pc.calibracao_id = c.id
+                                   WHERE c.equipamento_id = ? AND c.excluido_em IS NULL AND pc.valor_encontrado IS NOT NULL
+                                     AND pc.valor_nominal IS NOT NULL
+                                     AND UPPER(COALESCE(pc.tipo_ponto, 'NUMERICO')) NOT LIKE '%QUALITATIVO%'
+                                   ORDER BY c.data_calibracao, c.id, pc.ordem, pc.id""",
+                                (equipamento_id,),
+                            ).fetchall()
+                        finally:
+                            conexao_grafico.close()
+                        if not dados_grafico:
+                            st.warning("Ainda não existem valores numéricos encontrados suficientes para gerar o gráfico.")
+                        else:
+                            fig, ax = plt.subplots(figsize=(11, 6))
+                            grupos = {}
+                            omitidos = sum(1 for reg in dados_grafico if reg["incerteza"] in (None, ""))
+                            if omitidos:
+                                st.warning(f"{omitidos} ponto(s) sem incerteza histórica não foram representados no gráfico. Não foram substituídos por zero.")
+                            for reg in dados_grafico:
+                                if reg["incerteza"] in (None, ""):
+                                    continue
+                                chave = (reg["ordem_original"] or reg["descricao"] or "Ponto", reg["descricao"] or "")
+                                grupos.setdefault(chave, []).append(reg)
+                            for (ordem, descricao), registros in grupos.items():
+                                xs = [datetime.strptime(r["data_calibracao"][:10], "%Y-%m-%d") for r in registros]
+                                ys = [desvio_final_com_incerteza(r["valor_encontrado"], r["valor_nominal"], r["incerteza"]) for r in registros]
+                                label = f"Ponto {ordem} — {descricao}" if descricao else f"Ponto {ordem}"
+                                linha, = ax.plot(xs, ys, marker="o", linewidth=2, label=label)
+                                cor = linha.get_color()
+                                # Os limites são desvios relativos ao nominal.
+                                inferior = next((float(r["tolerancia_inferior"]) for r in registros if r["tolerancia_inferior"] is not None), None)
+                                superior = next((float(r["tolerancia_superior"]) for r in registros if r["tolerancia_superior"] is not None), None)
+                                if inferior is not None:
+                                    ax.axhline(inferior, color=cor, linestyle="--", alpha=0.45)
+                                if superior is not None:
+                                    ax.axhline(superior, color=cor, linestyle="--", alpha=0.45)
+                                for x, y, reg in zip(xs, ys, registros):
+                                    fora = ((inferior is not None and y < inferior) or (superior is not None and y > superior))
+                                    if fora:
+                                        ax.scatter([x], [y], color="red", s=85, zorder=5, edgecolors="white")
+                            ax.axhline(0, color="white", linewidth=1, alpha=0.5)
+                            ax.set_title(f"Tendência de calibração — {equipamento['codigo']}")
+                            ax.set_xlabel("Data real da calibração")
+                            ax.set_ylabel("Desvio final com incerteza")
+                            ax.grid(True, alpha=0.25)
+                            ax.legend(loc="best", fontsize=8)
+                            fig.autofmt_xdate()
+                            fig.tight_layout()
+                            st.pyplot(fig, width="stretch")
+                            imagem = BytesIO()
+                            fig.savefig(imagem, format="png", dpi=180, bbox_inches="tight")
+                            plt.close(fig)
+                            st.download_button("Baixar gráfico em PNG", data=imagem.getvalue(), file_name=f"tendencia_{equipamento['codigo']}.png", mime="image/png")
 
 
 # ============================================================
@@ -1895,7 +2120,7 @@ with aba_cronograma:
                c.responsavel, e.codigo, e.descricao
         FROM calibracoes c
         JOIN equipamentos e ON e.id = c.equipamento_id
-        WHERE e.ativo = 1
+        WHERE e.ativo = 1 AND e.excluido_em IS NULL AND c.excluido_em IS NULL
         ORDER BY c.data_calibracao, c.id
         """
     )
@@ -1947,10 +2172,10 @@ with aba_cronograma:
             "Próxima calibração": formatar_data(prox_eq.isoformat()) if prox_eq else "-",
             "Status": status_eq,
         })
-    if filtro_status_atual != "Todos":
+    if resumo_status:
         st.dataframe(
-            pd.DataFrame([r for r in resumo_status if r["Status"] == filtro_status_atual]),
-            use_container_width=True,
+            tabela_status(pd.DataFrame([r for r in resumo_status if filtro_status_atual == "Todos" or r["Status"] == filtro_status_atual], columns=["Código", "Equipamento", "Próxima calibração", "Status"])),
+            width="stretch",
             hide_index=True,
         )
 
@@ -1966,7 +2191,7 @@ with aba_cronograma:
         "Mês do cronograma",
         meses,
         index=meses.index(mes_atual),
-        format_func=lambda x: datetime.strptime(x, "%Y-%m").strftime("%B/%Y").capitalize(),
+        format_func=lambda x: ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][int(x[5:7])-1] + "/" + x[:4],
     )
     inicio_mes = date.fromisoformat(mes_escolhido + "-01")
     if inicio_mes.month == 12:
@@ -1997,7 +2222,7 @@ with aba_cronograma:
                     "Código": eq["codigo"],
                     "Equipamento": eq["descricao"],
                     "Data prevista": formatar_data(vencimento.isoformat()),
-                    "Situação": "FEITO" if feita else "PENDENTE",
+                    "Situação": "FEITO" if feita else ("VENCIDA" if vencimento < hoje else "PRÓXIMAS (30 DIAS)" if vencimento <= hoje + timedelta(days=30) else "EM DIA"),
                     "Data realizada": formatar_data(data_execucao.isoformat()) if feita else "-",
                 }
         # Vencida atual: vencimento mais recente já passou e ainda não existe calibração posterior.
@@ -2013,7 +2238,7 @@ with aba_cronograma:
     eventos_mes = list(eventos_mes_por_equipamento.values())
     df_mes = pd.DataFrame(eventos_mes, columns=["Código", "Equipamento", "Data prevista", "Situação", "Data realizada"])
     feitos = sum(1 for item in eventos_mes if item["Situação"] == "FEITO")
-    pendentes = sum(1 for item in eventos_mes if item["Situação"] == "PENDENTE")
+    pendentes = sum(1 for item in eventos_mes if item["Situação"] != "FEITO")
     total_mes = len(eventos_mes)
     c1, c2, c3 = st.columns(3)
     c1.metric("Calibrações do mês", total_mes)
@@ -2024,19 +2249,10 @@ with aba_cronograma:
     if df_mes.empty:
         st.info("Não há calibrações previstas para este mês com base no histórico registrado.")
     else:
-        def colorir_situacao(linha):
-            cor = "background-color: #14532d; color: #ffffff" if linha["Situação"] == "FEITO" else "background-color: #7f1d1d; color: #ffffff"
-            return [cor if coluna == "Situação" else "" for coluna in linha.index]
-
-        st.dataframe(
-            df_mes.style.apply(colorir_situacao, axis=1),
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Situação": st.column_config.TextColumn("Situação", help="FEITO ou PENDENTE conforme o histórico de calibração."),
-            },
-        )
-        st.caption("Os vencimentos permanecem no mês original para manter o total previsto, mesmo quando a calibração é feita depois.")
+        filtro_mes = st.selectbox("Situação no mês", ["Todas", "FEITO", "VENCIDA", "PRÓXIMAS (30 DIAS)", "EM DIA"], key="cronograma_situacao_mes")
+        df_filtrado = df_mes if filtro_mes == "Todas" else df_mes[df_mes["Situação"] == filtro_mes]
+        st.dataframe(tabela_status(df_filtrado), width="stretch", hide_index=True)
+        st.caption("Verde: realizado ou em dia · amarelo: próximo do vencimento · vermelho: vencido.")
 
     st.divider()
     st.subheader("Vencidas")
@@ -2044,4 +2260,9 @@ with aba_cronograma:
     if df_vencidas.empty:
         st.success("Não há equipamentos vencidos no momento.")
     else:
-        st.dataframe(df_vencidas, use_container_width=True, hide_index=True)
+        df_vencidas["Status"] = "Vencidas"
+        st.dataframe(tabela_status(df_vencidas), width="stretch", hide_index=True)
+
+
+with aba_lixeira:
+    pagina_lixeira()

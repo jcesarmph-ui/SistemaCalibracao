@@ -1,0 +1,140 @@
+{
+  "executado_em": "2026-10-21T19:30:18.724313-03:00",
+  "backup": "data/backups/calibracao_antes_lixeira_20261021_193018_584059.db",
+  "dados_originais_preservados": true,
+  "backup_confere_com_origem": true,
+  "integrity_check": [
+    [
+      "ok"
+    ]
+  ],
+  "foreign_key_check": [],
+  "tabelas": {
+    "calibracoes": {
+      "colunas": [
+        "id",
+        "equipamento_id",
+        "data_calibracao",
+        "data_proxima_calibracao",
+        "laboratorio",
+        "certificado",
+        "resultado",
+        "observacoes",
+        "criado_em",
+        "localizacao",
+        "custo_calibracao",
+        "responsavel",
+        "resultado_final",
+        "atualizado_em"
+      ],
+      "quantidade": 139,
+      "sha256": "c82f84d04f7b63825cea38f3422caf3aa1b207c59bb981d88d887d2e316923a7"
+    },
+    "equipamentos": {
+      "colunas": [
+        "id",
+        "codigo",
+        "descricao",
+        "tipo_instrumento_id",
+        "plano_id",
+        "fabricante",
+        "modelo",
+        "numero_serie",
+        "faixa",
+        "resolucao",
+        "localizacao",
+        "responsavel",
+        "periodicidade_meses",
+        "status",
+        "data_ultima_calibracao",
+        "data_proxima_calibracao",
+        "observacoes",
+        "ativo",
+        "criado_em",
+        "atualizado_em",
+        "custo_compra"
+      ],
+      "quantidade": 173,
+      "sha256": "07d46023dece0face336fa447d8d6d1f2a7db5db1377846891ea0fdd23b64e17"
+    },
+    "planos_calibracao": {
+      "colunas": [
+        "id",
+        "tipo_instrumento_id",
+        "nome",
+        "faixa",
+        "resolucao",
+        "periodicidade_meses",
+        "observacoes",
+        "ativo",
+        "criado_em"
+      ],
+      "quantidade": 173,
+      "sha256": "f97fc123debfe7d7160a82f816b8ddad52674767c9e40c5d247b2601cf48d4d1"
+    },
+    "pontos_calibracao": {
+      "colunas": [
+        "id",
+        "calibracao_id",
+        "ponto_plano_id",
+        "ordem",
+        "ordem_original",
+        "tipo_ponto",
+        "descricao",
+        "valor_nominal",
+        "valor_encontrado",
+        "unidade",
+        "tolerancia_inferior",
+        "tolerancia_superior",
+        "incerteza",
+        "criterio",
+        "valor_minimo",
+        "valor_maximo",
+        "classe_exigida",
+        "resultado",
+        "observacoes",
+        "criado_em"
+      ],
+      "quantidade": 1009,
+      "sha256": "259242c7f8863ba8f3f3b5a7be7bc37e342debd81edcc985764e8ee3f15ad423"
+    },
+    "pontos_plano": {
+      "colunas": [
+        "id",
+        "plano_id",
+        "ordem",
+        "ordem_original",
+        "tipo_ponto",
+        "secao",
+        "descricao",
+        "valor_nominal",
+        "unidade",
+        "tolerancia_inferior",
+        "tolerancia_superior",
+        "incerteza",
+        "criterio",
+        "valor_minimo",
+        "valor_maximo",
+        "classe_exigida",
+        "entrada_tipo",
+        "ativo",
+        "criado_em"
+      ],
+      "quantidade": 1169,
+      "sha256": "a81a6b2ef16a0109c749d8a602ed514a3680159dbeef1a81f3ce585030877be1"
+    },
+    "tipos_instrumento": {
+      "colunas": [
+        "id",
+        "nome",
+        "descricao",
+        "ativo",
+        "criado_em"
+      ],
+      "quantidade": 19,
+      "sha256": "eb00f41423ac8d8c6abc346ef597eefb57ab63900aa878b0101c75f6caa8324b"
+    }
+  },
+  "testes_automatizados": 9,
+  "testes_destrutivos_somente_em_copias": true
+}
