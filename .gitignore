@@ -1,0 +1,17 @@
+# Ambientes e arquivos gerados localmente
+.venv/
+__pycache__/
+*.py[cod]
+build/
+dist/
+tests/tmp*/
+
+# Dados de operação e cópias de segurança locais
+data/backups/
+*.db-wal
+*.db-shm
+*.db-journal
+
+# Configurações privadas
+.streamlit/secrets.toml
+.env

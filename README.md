@@ -139,3 +139,10 @@ SistemaCalibracao/
 ---
 
 **Projeto de desenvolvimento de software aplicado à gestão da qualidade, com foco na organização de dados, digitalização de processos e melhoria da eficiência operacional.**
+
+
+## Atualização: lixeira e resultados visuais
+
+Exclusão lógica, restauração segura, exclusão permanente protegida, resultados coloridos e melhorias no cronograma. A migração cria backup automático antes de adicionar os campos da lixeira.
+
+Consulte [as regras, os arquivos modificados e a validação](docs/ATUALIZACAO_LIXEIRA.md). Para executar os testes: `python -m unittest discover -s tests -v`. O executável precisa ser gerado novamente para incorporar a atualização.

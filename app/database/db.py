@@ -1,10 +1,43 @@
 import sqlite3
+from contextlib import closing
+from datetime import datetime
 from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "calibracao.db"
+
+
+TABELAS_LIXEIRA = ("equipamentos", "calibracoes", "planos_calibracao", "pontos_plano")
+
+
+def backup_banco():
+    """Backup consistente pela API SQLite, incluindo dados ainda no WAL."""
+    pasta = DB_PATH.parent / "backups"
+    pasta.mkdir(parents=True, exist_ok=True)
+    destino = pasta / f"calibracao_antes_lixeira_{datetime.now():%Y%m%d_%H%M%S_%f}.db"
+    with closing(sqlite3.connect(DB_PATH)) as origem, closing(sqlite3.connect(destino)) as copia:
+        origem.backup(copia)
+        if copia.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+            raise RuntimeError("O backup não passou na verificação de integridade.")
+    return destino
+
+
+def _preparar_migracao():
+    if not DB_PATH.exists():
+        return
+    with closing(sqlite3.connect(DB_PATH)) as conexao:
+        pendente = any(
+            not {"excluido_em", "motivo_exclusao"}.issubset(
+                {r[1] for r in conexao.execute(f"PRAGMA table_info({tabela})")}
+            ) for tabela in TABELAS_LIXEIRA
+        )
+        if pendente:
+            if conexao.execute("PRAGMA integrity_check").fetchone()[0] != "ok" or conexao.execute("PRAGMA foreign_key_check").fetchall():
+                raise RuntimeError("Migração bloqueada: inconsistências no banco. Preserve o arquivo e verifique os vínculos.")
+    if pendente:
+        backup_banco()
 
 
 def conectar():
@@ -168,6 +201,7 @@ def _migrar_pontos_plano(conexao):
             unidade TEXT,
             tolerancia_inferior REAL,
             tolerancia_superior REAL,
+            incerteza TEXT,
             criterio TEXT,
             valor_minimo REAL,
             valor_maximo REAL,
@@ -198,6 +232,7 @@ def _migrar_pontos_plano(conexao):
         "unidade",
         "tolerancia_inferior",
         "tolerancia_superior",
+        "incerteza",
         "criterio",
         "valor_minimo",
         "valor_maximo",
@@ -248,6 +283,11 @@ def _migrar_pontos_plano(conexao):
         _expressao_coluna(
             antigas,
             "tolerancia_superior"
+        ),
+        _expressao_coluna(
+            antigas,
+            "incerteza",
+            alternativas=["uncertainty", "incerteza_calibracao"]
         ),
         _expressao_coluna(
             antigas,
@@ -350,6 +390,7 @@ def _migrar_pontos_calibracao(conexao):
             unidade TEXT,
             tolerancia_inferior REAL,
             tolerancia_superior REAL,
+            incerteza TEXT,
             criterio TEXT,
             valor_minimo REAL,
             valor_maximo REAL,
@@ -383,6 +424,7 @@ def _migrar_pontos_calibracao(conexao):
         "unidade",
         "tolerancia_inferior",
         "tolerancia_superior",
+        "incerteza",
         "criterio",
         "valor_minimo",
         "valor_maximo",
@@ -444,6 +486,11 @@ def _migrar_pontos_calibracao(conexao):
         ),
         _expressao_coluna(
             antigas,
+            "incerteza",
+            alternativas=["uncertainty", "incerteza_calibracao"]
+        ),
+        _expressao_coluna(
+            antigas,
             "criterio"
         ),
         _expressao_coluna(
@@ -497,6 +544,7 @@ def criar_banco():
         exist_ok=True
     )
 
+    _preparar_migracao()
     conexao = conectar()
 
     try:
@@ -504,6 +552,7 @@ def criar_banco():
         conexao.execute(
             "PRAGMA foreign_keys = OFF"
         )
+        conexao.execute("BEGIN IMMEDIATE")
 
         # ====================================================
         # TIPOS
@@ -561,6 +610,7 @@ def criar_banco():
                 unidade TEXT,
                 tolerancia_inferior REAL,
                 tolerancia_superior REAL,
+                incerteza TEXT,
                 criterio TEXT,
                 valor_minimo REAL,
                 valor_maximo REAL,
@@ -650,6 +700,7 @@ def criar_banco():
                 unidade TEXT,
                 tolerancia_inferior REAL,
                 tolerancia_superior REAL,
+                incerteza TEXT,
                 criterio TEXT,
                 valor_minimo REAL,
                 valor_maximo REAL,
@@ -723,6 +774,21 @@ def criar_banco():
             "atualizado_em",
             "TEXT",
             "CURRENT_TIMESTAMP"
+        )
+
+        # ====================================================
+        # NOVAS COLUNAS — CUSTOS E LOCAL DA CALIBRAÇÃO
+        # Migração aditiva: não remove nem recria registros existentes.
+        # ====================================================
+
+        _adicionar_coluna_se_nao_existir(
+            conexao, "equipamentos", "custo_compra", "REAL"
+        )
+        _adicionar_coluna_se_nao_existir(
+            conexao, "calibracoes", "localizacao", "TEXT"
+        )
+        _adicionar_coluna_se_nao_existir(
+            conexao, "calibracoes", "custo_calibracao", "REAL"
         )
 
         # ====================================================
@@ -953,6 +1019,13 @@ def criar_banco():
             """
         )
 
+        for tabela in TABELAS_LIXEIRA:
+            _adicionar_coluna_se_nao_existir(conexao, tabela, "excluido_em", "TEXT")
+            _adicionar_coluna_se_nao_existir(conexao, tabela, "motivo_exclusao", "TEXT")
+            conexao.execute(f"CREATE INDEX IF NOT EXISTS idx_{tabela}_lixeira ON {tabela}(excluido_em)")
+        conexao.execute("CREATE INDEX IF NOT EXISTS idx_pontos_calibracao_plano ON pontos_calibracao(ponto_plano_id)")
+        if conexao.execute("PRAGMA foreign_key_check").fetchall():
+            raise RuntimeError("Migração bloqueada por vínculos inconsistentes.")
         conexao.commit()
 
         conexao.execute(
