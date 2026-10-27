@@ -8,6 +8,9 @@ tests/tmp*/
 
 # Dados de operação e cópias de segurança locais
 data/backups/
+data/*.db
+*.sqlite
+*.sqlite3
 *.db-wal
 *.db-shm
 *.db-journal

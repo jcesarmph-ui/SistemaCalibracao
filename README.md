@@ -407,7 +407,7 @@ SistemaCalibracao/
 │   ├── services/               # calibrações, lixeira e incertezas de referência
 │   └── interface.py            # cores semânticas e telas da lixeira
 ├── assets/                     # recursos da interface (logo)
-├── data/                       # banco SQLite e backups locais
+├── data/                       # banco SQLite (criado na 1ª execução; não versionado)
 ├── docs/                       # documentação da atualização da lixeira
 ├── scripts/                    # utilitários administrativos (importação, validação, limpeza)
 ├── tests/                      # testes automáticos (unittest)
