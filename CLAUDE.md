@@ -64,6 +64,16 @@ tendência; lixeira com exclusão lógica. Detalhes do comportamento atual: `REA
   problema do programa: vão como estão (ex.: valor que parece digitado errado; abas sem
   tolerância). Quem confere é o usuário, com análise crítica a cada calibração, corrigindo pela tela de
   edição. Não perguntar sobre "possíveis erros" da planilha — só sobre como **interpretar** um dado.
+- **Quais instrumentos entram** (decisão do usuário em 2026-10-28): a lista mestra é a aba
+  **"Cronograma de Calibração"**. Ficam de fora: (a) abas de instrumentos que **não estão no
+  cronograma** (já desativados); (b) linhas do cronograma **tachadas com fundo vermelho**
+  (desativados). Localização em letra vermelha/fundo amarelo (reserva, orientativo) **não** exclui —
+  esses entram. Instrumentos do cronograma **sem aba** própria (reserva no laboratório ou não
+  calibrados) **entram sem plano**.
+  Localização vem do cronograma; o resto do cadastro e o plano vêm da aba do instrumento.
+- **O usuário pode fazer tudo pelo programa**: incluir/editar/desativar instrumentos, criar/editar
+  planos, incluir/editar/remover pontos (inclusive marcar que um instrumento não precisa de
+  calibração). Nada de cadastro pode depender de mexer no banco ou no código.
 - Leitura: considerar o `number_format` da célula (ex.: `0.007` com formato `"± "0.000` = ± 0,007).
   "Classificação (Classe)" com valor `1` (extensômetro, máquina de tração) = **classe exigida 1**, não tolerância.
 
