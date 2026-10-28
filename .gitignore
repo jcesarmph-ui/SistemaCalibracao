@@ -18,3 +18,19 @@ data/*.db
 # Configurações privadas
 .streamlit/secrets.toml
 .env
+
+# Programa novo (PySide6) — repositório é PÚBLICO, nunca versionar dados da empresa
+# "/" no início = só a pasta dados/ da raiz (banco novo, logo, planilha de trabalho)
+/dados/
+# Planilhas (ex.: DQ05) — testes usam planilha fictícia gerada pelo próprio teste
+*.xlsx
+*.xlsm
+*.xls
+*.db
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+*.spec
+
+# Configurações pessoais do Claude Code (não versionar)
+.claude/settings.local.json

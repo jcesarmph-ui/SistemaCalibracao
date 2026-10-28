@@ -1,0 +1,55 @@
+# Ficha do projeto: nome, versão do Python, bibliotecas e configuração das ferramentas.
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "calibracao"
+dynamic = ["version"]  # vem de src/calibracao/__init__.py (__version__)
+description = "Gestão das calibrações dos instrumentos de medição (MG Centro de Serviços)"
+requires-python = ">=3.12"
+dependencies = [
+    "PySide6>=6.8",     # interface gráfica
+    "matplotlib>=3.9",  # gráfico de tendência
+]
+
+[project.optional-dependencies]
+# Ferramentas só de desenvolvimento (não vão para o .exe)
+dev = [
+    "pytest>=8.0",      # testes automáticos
+    "ruff>=0.6",        # verificação de estilo e erros
+    "pyinstaller>=6.0", # geração do .exe
+    "openpyxl>=3.1",    # leitura da planilha DQ05 pelo importador
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "calibracao.__version__"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# test_lixeira.py é do protótipo Streamlit (unittest); fica de fora até o protótipo sair
+addopts = "--ignore=tests/test_lixeira.py"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# Protótipo Streamlit: só referência, não segue o padrão novo (sai no fim do projeto)
+extend-exclude = [
+    "main.py",
+    "main_backup_antes_visual.py",
+    "notepad adicionar_responsavel.py",
+    "adicionar_responsavel.py",
+    "corrigir_datas.py",
+    "iniciar_calib.py",
+    "app/",
+    "scripts/",
+    "tests/test_lixeira.py",
+]
+
+[tool.ruff.lint]
+# E/F = erros básicos, I = ordem dos imports, B = armadilhas comuns, UP = sintaxe moderna
+select = ["E", "F", "I", "B", "UP"]

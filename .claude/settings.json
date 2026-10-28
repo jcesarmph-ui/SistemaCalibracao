@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/Scripts/python -m pytest *)",
+      "Bash(.venv/Scripts/python -m pytest)",
+      "Bash(.venv/Scripts/python -m ruff *)",
+      "Bash(git status *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git diff)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "PowerShell(.venv/Scripts/python -m pytest *)",
+      "PowerShell(.venv/Scripts/python -m pytest)",
+      "PowerShell(.venv/Scripts/python -m ruff *)",
+      "PowerShell(git status *)",
+      "PowerShell(git status)",
+      "PowerShell(git diff *)",
+      "PowerShell(git diff)",
+      "PowerShell(git log *)",
+      "PowerShell(git add *)",
+      "PowerShell(git commit *)",
+      "Bash(git push *)",
+      "Bash(git push)",
+      "PowerShell(git push *)",
+      "PowerShell(git push)"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "PowerShell(git push --force *)",
+      "PowerShell(git push -f *)",
+      "Bash(git add -f *)",
+      "Bash(git add --force *)",
+      "PowerShell(git add -f *)",
+      "PowerShell(git add --force *)"
+    ]
+  }
+}
