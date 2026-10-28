@@ -104,6 +104,17 @@ usuário): o usuário quer fazer **depois, não agora** — apenas lembrar a pen
 vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_responsavel.py`);
 `Abrir_CALIB.bat` e `iniciar_calib.py` (deixam de existir sem Streamlit); `.vscode/`.
 
+## Onde paramos (2026-10-28, fim do dia)
+- Fase 0 concluída (PR #1 juntado ao `main`). Fase 1 (importador) pronta na branch
+  `fase-1-importador` (já enviada ao GitHub; **PR ainda não aberto**). Versão `0.1.0`.
+- Banco novo gerado em `dados/calibracao.db` + `dados/conferencia_importacao.xlsx` (fora do Git):
+  123 instrumentos (100 com plano, 23 sem), 987 pontos, 74 fora; planilha original conferida intacta.
+- **Próximos passos (amanhã):** (1) usuário confere a planilha de conferência
+  (`! start dados/conferencia_importacao.xlsx`) e aprova ou pede ajustes; (2) abrir o PR da fase 1 e
+  atualizar o README; (3) fase 2 — perguntar como avaliar os pontos sem nominal fixo (9 do DUR-001
+  e "Diferença entre 5 pontos" de BAL-002/BAL-004).
+- Pendente: `.gitattributes` (avisos LF/CRLF), copiando do projeto de classificação.
+
 ## Programa novo × protótipo (decisão do usuário em 2026-10-28)
 - O programa oficial é **feito do zero** (PySide6), usando o protótipo Streamlit como referência das
   regras e funcionalidades — comparar funcionalidade por funcionalidade antes de dar por pronto.
