@@ -120,13 +120,13 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   tela (filtros Condição/Tipo/Localização, colunas Código | Localização | Condição | Desde |
   Situação, custo e responsável na ficha, sub-aba "Histórico de condição", botão "Mudar
   condição…", aba Desativados removida, cronograma mostra "Parecer da última"). 182 testes.
-- **Próximos passos:**
 - **Sub-aba Calibrações: feita** (`interface/aba_calibracoes.py`: lista, registrar com
   resultado na hora e parecer final, ver pontos, Lixeira; `interface/grafico_tendencia.py`: um ponto
   por vez, erro ± U, tolerância, reprovado em vermelho, dica do mouse, salvar PNG). 192 testes.
+- **Próximos passos:**
   1. Aba **Lixeira**.
   2. Fechar a fase 4: README (sem "como rodar"), versão `0.4.0`, PR.
-- Fotos da tela: script em `dados/fotos/foto_janela.py` (fora do Git; rodar: `.venv/Scripts/python dados/fotos/foto_janela.py . dados/fotos/janela_principal.png`) (copia o banco para pasta temporária
+- Fotos da tela: script em `dados/fotos/foto_janela.py` (fora do Git; rodar: `.venv/Scripts/python dados/fotos/foto_janela.py . dados/fotos/<pasta>`) (copia o banco para pasta temporária
   e cria calibrações de demonstração só na cópia); salvar em `dados/fotos/` e abrir eu mesmo com
   PowerShell `Invoke-Item`. Perguntas ao usuário: sempre com opções clicáveis (AskUserQuestion).
 
