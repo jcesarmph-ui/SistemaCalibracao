@@ -41,7 +41,10 @@ def aplicar_destaques(tabela: QTableWidget) -> None:
     for linha in range(tabela.rowCount()):
         for coluna in range(tabela.columnCount()):
             item = tabela.item(linha, coluna)
-            tabela.removeCellWidget(linha, coluna)
+            antigo = tabela.cellWidget(linha, coluna)
+            if antigo is not None:  # some já; o Qt só apaga o rótulo depois
+                antigo.hide()
+                tabela.removeCellWidget(linha, coluna)
             if item is None or not tem_orientacao_indicativa(item.text()):
                 continue
             item.setForeground(QColor(0, 0, 0, 0))

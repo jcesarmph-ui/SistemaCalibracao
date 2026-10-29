@@ -14,6 +14,7 @@ from calibracao.dados.repositorio import (
     Repositorio,
 )
 from calibracao.regras.avaliacao import Resultado
+from calibracao.regras.condicao import Condicao, ParecerFinal
 
 HOJE = date(2027, 3, 15)
 
@@ -39,12 +40,12 @@ def paquimetro(repo):
 
 
 def calibracao(instrumento, pontos, valores=(30.01, 60.02), escolha=Resultado.APROVADO,
-               data=date(2027, 3, 10)):
+               data=date(2027, 3, 10), parecer=ParecerFinal.APROVADO):
     medidos = [PontoMedido(pid, valor=v, incerteza=0.01)
                for pid, v in zip(pontos[:2], valores, strict=True)]
     medidos.append(PontoMedido(pontos[2], escolha=escolha))
-    return NovaCalibracao(instrumento, data, medidos, laboratorio="Lab Fictício",
-                          certificado="CERT-1")
+    return NovaCalibracao(instrumento, data, medidos, parecer_final=parecer,
+                          laboratorio="Lab Fictício", certificado="CERT-1")
 
 
 def test_registra_aprovada_com_proxima_data(repo, paquimetro):
@@ -57,15 +58,61 @@ def test_registra_aprovada_com_proxima_data(repo, paquimetro):
 
 def test_reprovada_quando_a_faixa_com_u_passa(repo, paquimetro):
     instrumento, pontos = paquimetro
-    repo.registrar_calibracao(calibracao(instrumento, pontos, valores=(30.0, 60.045)), HOJE)
+    repo.registrar_calibracao(calibracao(instrumento, pontos, valores=(30.0, 60.045),
+                                         parecer=ParecerFinal.REPROVADO_DESATIVADO), HOJE)
     assert repo.listar_calibracoes(instrumento)[0].resultado == Resultado.REPROVADO
 
 
-def test_orientacao_indicativa(repo, paquimetro):
+def test_parecer_final_e_obrigatorio(repo, paquimetro):
     instrumento, pontos = paquimetro
-    repo.registrar_calibracao(
-        calibracao(instrumento, pontos, escolha=Resultado.APROVADO_INDICATIVO), HOJE)
-    assert repo.listar_calibracoes(instrumento)[0].resultado == Resultado.APROVADO_INDICATIVO
+    with pytest.raises(ErroDeValidacao, match="parecer final"):
+        repo.registrar_calibracao(calibracao(instrumento, pontos, parecer=None), HOJE)
+
+
+def test_reprovada_nao_pode_ter_parecer_aprovado(repo, paquimetro):
+    instrumento, pontos = paquimetro
+    with pytest.raises(ErroDeValidacao, match="não pode ter parecer final"):
+        repo.registrar_calibracao(calibracao(instrumento, pontos, valores=(30.0, 60.045)), HOJE)
+
+
+def test_parecer_muda_a_condicao_e_guarda_no_historico(repo, paquimetro):
+    instrumento, pontos = paquimetro
+    repo.registrar_calibracao(calibracao(instrumento, pontos, data=date(2026, 3, 10)), HOJE)
+    assert repo.historico_condicao(instrumento) == []  # aprovado e já "Em uso": nada muda
+    nova = calibracao(instrumento, pontos, valores=(30.0, 60.045),
+                      parecer=ParecerFinal.ORIENTACAO_INDICATIVA)
+    nova.motivo_parecer = "Usar só para conferência"
+    nova.custo, nova.responsavel = 150.0, "Fulano"
+    calibracao_id = repo.registrar_calibracao(nova, HOJE)
+    [mudanca] = repo.historico_condicao(instrumento)
+    assert (mudanca.condicao, mudanca.data, mudanca.motivo, mudanca.calibracao_id) == (
+        Condicao.ORIENTACAO_INDICATIVA, date(2027, 3, 10), "Usar só para conferência",
+        calibracao_id)
+    salva = repo.listar_calibracoes(instrumento)[-1]
+    assert (salva.parecer_final, salva.custo, salva.responsavel) == (
+        ParecerFinal.ORIENTACAO_INDICATIVA, 150.0, "Fulano")
+
+
+def test_reprovado_desativado_tira_o_instrumento_de_uso(repo, paquimetro):
+    instrumento, pontos = paquimetro
+    repo.registrar_calibracao(calibracao(instrumento, pontos, valores=(30.0, 60.045),
+                                         parecer=ParecerFinal.REPROVADO_DESATIVADO), HOJE)
+    assert repo.esta_desativado(instrumento)
+    assert repo.listar_instrumentos() == []
+
+
+def test_calibracao_na_lixeira_desfaz_a_mudanca_de_condicao(repo, paquimetro):
+    from datetime import datetime
+
+    from calibracao.regras.lixeira import Tipo
+    instrumento, pontos = paquimetro
+    engano = repo.registrar_calibracao(calibracao(
+        instrumento, pontos, valores=(30.0, 60.045),
+        parecer=ParecerFinal.REPROVADO_DESATIVADO), HOJE)
+    repo.enviar_para_lixeira(Tipo.CALIBRACAO, engano, "Instrumento errado", datetime(2027, 3, 15))
+    assert repo.condicao_atual(instrumento).condicao == Condicao.EM_USO
+    repo.restaurar(Tipo.CALIBRACAO, engano)
+    assert repo.esta_desativado(instrumento)
 
 
 def test_ponto_em_branco_impede_salvar(repo, paquimetro):
@@ -106,7 +153,7 @@ def test_data_futura_e_instrumento_desativado(repo, paquimetro):
     instrumento, pontos = paquimetro
     with pytest.raises(ErroDeValidacao, match="futuro"):
         repo.registrar_calibracao(calibracao(instrumento, pontos, data=date(2027, 3, 16)), HOJE)
-    repo.desativar_instrumento(instrumento, HOJE, "Quebrou", HOJE)
+    repo.desativar_instrumento(instrumento, date(2027, 3, 1), "Quebrou", HOJE)
     with pytest.raises(ErroDeValidacao, match="desativado"):
         repo.registrar_calibracao(calibracao(instrumento, pontos), HOJE)
 
@@ -139,6 +186,6 @@ def test_ponto_sem_nominal_fixo_usa_o_erro(repo):
         Instrumento("DUR-900", "Durômetro", periodicidade_meses=12, plano_id=plano))
     repo.registrar_calibracao(NovaCalibracao(instrumento, HOJE, [
         PontoMedido(ponto, valor=0.8, incerteza=0.33, valor_padrao=75.3, valor_medido=76.1)
-    ]), HOJE)
+    ], parecer_final=ParecerFinal.APROVADO), HOJE)
     [registrado] = repo.pontos_da_calibracao(repo.listar_calibracoes(instrumento)[0].id)
     assert (registrado.resultado, registrado.valor_padrao) == (Resultado.APROVADO, 75.3)

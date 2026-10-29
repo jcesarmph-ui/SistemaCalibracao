@@ -8,6 +8,7 @@ import html
 import re
 
 from calibracao.regras.avaliacao import Resultado
+from calibracao.regras.condicao import Condicao, ParecerFinal
 from calibracao.regras.cronograma import Situacao
 
 CORES = {
@@ -19,6 +20,7 @@ CORES = {
 ESTILO = """
 QWidget {{ font-size: 13pt; color: #f0f0f0; font-family: "Segoe UI"; }}
 QMainWindow, #central {{ background: {fundo}; }}
+QDialog {{ background: {caixa}; }}
 QGroupBox {{ font-weight: bold; background: {caixa}; border: 1px solid {borda};
              border-radius: 6px; margin-top: 12px; padding: 8px 8px 4px 8px; }}
 QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 4px; color: {titulo}; }}
@@ -78,12 +80,25 @@ CORES_SITUACAO = {
 
 CORES_RESULTADO = {
     Resultado.APROVADO: FAIXA_VERDE,
-    Resultado.APROVADO_INDICATIVO: FAIXA_INDICATIVA,
     Resultado.REPROVADO: FAIXA_VERMELHA,
     Resultado.NAO_APLICAVEL: FAIXA_NEUTRA,
     Resultado.NAO_INFORMADO: FAIXA_AMARELA,
     Resultado.NAO_AVALIADO: FAIXA_AMARELA,
     Resultado.PENDENTE: FAIXA_AMARELA,
+}
+
+
+# "Orientação indicativa" fica sem cor de fundo: o destaque vem de `aplicar_destaques`.
+CORES_PARECER = {
+    ParecerFinal.APROVADO: FAIXA_VERDE,
+    ParecerFinal.ORIENTACAO_INDICATIVA: None,
+    ParecerFinal.REPROVADO_DESATIVADO: FAIXA_VERMELHA,
+}
+
+CORES_CONDICAO = {
+    Condicao.EM_USO: None,
+    Condicao.ORIENTACAO_INDICATIVA: None,
+    Condicao.DESATIVADO: FAIXA_NEUTRA,
 }
 
 

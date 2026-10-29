@@ -113,29 +113,19 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   `painel_plano.py` (pontos editáveis), `app.py`. Localização padronizada (`regras/localizacao.py`,
   aplicada no importador, ao salvar e no banco `dados/calibracao.db` — cópia de antes em
   `dados/calibracao_antes_padronizar_localizacao.db`).
-- **TRABALHO PELA METADE (refatoração "condição + parecer final"), sem commit:**
-  - Feito: `regras/condicao.py` (+ `tests/test_condicao.py`); tirado `APROVADO_INDICATIVO` de
-    `regras/avaliacao.py`; tirado `erros_desativacao` de `regras/lixeira.py`. Testes das regras passam.
-  - **Quebrado até terminar:** `dados/repositorio.py` ainda importa `erros_desativacao` e usa
-    `desativacoes`/`APROVADO_INDICATIVO`; idem `interface/` e testes do repositório/janela (5 arquivos
-    de teste nem carregam). Rodar `pytest` para ver.
-  - **Próximos passos, nesta ordem:**
-    1. Esquema **v3** (`dados/esquema.py`): tabela `condicoes` (instrumento_id, condicao, data,
-       motivo opcional, calibracao_id, criado_em) no lugar de `desativacoes` (migrar linhas: desativação
-       → "Desativado"; reativado_em → "Em uso"); `instrumentos` + `custo_compra REAL`, `responsavel`;
-       `calibracoes` + `parecer_final`, `custo_calibracao REAL` (responsavel já existe).
-    2. Repositório: condição atual/histórico, `mudar_condicao`, desativar/reativar como atalhos;
-       `NovaCalibracao` com `parecer_final` (obrigatório; reprovado não pode ser "Aprovado") +
-       motivo + custo + responsável; o parecer muda a condição (histórico com a calibração).
-       Cronograma: desativado sai, orientação indicativa fica.
-    3. Tela: lista de instrumentos com filtros **Condição** (Em uso / Orientação indicativa /
-       Desativados / Todos), **Tipo** e **Localização** (pedido: "clico em paquímetro e aparecem
-       todos os paquímetros"), colunas Código | Localização | Condição | Desde | Situação; ficha com
-       custo de compra, responsável e histórico de condição; botão de mudar condição (desativar /
-       reativar / orientação indicativa) com data e observação opcional; tirar a aba Desativados.
-    4. Depois: sub-aba **Calibrações** (registrar calibração com parecer final; histórico; **gráfico
-       de tendência** Matplotlib com exportar PNG, como no protótipo) e aba **Lixeira**.
-    5. Fechar a fase 4: README (sem "como rodar"), versão `0.4.0`, PR.
+- **Condição + parecer final: feito** (2026-10-29, 2ª sessão): esquema **v3** (tabela `condicoes`
+  no lugar de `desativacoes`, com migração; custo de compra/responsável; parecer final, motivo e
+  custo da calibração); repositório (`mudar_condicao`, `condicao_atual`, `historico_condicao`,
+  `condicoes_atuais`; parecer obrigatório muda a condição; calibração na Lixeira desfaz a mudança);
+  tela (filtros Condição/Tipo/Localização, colunas Código | Localização | Condição | Desde |
+  Situação, custo e responsável na ficha, sub-aba "Histórico de condição", botão "Mudar
+  condição…", aba Desativados removida, cronograma mostra "Parecer da última"). 182 testes.
+- **Próximos passos:**
+  1. Sub-aba **Calibrações**: registrar calibração (pontos, parecer final, motivo, custo,
+     responsável), histórico e **gráfico de tendência** Matplotlib com exportar PNG (como no
+     protótipo).
+  2. Aba **Lixeira**.
+  3. Fechar a fase 4: README (sem "como rodar"), versão `0.4.0`, PR.
 - Fotos da tela: script em `dados/fotos/foto_janela.py` (fora do Git; rodar: `.venv/Scripts/python dados/fotos/foto_janela.py . dados/fotos/janela_principal.png`) (copia o banco para pasta temporária
   e cria calibrações de demonstração só na cópia); salvar em `dados/fotos/` e abrir eu mesmo com
   PowerShell `Invoke-Item`. Perguntas ao usuário: sempre com opções clicáveis (AskUserQuestion).

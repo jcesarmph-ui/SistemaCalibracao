@@ -19,6 +19,7 @@ from calibracao.dados.repositorio import (  # noqa: E402
 )
 from calibracao.interface.janela import JanelaPrincipal  # noqa: E402
 from calibracao.regras.avaliacao import Resultado  # noqa: E402
+from calibracao.regras.condicao import Condicao, ParecerFinal  # noqa: E402
 
 HOJE = date(2026, 10, 29)
 
@@ -41,7 +42,8 @@ def janela(app, tmp_path):
             codigo, "Trena", localizacao="Expedição", periodicidade_meses=12, plano_id=plano))
         if data:
             repo.registrar_calibracao(NovaCalibracao(instrumento, data, [
-                PontoMedido(ponto, escolha=Resultado.APROVADO)]), HOJE)
+                PontoMedido(ponto, escolha=Resultado.APROVADO)],
+                parecer_final=ParecerFinal.APROVADO), HOJE)
     tela = JanelaPrincipal(repo, tmp_path, HOJE)
     yield tela
     tela.close()
@@ -84,9 +86,52 @@ def test_cadastrar_instrumento_pela_tela(janela):
     aba.campos["codigo"].setText("PAQ-950")
     aba.campos["tipo"].setText("Paquímetro")
     aba.campos["periodicidade_meses"].setText("12")
+    aba.campos["custo_compra"].setText("R$ 350,50")
+    aba.campos["responsavel"].setText("Fulano")
     aba.salvar_instrumento()
     assert "salvo" in aba.avisos.text()
     assert texto(janela.valores_indicadores["instrumentos"]) == "5"
+    salvo = next(i for i in janela.repo.listar_instrumentos() if i.codigo == "PAQ-950")
+    assert (salvo.custo_compra, salvo.responsavel) == (350.5, "Fulano")
+    assert aba.campos["custo_compra"].text() == "350,5"
+
+
+def codigos_da_lista(aba):
+    return [aba.tabela.item(linha, 0).text() for linha in range(aba.tabela.rowCount())]
+
+
+def test_filtros_de_tipo_e_localizacao(janela):
+    aba = janela.aba_instrumentos
+    janela.repo.incluir_instrumento(Instrumento("PAQ-950", "Paquímetro", localizacao="CT-01"))
+    janela.atualizar()
+    aba.filtro_tipo.setCurrentText("Paquímetro")
+    assert codigos_da_lista(aba) == ["PAQ-950"]
+    aba.filtro_tipo.setCurrentText("Todos os tipos")
+    aba.filtro_local.setCurrentText("Expedição")
+    assert codigos_da_lista(aba) == ["TRE-901", "TRE-902", "TRE-903", "TRE-904"]
+
+
+def test_mudar_condicao_pela_tela(janela):
+    aba = janela.aba_instrumentos
+    escolher(aba, "TRE-901")
+    aba.aplicar_condicao(Condicao.DESATIVADO, date(2026, 10, 20), "Fita rompida")
+    assert "Desativado" in aba.avisos.text()
+    assert "Desativado" in aba.condicao_atual.text()
+    assert aba.tabela_historico.item(0, 2).text() == "Fita rompida"
+    # sai do cronograma e dos indicadores, mas continua na lista (filtro Desativados)
+    assert texto(janela.valores_indicadores["instrumentos"]) == "3"
+    assert "1 pendente" not in texto(janela.valores_indicadores["mes"])
+    aba.filtro_condicao.setCurrentText("Desativados")
+    assert codigos_da_lista(aba) == ["TRE-901"]
+    assert aba.tabela.item(0, 3).text() == "20/10/2026"
+
+
+def test_mudar_condicao_recusa_data_futura(janela):
+    aba = janela.aba_instrumentos
+    escolher(aba, "TRE-902")
+    aba.aplicar_condicao(Condicao.ORIENTACAO_INDICATIVA, date(2026, 11, 1), "")
+    assert "futuro" in aba.avisos.text()
+    assert "#ef5350" in aba.avisos.styleSheet()
 
 
 def test_erro_de_digitacao_aparece_em_vermelho(janela):

@@ -1,7 +1,8 @@
 """Janela principal: cabeçalho, faixa de indicadores e abas de trabalho.
 
 Layout em faixas (padrão MG): cabeçalho; indicadores (caixas iguais); abas Instrumentos,
-Cronograma, Desativados e Lixeira. Tudo o que é dado vem do `Repositorio`.
+Cronograma e Lixeira. Desativados não têm aba: aparecem na lista de instrumentos (filtro Condição).
+Tudo o que é dado vem do `Repositorio`.
 """
 
 import datetime
@@ -34,11 +35,10 @@ from calibracao.interface.componentes import (
 )
 from calibracao.interface.estilo import (
     CORES,
-    CORES_RESULTADO,
+    CORES_PARECER,
     CORES_SITUACAO,
     estilo,
 )
-from calibracao.regras.avaliacao import Resultado
 from calibracao.regras.cronograma import Situacao, somar_meses
 
 TITULO = "CALIBRAÇÃO DE INSTRUMENTOS"
@@ -87,7 +87,6 @@ class JanelaPrincipal(QMainWindow):
         self.aba_instrumentos.alterado.connect(self.atualizar)
         self.abas.addTab(self.aba_instrumentos, "Instrumentos")
         self.abas.addTab(self._aba_cronograma(), "Cronograma")
-        self.abas.addTab(self._aba_em_construcao("os instrumentos desativados"), "Desativados")
         self.abas.addTab(self._aba_em_construcao("a Lixeira"), "Lixeira")
         self.abas.setCurrentIndex(1)
 
@@ -153,7 +152,7 @@ class JanelaPrincipal(QMainWindow):
         topo.addWidget(self.contagem_cronograma)
 
         colunas = ["Código", "Tipo", "Localização", "Última calibração", "Próxima calibração",
-                   "Situação", "Resultado da última"]
+                   "Situação", "Parecer da última"]
         self.tabela_cronograma = tabela_somente_leitura(colunas)
 
         aba = QWidget()
@@ -227,7 +226,7 @@ class JanelaPrincipal(QMainWindow):
         tabela.setRowCount(len(linhas))
         for indice, linha in enumerate(linhas):
             instrumento = linha.instrumento
-            resultado = linha.resultado_ultima
+            parecer = linha.parecer_ultima
             valores = [
                 celula(instrumento.codigo),
                 celula(instrumento.tipo),
@@ -235,9 +234,7 @@ class JanelaPrincipal(QMainWindow):
                 celula(formatar_data(linha.ultima)),
                 celula(formatar_data(linha.proxima)),
                 celula(linha.situacao.value, CORES_SITUACAO[linha.situacao]),
-                # "orientação indicativa" sem cor de fundo: o destaque vem de aplicar_destaques
-                celula(resultado.value, None if resultado == Resultado.APROVADO_INDICATIVO
-                       else CORES_RESULTADO.get(resultado)) if resultado else celula("—"),
+                celula(parecer.value, CORES_PARECER[parecer]) if parecer else celula("—"),
             ]
             for coluna, item in enumerate(valores):
                 tabela.setItem(indice, coluna, item)

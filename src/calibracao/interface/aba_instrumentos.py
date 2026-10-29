@@ -1,7 +1,7 @@
-"""Aba Instrumentos: lista com busca à esquerda; dados do instrumento escolhido à direita.
+"""Aba Instrumentos: lista com filtros e busca à esquerda; dados do instrumento escolhido à direita.
 
-Erros de digitação aparecem em vermelho na área de avisos (sem pop-up). Só desativar e enviar para
-a Lixeira abrem uma janelinha, para pedir motivo e confirmação.
+Erros de digitação aparecem em vermelho na área de avisos (sem pop-up). Só mudar a condição e
+enviar para a Lixeira abrem uma janelinha, para pedir data, observação e confirmação.
 """
 
 import datetime
@@ -28,49 +28,110 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from calibracao.dados.repositorio import ErroDeValidacao, Instrumento, Repositorio
-from calibracao.interface.componentes import aplicar_destaques, celula
-from calibracao.interface.estilo import CORES_SITUACAO
-from calibracao.interface.painel_plano import PainelPlano
+from calibracao.dados.repositorio import (
+    ErroDeValidacao,
+    Instrumento,
+    MudancaCondicao,
+    Repositorio,
+)
+from calibracao.interface.componentes import (
+    aplicar_destaques,
+    celula,
+    formatar_data,
+    tabela_somente_leitura,
+)
+from calibracao.interface.estilo import CORES_CONDICAO, CORES_SITUACAO
+from calibracao.interface.painel_plano import PainelPlano, numero, numero_em_texto
+from calibracao.regras.condicao import Condicao
 from calibracao.regras.lixeira import Tipo
+
+# Filtro "Condição" da lista (pedido do usuário em 2026-10-29).
+FILTROS_CONDICAO = {
+    "Todos": None,
+    "Em uso": Condicao.EM_USO,
+    "Orientação indicativa": Condicao.ORIENTACAO_INDICATIVA,
+    "Desativados": Condicao.DESATIVADO,
+}
+TODOS_OS_TIPOS = "Todos os tipos"
+TODAS_AS_LOCALIZACOES = "Todas as localizações"
+
+# O que acontece com o instrumento em cada condição (texto da janelinha de mudar condição).
+EXPLICACAO_CONDICAO = {
+    Condicao.EM_USO: "O instrumento volta a ser usado normalmente e segue no cronograma.",
+    Condicao.ORIENTACAO_INDICATIVA: "O instrumento continua sendo usado só como orientação "
+                                    "indicativa e segue no cronograma.",
+    Condicao.DESATIVADO: "O instrumento sai do cronograma. O histórico de calibrações continua "
+                         "guardado e ele pode voltar a ser usado depois.",
+}
 
 
 def _texto(campo: QLineEdit) -> str | None:
     return campo.text().strip() or None
 
 
-class JanelaMotivo(QDialog):
-    """Pede motivo (e, se for o caso, data) antes de desativar ou enviar para a Lixeira."""
+def _data_qt(data: datetime.date) -> QDate:
+    return QDate(data.year, data.month, data.day)
 
-    def __init__(self, titulo: str, explicacao: str, pedir_data: bool, motivo_obrigatorio: bool,
-                 hoje: datetime.date, parent=None) -> None:
+
+class JanelaMotivo(QDialog):
+    """Pede motivo antes de enviar para a Lixeira."""
+
+    def __init__(self, titulo: str, explicacao: str, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle(titulo)
         self.motivo = QLineEdit()
-        self.data = QDateEdit(QDate(hoje.year, hoje.month, hoje.day), calendarPopup=True)
-        self.data.setDisplayFormat("dd/MM/yyyy")
-        self.data.setMaximumDate(QDate(hoje.year, hoje.month, hoje.day))
         formulario = QFormLayout()
         formulario.addRow(QLabel(explicacao, wordWrap=True))
-        formulario.addRow("Motivo" + ("" if motivo_obrigatorio else " (opcional)"), self.motivo)
-        if pedir_data:
-            formulario.addRow("Data", self.data)
-        self.aviso = QLabel(objectName="erro")
-        formulario.addRow(self.aviso)
+        formulario.addRow("Motivo (opcional)", self.motivo)
         botoes = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         botoes.button(QDialogButtonBox.Ok).setText("Confirmar")
         botoes.button(QDialogButtonBox.Cancel).setText("Cancelar")
-        botoes.accepted.connect(self._confirmar if motivo_obrigatorio else self.accept)
+        botoes.accepted.connect(self.accept)
         botoes.rejected.connect(self.reject)
         formulario.addRow(botoes)
         self.setLayout(formulario)
         self.setMinimumWidth(560)
 
-    def _confirmar(self) -> None:
-        if not self.motivo.text().strip():
-            self.aviso.setText("✖ Informe o motivo.")
-            return
-        self.accept()
+
+class JanelaCondicao(QDialog):
+    """Mudar a condição: nova condição, data e observação opcional."""
+
+    def __init__(self, codigo: str, atual: MudancaCondicao, hoje: datetime.date,
+                 parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(f"Mudar a condição de {codigo}")
+        desde = f" desde {formatar_data(atual.data)}" if atual.data else ""
+        self.condicao = QComboBox()
+        for condicao in Condicao:
+            if condicao != atual.condicao:
+                self.condicao.addItem(condicao.value, condicao)
+        self.explicacao = QLabel(wordWrap=True, objectName="dica")
+        self.condicao.currentIndexChanged.connect(self._explicar)
+        self.data = QDateEdit(_data_qt(hoje), calendarPopup=True)
+        self.data.setDisplayFormat("dd/MM/yyyy")
+        self.data.setMaximumDate(_data_qt(hoje))
+        self.motivo = QLineEdit()
+        formulario = QFormLayout()
+        formulario.addRow(QLabel(f"Condição atual: <b>{atual.condicao}</b>{desde}"))
+        formulario.addRow("Nova condição", self.condicao)
+        formulario.addRow(self.explicacao)
+        formulario.addRow("Data", self.data)
+        formulario.addRow("Observação (opcional)", self.motivo)
+        botoes = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        botoes.button(QDialogButtonBox.Ok).setText("Confirmar")
+        botoes.button(QDialogButtonBox.Cancel).setText("Cancelar")
+        botoes.accepted.connect(self.accept)
+        botoes.rejected.connect(self.reject)
+        formulario.addRow(botoes)
+        self.setLayout(formulario)
+        self.setMinimumWidth(620)
+        self._explicar()
+
+    def _explicar(self) -> None:
+        self.explicacao.setText(EXPLICACAO_CONDICAO[self.condicao.currentData()])
+
+    def condicao_escolhida(self) -> Condicao:
+        return self.condicao.currentData()
 
     def data_escolhida(self) -> datetime.date:
         return self.data.date().toPython()
@@ -84,15 +145,20 @@ class AbaInstrumentos(QWidget):
         self.repo = repositorio
         self.hoje = hoje
         self.situacoes = {}  # id do instrumento → situação no cronograma
+        self.condicoes: dict[int, MudancaCondicao] = {}
+        self._instrumentos: list[Instrumento] = []
         self.atual: Instrumento | None = None
 
         self.painel_plano = PainelPlano(repositorio)
         self.painel_plano.alterado.connect(self.alterado)
+        self.tabela_historico = tabela_somente_leitura(
+            ["Data", "Condição", "Observação", "Origem"])
         self.subabas = QTabWidget()
         self.subabas.addTab(self.painel_plano, "Plano de calibração")
-        espera = QLabel("Em construção: histórico de calibrações e registro de nova calibração.",
-                        objectName="dica", alignment=Qt.AlignCenter)
+        espera = QLabel("Em construção: histórico de calibrações, registro de nova calibração e "
+                        "gráfico de tendência.", objectName="dica", alignment=Qt.AlignCenter)
         self.subabas.addTab(espera, "Calibrações")
+        self.subabas.addTab(self.tabela_historico, "Histórico de condição")
 
         direita = QVBoxLayout()
         direita.setContentsMargins(0, 0, 0, 0)
@@ -102,31 +168,43 @@ class AbaInstrumentos(QWidget):
         coluna_direita.setLayout(direita)
 
         faixa = QHBoxLayout(self)
-        faixa.addWidget(self._caixa_lista(), 2)
-        faixa.addWidget(coluna_direita, 3)
+        faixa.addWidget(self._caixa_lista(), 1)
+        faixa.addWidget(coluna_direita, 1)
 
     # --- Montagem ---------------------------------------------------------------------------
 
     def _caixa_lista(self) -> QGroupBox:
+        self.filtro_condicao = QComboBox()
+        self.filtro_condicao.addItems(FILTROS_CONDICAO)
+        self.filtro_condicao.setToolTip("Mostrar só os instrumentos nesta condição.")
+        self.filtro_tipo = QComboBox()
+        self.filtro_tipo.setToolTip("Ex.: escolha Paquímetro para ver todos os paquímetros.")
+        self.filtro_local = QComboBox()
+        for filtro in (self.filtro_condicao, self.filtro_tipo, self.filtro_local):
+            filtro.currentTextChanged.connect(self._preencher_lista)
         self.busca = QLineEdit(placeholderText="Buscar por código, tipo ou localização")
         self.busca.textChanged.connect(self._preencher_lista)
-        self.tabela = QTableWidget(0, 4)
-        self.tabela.setHorizontalHeaderLabels(["Código", "Tipo", "Localização", "Situação"])
+
+        colunas = ["Código", "Localização", "Condição", "Desde", "Situação"]
+        self.tabela = QTableWidget(0, len(colunas))
+        self.tabela.setHorizontalHeaderLabels(colunas)
         self.tabela.verticalHeader().setVisible(False)
         self.tabela.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tabela.setSelectionMode(QAbstractItemView.SingleSelection)
         self.tabela.setEditTriggers(QAbstractItemView.NoEditTriggers)
         cabecalho = self.tabela.horizontalHeader()
-        cabecalho.setSectionResizeMode(QHeaderView.Stretch)
-        cabecalho.setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        # Código, localização e situação sempre inteiros; quem se ajusta é o tipo.
-        cabecalho.setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        cabecalho.setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        cabecalho.setSectionResizeMode(QHeaderView.ResizeToContents)
+        cabecalho.setSectionResizeMode(1, QHeaderView.Stretch)  # quem se ajusta é a localização
         self.tabela.itemSelectionChanged.connect(self._selecionou)
         self.contagem = QLabel(objectName="dica")
 
+        filtros = QHBoxLayout()
+        filtros.addWidget(self.filtro_condicao, 1)
+        filtros.addWidget(self.filtro_tipo, 1)
+        filtros.addWidget(self.filtro_local, 1)
         caixa = QGroupBox("Instrumentos")
         coluna = QVBoxLayout(caixa)
+        coluna.addLayout(filtros)
         coluna.addWidget(self.busca)
         coluna.addWidget(self.tabela)
         coluna.addWidget(self.contagem)
@@ -135,8 +213,9 @@ class AbaInstrumentos(QWidget):
     def _caixa_dados(self) -> QGroupBox:
         self.campos = {nome: QLineEdit() for nome in
                        ("codigo", "tipo", "localizacao", "faixa", "resolucao", "fabricante",
-                        "data_compra", "periodicidade_meses")}
+                        "data_compra", "periodicidade_meses", "custo_compra", "responsavel")}
         self.campos["periodicidade_meses"].setToolTip("De quantos em quantos meses calibrar.")
+        self.campos["custo_compra"].setToolTip("Valor pago na compra, em reais (ex.: 350,00).")
         self.plano = QComboBox()
         self.exige = QCheckBox("Precisa de calibração")
         self.exige.setToolTip("Desmarque para instrumentos que não precisam de calibração: "
@@ -147,28 +226,33 @@ class AbaInstrumentos(QWidget):
         rotulos = [("codigo", "Código"), ("tipo", "Tipo"), ("localizacao", "Localização"),
                    ("faixa", "Faixa"), ("resolucao", "Resolução"), ("fabricante", "Fabricante"),
                    ("data_compra", "Data de compra"),
-                   ("periodicidade_meses", "Periodicidade (meses)")]
+                   ("periodicidade_meses", "Periodicidade (meses)"),
+                   ("custo_compra", "Custo de compra (R$)"), ("responsavel", "Responsável")]
         for indice, (nome, rotulo) in enumerate(rotulos):
             linha, coluna = divmod(indice, 2)
             grade.addWidget(QLabel(rotulo), linha, coluna * 2)
             grade.addWidget(self.campos[nome], linha, coluna * 2 + 1)
-        grade.addWidget(QLabel("Plano"), 4, 0)
-        grade.addWidget(self.plano, 4, 1, 1, 3)
-        grade.addWidget(QLabel("Observações"), 5, 0)
-        grade.addWidget(self.observacoes, 5, 1, 1, 3)
-        grade.addWidget(self.exige, 6, 1, 1, 3)
+        grade.addWidget(QLabel("Plano"), 5, 0)
+        grade.addWidget(self.plano, 5, 1, 1, 3)
+        grade.addWidget(QLabel("Observações"), 6, 0)
+        grade.addWidget(self.observacoes, 6, 1, 1, 3)
+        grade.addWidget(self.exige, 7, 1)
+        self.condicao_atual = QLabel()
+        grade.addWidget(self.condicao_atual, 7, 2, 1, 2)
 
         self.novo = QPushButton("Novo instrumento")
         self.novo.clicked.connect(self.novo_instrumento)
         self.salvar = QPushButton("SALVAR", objectName="principal")
         self.salvar.clicked.connect(self.salvar_instrumento)
-        self.desativar = QPushButton("Desativar…")
-        self.desativar.clicked.connect(self.desativar_instrumento)
+        self.mudar_condicao = QPushButton("Mudar condição…")
+        self.mudar_condicao.setToolTip("Desativar, voltar a usar ou marcar como orientação "
+                                       "indicativa, com data e observação.")
+        self.mudar_condicao.clicked.connect(self.mudar_condicao_instrumento)
         self.lixeira = QPushButton("Enviar para a Lixeira…")
         self.lixeira.clicked.connect(self.enviar_para_lixeira)
         botoes = QHBoxLayout()
         botoes.addWidget(self.novo, 1)
-        botoes.addWidget(self.desativar, 1)
+        botoes.addWidget(self.mudar_condicao, 1)
         botoes.addWidget(self.lixeira, 1)
         botoes.addWidget(self.salvar, 2)
 
@@ -187,27 +271,63 @@ class AbaInstrumentos(QWidget):
     def atualizar(self, situacoes: dict) -> None:
         """Recarrega a lista (chamada pela janela, que já calculou o cronograma)."""
         self.situacoes = situacoes
-        self._instrumentos = self.repo.listar_instrumentos()
+        self.condicoes = self.repo.condicoes_atuais()
+        self._instrumentos = self.repo.listar_instrumentos(incluir_desativados=True)
         self.plano.clear()
         self.plano.addItem("— sem plano —", None)
         for plano in self.repo.listar_planos():
             self.plano.addItem(plano.nome, plano.id)
-        self._preencher_lista(self.busca.text())
+        self._recarregar_opcoes(self.filtro_tipo, TODOS_OS_TIPOS,
+                                {i.tipo for i in self._instrumentos})
+        self._recarregar_opcoes(self.filtro_local, TODAS_AS_LOCALIZACOES,
+                                {i.localizacao for i in self._instrumentos if i.localizacao})
+        self._preencher_lista()
 
-    def _preencher_lista(self, busca: str) -> None:
-        termo = busca.strip().lower()
-        visiveis = [i for i in self._instrumentos if not termo or termo in
-                    f"{i.codigo} {i.tipo} {i.localizacao or ''}".lower()]
+    @staticmethod
+    def _recarregar_opcoes(filtro: QComboBox, todos: str, opcoes: set[str]) -> None:
+        """Repõe as opções do filtro mantendo a escolha atual (se ela ainda existir)."""
+        escolhido = filtro.currentText()
+        filtro.blockSignals(True)
+        filtro.clear()
+        filtro.addItems([todos, *sorted(opcoes, key=str.lower)])
+        filtro.setCurrentText(escolhido if escolhido in opcoes else todos)
+        filtro.blockSignals(False)
+
+    def _condicao(self, instrumento_id: int) -> MudancaCondicao:
+        return self.condicoes.get(instrumento_id, MudancaCondicao(Condicao.EM_USO, None))
+
+    def _visiveis(self) -> list[Instrumento]:
+        termo = self.busca.text().strip().lower()
+        condicao = FILTROS_CONDICAO[self.filtro_condicao.currentText()]
+        tipo = self.filtro_tipo.currentText()
+        local = self.filtro_local.currentText()
+        return [
+            i for i in self._instrumentos
+            if (condicao is None or self._condicao(i.id).condicao == condicao)
+            and tipo in (TODOS_OS_TIPOS, i.tipo)
+            and local in (TODAS_AS_LOCALIZACOES, i.localizacao)
+            and (not termo or termo in f"{i.codigo} {i.tipo} {i.localizacao or ''}".lower())
+        ]
+
+    def _preencher_lista(self) -> None:
+        visiveis = self._visiveis()
         selecionado = self.atual.id if self.atual else None
         self.tabela.blockSignals(True)
         self.tabela.setRowCount(len(visiveis))
         for linha, instrumento in enumerate(visiveis):
+            condicao = self._condicao(instrumento.id)
             situacao = self.situacoes.get(instrumento.id)
-            itens = [celula(instrumento.codigo), celula(instrumento.tipo),
-                     celula(instrumento.localizacao or "—"),
-                     celula(situacao.value, CORES_SITUACAO[situacao]) if situacao
-                     else celula("Não precisa de calibração")]
+            if situacao:
+                item_situacao = celula(situacao.value, CORES_SITUACAO[situacao])
+            elif condicao.condicao == Condicao.DESATIVADO:
+                item_situacao = celula("Fora do cronograma")
+            else:
+                item_situacao = celula("Não precisa de calibração")
+            itens = [celula(instrumento.codigo), celula(instrumento.localizacao or "—"),
+                     celula(condicao.condicao.value, CORES_CONDICAO[condicao.condicao]),
+                     celula(formatar_data(condicao.data)), item_situacao]
             itens[0].setData(Qt.UserRole, instrumento.id)
+            itens[0].setToolTip(instrumento.tipo)
             for coluna, item in enumerate(itens):
                 self.tabela.setItem(linha, coluna, item)
             if instrumento.id == selecionado:
@@ -228,16 +348,39 @@ class AbaInstrumentos(QWidget):
         dados = instrumento or Instrumento(codigo="", tipo="")
         for nome, campo in self.campos.items():
             valor = getattr(dados, nome)
-            campo.setText("" if valor is None else str(valor))
+            if nome == "custo_compra":
+                campo.setText(numero_em_texto(valor))
+            else:
+                campo.setText("" if valor is None else str(valor))
         self.plano.setCurrentIndex(max(self.plano.findData(dados.plano_id), 0))
         self.exige.setChecked(dados.exige_calibracao)
         self.observacoes.setText(dados.observacoes or "")
         self.titulo_dados.setText(f"Editando {dados.codigo}" if instrumento
                                   else "Novo instrumento: preencha e clique em SALVAR")
-        self.desativar.setEnabled(instrumento is not None)
+        self.mudar_condicao.setEnabled(instrumento is not None)
         self.lixeira.setEnabled(instrumento is not None)
         self.painel_plano.mostrar(instrumento.plano_id if instrumento else None)
+        self._mostrar_condicao(instrumento)
         self._aviso("")
+
+    def _mostrar_condicao(self, instrumento: Instrumento | None) -> None:
+        historico = self.repo.historico_condicao(instrumento.id) if instrumento else []
+        if instrumento is None:
+            self.condicao_atual.setText("")
+        else:
+            atual = historico[-1] if historico else MudancaCondicao(Condicao.EM_USO, None)
+            desde = f" desde {formatar_data(atual.data)}" if atual.data else ""
+            self.condicao_atual.setText(f"Condição: <b>{atual.condicao}</b>{desde}")
+        tabela = self.tabela_historico
+        tabela.setRowCount(len(historico))
+        for linha, mudanca in enumerate(reversed(historico)):  # mais recente em cima
+            origem = "Parecer final da calibração" if mudanca.calibracao_id else "Mudança manual"
+            itens = [celula(formatar_data(mudanca.data)),
+                     celula(mudanca.condicao.value, CORES_CONDICAO[mudanca.condicao]),
+                     celula(mudanca.motivo or "—"), celula(origem)]
+            for coluna, item in enumerate(itens):
+                tabela.setItem(linha, coluna, item)
+        aplicar_destaques(tabela)
 
     # --- Ações ------------------------------------------------------------------------------
 
@@ -251,6 +394,11 @@ class AbaInstrumentos(QWidget):
         if texto_meses and not texto_meses.isdigit():
             self._aviso("✖ A periodicidade deve ser um número inteiro de meses.", erro=True)
             return
+        try:
+            custo = numero(self.campos["custo_compra"].text().replace("R$", ""))
+        except ValueError:
+            self._aviso("✖ O custo de compra deve ser um número (ex.: 350,00).", erro=True)
+            return
         instrumento = Instrumento(
             codigo=self.campos["codigo"].text().strip(),
             tipo=self.campos["tipo"].text().strip(),
@@ -263,6 +411,8 @@ class AbaInstrumentos(QWidget):
             plano_id=self.plano.currentData(),
             exige_calibracao=self.exige.isChecked(),
             observacoes=_texto(self.observacoes),
+            custo_compra=custo,
+            responsavel=_texto(self.campos["responsavel"]),
             id=self.atual.id if self.atual else None,
         )
         try:
@@ -278,27 +428,26 @@ class AbaInstrumentos(QWidget):
         self.mostrar(self.repo.obter_instrumento(instrumento.id))
         self._aviso(f"✔ {instrumento.codigo} salvo.", certo=True)
 
-    def desativar_instrumento(self) -> None:
+    def mudar_condicao_instrumento(self) -> None:
         if self.atual is None:
             return
-        janela = JanelaMotivo(
-            f"Desativar {self.atual.codigo}",
-            "O instrumento sai da lista e do cronograma e vai para a aba Desativados. "
-            "O histórico de calibrações continua guardado e ele pode ser reativado depois.",
-            pedir_data=True, motivo_obrigatorio=True, hoje=self.hoje, parent=self)
+        janela = JanelaCondicao(self.atual.codigo, self.repo.condicao_atual(self.atual.id),
+                                self.hoje, parent=self)
         if not janela.exec():
             return
+        self.aplicar_condicao(janela.condicao_escolhida(), janela.data_escolhida(),
+                              janela.motivo.text())
+
+    def aplicar_condicao(self, condicao: Condicao, data: datetime.date, motivo: str) -> None:
         try:
-            self.repo.desativar_instrumento(self.atual.id, janela.data_escolhida(),
-                                            janela.motivo.text(), self.hoje)
+            self.repo.mudar_condicao(self.atual.id, condicao, data, motivo, self.hoje)
         except ErroDeValidacao as erro:
             self._aviso("\n".join(f"✖ {m}" for m in erro.mensagens), erro=True)
             return
-        codigo = self.atual.codigo
-        self.atual = None
+        instrumento = self.atual
         self.alterado.emit()
-        self.mostrar(None)
-        self._aviso(f"✔ {codigo} desativado.", certo=True)
+        self.mostrar(self.repo.obter_instrumento(instrumento.id))
+        self._aviso(f"✔ {instrumento.codigo}: condição mudada para \"{condicao}\".", certo=True)
 
     def enviar_para_lixeira(self) -> None:
         if self.atual is None:
@@ -306,8 +455,7 @@ class AbaInstrumentos(QWidget):
         janela = JanelaMotivo(
             f"Enviar {self.atual.codigo} para a Lixeira",
             "Use a Lixeira para o que foi cadastrado por engano. Para um instrumento que "
-            "deixou de ser usado, prefira Desativar.",
-            pedir_data=False, motivo_obrigatorio=False, hoje=self.hoje, parent=self)
+            "deixou de ser usado, prefira Mudar condição → Desativado.", parent=self)
         if not janela.exec():
             return
         codigo = self.atual.codigo
