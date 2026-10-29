@@ -117,6 +117,10 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   planos/pontos, registrar calibração, cronograma, lixeira). Conferido numa **cópia** do banco real:
   123 instrumentos, todos em "Sem calibração no programa". Próximo: **fase 4 — interface PySide6**
   (mostrar "fotos" da tela para aprovação; seguir `Classificação_Automática/.../janela.py`).
+- **Tela (fase 4, aprovado em 2026-10-29):** título "CALIBRAÇÃO DE INSTRUMENTOS"; indicadores no
+  topo **só** Instrumentos, Vencidas e Próximos 30 dias (o usuário **não quer** "Calibrações" nem
+  "Sem calibração no programa" lá em cima — este último fica no filtro "Mostrar:" do Cronograma).
+  Fotos da tela vão para `dados/fotos/` e são abertas por mim (PowerShell `Invoke-Item`).
 - Perguntas ao usuário: sempre com opções clicáveis (AskUserQuestion).
 
 ### Histórico (2026-10-28, fim do dia)

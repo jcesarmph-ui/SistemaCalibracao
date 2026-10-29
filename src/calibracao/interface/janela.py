@@ -42,12 +42,11 @@ TITULO = "CALIBRAÇÃO DE INSTRUMENTOS"
 # (texto do indicador, dica ao passar o mouse)
 INDICADORES = {
     "instrumentos": ("Instrumentos", "Instrumentos ativos (fora da Lixeira e não desativados)."),
-    "calibracoes": ("Calibrações", "Calibrações registradas no programa."),
     "vencidas": ("Vencidas", "A data prevista da próxima calibração já passou."),
     "proximas": ("Próximos 30 dias", "Calibração prevista de hoje até daqui a 30 dias."),
-    "sem_calibracao": ("Sem calibração no programa",
-                       "Ainda não tiveram nenhuma calibração registrada no programa."),
 }
+# "Calibrações" e "Sem calibração no programa" não ficam no topo (pedido do usuário em
+# 2026-10-29); o segundo aparece no filtro "Mostrar:" do Cronograma.
 
 FILTROS_CRONOGRAMA = ["Todos", *[s.value for s in Situacao]]
 
@@ -174,13 +173,10 @@ class JanelaPrincipal(QMainWindow):
             contagem[linha.situacao] += 1
         valores = {
             "instrumentos": len(self.repo.listar_instrumentos()),
-            "calibracoes": self.repo.contar_calibracoes(),
             "vencidas": contagem[Situacao.VENCIDA],
             "proximas": contagem[Situacao.PROXIMOS_30_DIAS],
-            "sem_calibracao": contagem[Situacao.SEM_CALIBRACAO],
         }
-        cor_se_houver = {"vencidas": CORES["erro"], "proximas": CORES["aviso"],
-                         "sem_calibracao": CORES["aviso"]}
+        cor_se_houver = {"vencidas": CORES["erro"], "proximas": CORES["aviso"]}
         for chave, valor in valores.items():
             rotulo = self.valores_indicadores[chave]
             rotulo.setText(str(valor))
