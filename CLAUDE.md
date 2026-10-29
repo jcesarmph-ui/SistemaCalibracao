@@ -126,6 +126,10 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   certificado. O usuário digita o **erro/desvio** (ou a diferença) e a **U** do certificado; aprovado se
   `erro ± U` fica dentro da tolerância. Campos opcionais de valor do padrão/medido só para registro.
   **U negativa** na planilha (ex.: −0,36 no DUR-001) é usada **sem o sinal** (|U|), como no protótipo.
+- **Pontos de Classe (decidido em 2026-10-29)** — EXT-001 e MTR-001: o usuário escolhe
+  **Aprovado/Reprovado** olhando o certificado; o programa só mostra a classe exigida ao lado.
+- Na tela, escrever **"Incerteza (U)"** por extenso, com tooltip explicando (o usuário não conhecia
+  a sigla "U").
 
 ## Programa novo × protótipo (decisão do usuário em 2026-10-28)
 - O programa oficial é **feito do zero** (PySide6), usando o protótipo Streamlit como referência das
