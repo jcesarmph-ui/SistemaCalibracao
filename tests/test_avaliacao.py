@@ -2,7 +2,18 @@
 
 import pytest
 
-from calibracao.regras.avaliacao import Resultado, avaliar_limite, avaliar_numerico
+from calibracao.regras.avaliacao import (
+    Resultado,
+    avaliar_limite,
+    avaliar_numerico,
+    pode_salvar,
+    resultado_geral,
+)
+
+A = Resultado.APROVADO
+IND = Resultado.APROVADO_INDICATIVO
+R = Resultado.REPROVADO
+NA = Resultado.NAO_APLICAVEL
 
 
 def numerico(valor, nominal=60.0, tol=0.05, incerteza=0.01):
@@ -80,3 +91,26 @@ def test_limite_minimo(valor, esperado):
 def test_limite_sem_incerteza_nao_avalia():
     avaliacao = avaliar_limite(1.0, minimo=None, maximo=2.0, incerteza=None)
     assert avaliacao.resultado == Resultado.NAO_AVALIADO
+
+
+@pytest.mark.parametrize(
+    ("resultados", "esperado"),
+    [
+        ([A, A, A], A),
+        ([A, R, A], R),
+        ([A, IND, A], IND),
+        ([IND, R], R),                      # reprovado vence a orientação indicativa
+        ([A, NA, A], A),                    # não aplicável não conta
+        ([NA, NA], Resultado.PENDENTE),      # nenhum ponto avaliado
+        ([A, Resultado.NAO_INFORMADO], Resultado.PENDENTE),  # ponto em branco nunca é ignorado
+        ([R, Resultado.NAO_AVALIADO], Resultado.PENDENTE),   # sem U: não dá para fechar
+        ([], Resultado.PENDENTE),
+    ],
+)
+def test_resultado_geral(resultados, esperado):
+    assert resultado_geral(resultados) == esperado
+
+
+def test_so_salva_sem_pendencia():
+    assert pode_salvar([A, NA, R])
+    assert not pode_salvar([A, Resultado.NAO_INFORMADO])

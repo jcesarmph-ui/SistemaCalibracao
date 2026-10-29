@@ -19,9 +19,15 @@ _FOLGA = 1e-9
 
 class Resultado(StrEnum):
     APROVADO = "Aprovado"
+    # Na MG, "aprovado com restrição" se chama assim (definido pelo usuário em 2026-10-29).
+    APROVADO_INDICATIVO = "Aprovado como orientação indicativa"
     REPROVADO = "Reprovado"
+    # Marcado pelo usuário, com motivo; não conta no resultado geral.
+    NAO_APLICAVEL = "Não aplicável"
     NAO_INFORMADO = "Não informado"
     NAO_AVALIADO = "Não avaliado"
+    # Só no resultado geral: falta preencher ou avaliar algum ponto.
+    PENDENTE = "Pendente"
 
 
 @dataclass(frozen=True)
@@ -62,3 +68,25 @@ def avaliar_limite(valor: float | None, *, minimo: float | None, maximo: float |
     if valor is None:
         return Avaliacao(Resultado.NAO_INFORMADO)
     return _comparar(valor, incerteza, minimo, maximo)
+
+
+def resultado_geral(resultados: list[Resultado]) -> Resultado:
+    """Resultado da calibração inteira a partir do resultado de cada ponto.
+
+    Todo ponto precisa estar preenchido (ou marcado "não aplicável") para a calibração poder ser
+    salva: ponto em branco ou sem avaliação deixa tudo "pendente" — nunca é ignorado.
+    """
+    if any(r in (Resultado.NAO_INFORMADO, Resultado.NAO_AVALIADO) for r in resultados):
+        return Resultado.PENDENTE
+    contam = [r for r in resultados if r != Resultado.NAO_APLICAVEL]
+    if not contam:
+        return Resultado.PENDENTE
+    if Resultado.REPROVADO in contam:
+        return Resultado.REPROVADO
+    if Resultado.APROVADO_INDICATIVO in contam:
+        return Resultado.APROVADO_INDICATIVO
+    return Resultado.APROVADO
+
+
+def pode_salvar(resultados: list[Resultado]) -> bool:
+    return resultado_geral(resultados) != Resultado.PENDENTE

@@ -128,6 +128,11 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   **U negativa** na planilha (ex.: −0,36 no DUR-001) é usada **sem o sinal** (|U|), como no protótipo.
 - **Pontos de Classe (decidido em 2026-10-29)** — EXT-001 e MTR-001: o usuário escolhe
   **Aprovado/Reprovado** olhando o certificado; o programa só mostra a classe exigida ao lado.
+- **Resultado geral (decidido em 2026-10-29):** algum reprovado → Reprovado; algum "orientação
+  indicativa" → **"Aprovado como orientação indicativa"** (nome usado na MG para o "aprovado com
+  restrição" do protótipo — usar esse texto no programa); senão Aprovado. **Todo ponto precisa ser
+  preenchido** para salvar (ponto em branco nunca é ignorado, diferente do protótipo); se não se aplica
+  naquela vez, o usuário marca **"Não aplicável" com motivo** e o ponto não conta.
 - Na tela, escrever **"Incerteza (U)"** por extenso, com tooltip explicando (o usuário não conhecia
   a sigla "U").
 
