@@ -147,6 +147,8 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   do instrumento: **Em uso / Orientação indicativa / Desativado**, mudada pelo parecer ou manualmente
   (desativar/reativar), sempre com **data** e **observação/motivo opcional**, guardada em histórico.
   Orientação indicativa **segue no cronograma**; desativado sai. Lixeira = registro por engano.
+  Calibração enviada à Lixeira **desfaz** a mudança de condição que o parecer dela fez
+  (restaurar refaz). Lista de instrumentos abre em **"Todos menos desativados"**.
 - **Visual "orientação indicativa":** onde aparecer, essas palavras em **letra vermelha `#c62828`
   sobre fundo amarelo `#ffd54f`** (etiqueta física da MG) — exceção consciente à regra de cores.
 - **Localização padronizada** (`regras/localizacao.py`): "Laboratório", "Laboratório - Reserva",
