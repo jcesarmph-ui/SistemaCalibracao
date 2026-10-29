@@ -20,6 +20,7 @@ from calibracao.importacao.interpretacao import (
     normalizar,
     texto_exibido,
 )
+from calibracao.regras.localizacao import padronizar_localizacao
 
 ABA_CRONOGRAMA = "Cronograma de Calibração"
 PRIMEIRA_LINHA_CRONOGRAMA = 8
@@ -120,7 +121,8 @@ def ler_cronograma(planilha) -> tuple[list[tuple[str, str | None, str | None]], 
             excluidos.append(Excluido(codigo, "Cronograma: linha tachada/vermelha (desativado)"))
             continue
         equipamento = texto_exibido(linha[COL_EQUIPAMENTO - 1].value)
-        localizacao = texto_exibido(linha[COL_LOCALIZACAO - 1].value)
+        # Padronizada (Laboratório - Reserva…, - Orientação indicativa): pedido do usuário.
+        localizacao = padronizar_localizacao(texto_exibido(linha[COL_LOCALIZACAO - 1].value))
         ativos.append((codigo, equipamento, localizacao))
     return ativos, excluidos
 

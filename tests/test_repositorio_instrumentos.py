@@ -98,3 +98,13 @@ def test_reativar_valida(repo):
     repo.desativar_instrumento(a, date(2027, 3, 10), "Perdido", HOJE)
     with pytest.raises(ErroDeValidacao, match="antes da desativação"):
         repo.reativar_instrumento(a, date(2027, 3, 9))
+
+
+def test_localizacao_padronizada_ao_salvar(repo):
+    # Pedido do usuário: laboratório e orientação indicativa sempre do mesmo jeito.
+    a = repo.incluir_instrumento(trena(localizacao="Reserva Laboratório"))
+    assert repo.obter_instrumento(a).localizacao == "Laboratório - Reserva"
+    instrumento = repo.obter_instrumento(a)
+    instrumento.localizacao = "CT-01 Orientativo"
+    repo.atualizar_instrumento(instrumento)
+    assert repo.obter_instrumento(a).localizacao == "CT-01 - Orientação indicativa"

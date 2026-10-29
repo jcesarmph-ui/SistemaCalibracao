@@ -23,13 +23,15 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QTableWidget,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from calibracao.dados.repositorio import ErroDeValidacao, Instrumento, Repositorio
-from calibracao.interface.componentes import celula
+from calibracao.interface.componentes import aplicar_destaques, celula
 from calibracao.interface.estilo import CORES_SITUACAO
+from calibracao.interface.painel_plano import PainelPlano
 from calibracao.regras.lixeira import Tipo
 
 
@@ -84,9 +86,24 @@ class AbaInstrumentos(QWidget):
         self.situacoes = {}  # id do instrumento → situação no cronograma
         self.atual: Instrumento | None = None
 
+        self.painel_plano = PainelPlano(repositorio)
+        self.painel_plano.alterado.connect(self.alterado)
+        self.subabas = QTabWidget()
+        self.subabas.addTab(self.painel_plano, "Plano de calibração")
+        espera = QLabel("Em construção: histórico de calibrações e registro de nova calibração.",
+                        objectName="dica", alignment=Qt.AlignCenter)
+        self.subabas.addTab(espera, "Calibrações")
+
+        direita = QVBoxLayout()
+        direita.setContentsMargins(0, 0, 0, 0)
+        direita.addWidget(self._caixa_dados())
+        direita.addWidget(self.subabas, 1)
+        coluna_direita = QWidget()
+        coluna_direita.setLayout(direita)
+
         faixa = QHBoxLayout(self)
-        faixa.addWidget(self._caixa_lista(), 1)
-        faixa.addWidget(self._caixa_dados(), 1)
+        faixa.addWidget(self._caixa_lista(), 2)
+        faixa.addWidget(coluna_direita, 3)
 
     # --- Montagem ---------------------------------------------------------------------------
 
@@ -102,6 +119,9 @@ class AbaInstrumentos(QWidget):
         cabecalho = self.tabela.horizontalHeader()
         cabecalho.setSectionResizeMode(QHeaderView.Stretch)
         cabecalho.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        # Código, localização e situação sempre inteiros; quem se ajusta é o tipo.
+        cabecalho.setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        cabecalho.setSectionResizeMode(3, QHeaderView.ResizeToContents)
         self.tabela.itemSelectionChanged.connect(self._selecionou)
         self.contagem = QLabel(objectName="dica")
 
@@ -158,7 +178,6 @@ class AbaInstrumentos(QWidget):
         coluna = QVBoxLayout(caixa)
         coluna.addWidget(self.titulo_dados)
         coluna.addLayout(grade)
-        coluna.addStretch()
         coluna.addWidget(self.avisos)
         coluna.addLayout(botoes)
         return caixa
@@ -193,6 +212,7 @@ class AbaInstrumentos(QWidget):
                 self.tabela.setItem(linha, coluna, item)
             if instrumento.id == selecionado:
                 self.tabela.selectRow(linha)
+        aplicar_destaques(self.tabela)
         self.tabela.blockSignals(False)
         self.contagem.setText(f"{len(visiveis)} de {len(self._instrumentos)} instrumento(s)")
 
@@ -216,6 +236,7 @@ class AbaInstrumentos(QWidget):
                                   else "Novo instrumento: preencha e clique em SALVAR")
         self.desativar.setEnabled(instrumento is not None)
         self.lixeira.setEnabled(instrumento is not None)
+        self.painel_plano.mostrar(instrumento.plano_id if instrumento else None)
         self._aviso("")
 
     # --- Ações ------------------------------------------------------------------------------

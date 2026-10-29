@@ -26,6 +26,7 @@ from calibracao.regras.lixeira import (
     bloqueio_restaurar,
     erros_desativacao,
 )
+from calibracao.regras.localizacao import padronizar_localizacao
 
 
 class ErroDeValidacao(Exception):
@@ -265,6 +266,7 @@ class Repositorio:
         self._validar_instrumento(instrumento)
         dados = asdict(instrumento)
         dados["codigo"] = dados["codigo"].strip()
+        dados["localizacao"] = padronizar_localizacao(dados["localizacao"])
         with self._conexao:
             cursor = self._conexao.execute(
                 f"INSERT INTO instrumentos ({', '.join(_CAMPOS_INSTRUMENTO)}) "
@@ -279,6 +281,7 @@ class Repositorio:
         self._validar_instrumento(instrumento)
         dados = asdict(instrumento)
         dados["codigo"] = dados["codigo"].strip()
+        dados["localizacao"] = padronizar_localizacao(dados["localizacao"])
         with self._conexao:
             self._conexao.execute(
                 f"UPDATE instrumentos SET {', '.join(f'{c} = ?' for c in _CAMPOS_INSTRUMENTO)} "

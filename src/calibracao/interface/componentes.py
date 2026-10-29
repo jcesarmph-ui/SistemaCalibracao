@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from calibracao.interface.estilo import destacar_indicativa, tem_orientacao_indicativa
+
 
 def formatar_data(data: datetime.date | None) -> str:
     return data.strftime("%d/%m/%Y") if data else "—"
@@ -29,6 +31,25 @@ def celula(texto: str, cores: tuple[str, str] | None = None) -> QTableWidgetItem
         item.setForeground(QColor(cores[1]))
         item.setTextAlignment(Qt.AlignCenter)
     return item
+
+
+def aplicar_destaques(tabela: QTableWidget) -> None:
+    """Em toda célula com "orientação indicativa", essas palavras ganham a cor da etiqueta.
+
+    O texto continua no item (busca e testes), só fica invisível embaixo do rótulo colorido.
+    """
+    for linha in range(tabela.rowCount()):
+        for coluna in range(tabela.columnCount()):
+            item = tabela.item(linha, coluna)
+            tabela.removeCellWidget(linha, coluna)
+            if item is None or not tem_orientacao_indicativa(item.text()):
+                continue
+            item.setForeground(QColor(0, 0, 0, 0))
+            rotulo = QLabel(destacar_indicativa(item.text()))
+            rotulo.setAlignment(Qt.AlignVCenter | (Qt.AlignHCenter if item.textAlignment()
+                                                   & Qt.AlignHCenter else Qt.AlignLeft))
+            rotulo.setContentsMargins(3, 0, 3, 0)
+            tabela.setCellWidget(linha, coluna, rotulo)
 
 
 def tabela_somente_leitura(colunas: list[str]) -> QTableWidget:
@@ -72,6 +93,7 @@ class ListaFlutuante(QFrame):
         for indice, itens in enumerate(linhas):
             for coluna, item in enumerate(itens):
                 tabela.setItem(indice, coluna, item)
+        aplicar_destaques(tabela)
         # Colunas do tamanho do conteúdo (nada cortado); a largura é medida ao abrir, já com o tema.
         tabela.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         tabela.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)

@@ -101,3 +101,53 @@ def test_erro_de_digitacao_aparece_em_vermelho(janela):
     aba.salvar_instrumento()
     assert "Já existe" in aba.avisos.text()
     assert "#ef5350" in aba.avisos.styleSheet()
+
+
+def escolher(aba, codigo):
+    for linha in range(aba.tabela.rowCount()):
+        if aba.tabela.item(linha, 0).text() == codigo:
+            aba.tabela.selectRow(linha)
+            return
+    raise AssertionError(codigo)
+
+
+@pytest.fixture
+def plano_da_trena(janela):
+    """TRE-901 com um ponto numérico sem U (como as trenas que vieram da planilha)."""
+    aba = janela.aba_instrumentos
+    repo = janela.repo
+    plano_id = repo.obter_instrumento(
+        next(i.id for i in repo.listar_instrumentos() if i.codigo == "TRE-901")).plano_id
+    repo.incluir_ponto(PontoPlano(plano_id, "NUMERICO", "300", valor_nominal=300.0,
+                                  tolerancia_inferior=-0.5, tolerancia_superior=0.5))
+    escolher(aba, "TRE-901")
+    return aba.painel_plano, plano_id
+
+
+def test_plano_avisa_e_aceita_a_incerteza(janela, plano_da_trena):
+    painel, plano_id = plano_da_trena
+    assert "1 ponto(s) sem Incerteza (U)" in painel.avisos.text()
+    linha = painel.tabela.rowCount() - 1
+    painel.tabela.item(linha, 12).setText("0,2")  # coluna Incerteza (U), com vírgula
+    painel.salvar_plano()
+    assert "Plano salvo" in painel.avisos.text()
+    assert janela.repo.listar_pontos(plano_id)[-1].incerteza == 0.2
+
+
+def test_plano_recusa_texto_que_nao_e_numero(janela, plano_da_trena):
+    painel, plano_id = plano_da_trena
+    painel.tabela.item(painel.tabela.rowCount() - 1, 12).setText("zero vírgula dois")
+    painel.salvar_plano()
+    assert "não é um número" in painel.avisos.text()
+    assert janela.repo.listar_pontos(plano_id)[-1].incerteza is None
+
+
+def test_plano_adiciona_ponto(janela, plano_da_trena):
+    painel, plano_id = plano_da_trena
+    antes = len(janela.repo.listar_pontos(plano_id))
+    painel.adicionar_ponto()
+    linha = painel.tabela.rowCount() - 1
+    painel.tabela.item(linha, 3).setText("900")
+    painel.tabela.item(linha, 4).setText("900")
+    painel.salvar_plano()
+    assert len(janela.repo.listar_pontos(plano_id)) == antes + 1

@@ -4,6 +4,9 @@ Fundo preto, contornos e títulos brancos; vermelho só no botão principal e em
 amarelo em avisos; verde no que está certo.
 """
 
+import html
+import re
+
 from calibracao.regras.avaliacao import Resultado
 from calibracao.regras.cronograma import Situacao
 
@@ -88,13 +91,18 @@ def estilo() -> str:
     return ESTILO.format(**CORES)
 
 
-def resultado_em_html(resultado: Resultado) -> str:
-    """Texto do resultado; em "orientação indicativa" só essas palavras levam a cor da etiqueta."""
-    texto = resultado.value
-    marca = "orientação indicativa"
-    if marca in texto:
-        fundo, letra = FAIXA_INDICATIVA
-        texto = texto.replace(
-            marca, f'<span style="background:{fundo}; color:{letra}; font-weight:bold;">'
-                   f'&nbsp;{marca}&nbsp;</span>')
-    return texto
+_MARCA_INDICATIVA = re.compile("orientação indicativa", re.IGNORECASE)
+
+
+def tem_orientacao_indicativa(texto: str | None) -> bool:
+    return bool(texto and _MARCA_INDICATIVA.search(texto))
+
+
+def destacar_indicativa(texto: str) -> str:
+    """HTML em que só as palavras "orientação indicativa" levam a cor da etiqueta física."""
+    fundo, letra = FAIXA_INDICATIVA
+    return _MARCA_INDICATIVA.sub(
+        lambda achado: f'<span style="background:{fundo}; color:{letra}; font-weight:bold;">'
+                       f'&nbsp;{achado.group(0)}&nbsp;</span>',
+        html.escape(texto),
+    )

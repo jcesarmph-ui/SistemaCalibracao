@@ -27,6 +27,7 @@ from calibracao.interface.aba_instrumentos import AbaInstrumentos
 from calibracao.interface.componentes import (
     ListaFlutuante,
     PainelClicavel,
+    aplicar_destaques,
     celula,
     formatar_data,
     tabela_somente_leitura,
@@ -36,7 +37,6 @@ from calibracao.interface.estilo import (
     CORES_RESULTADO,
     CORES_SITUACAO,
     estilo,
-    resultado_em_html,
 )
 from calibracao.regras.avaliacao import Resultado
 from calibracao.regras.cronograma import Situacao, somar_meses
@@ -235,16 +235,11 @@ class JanelaPrincipal(QMainWindow):
                 celula(formatar_data(linha.ultima)),
                 celula(formatar_data(linha.proxima)),
                 celula(linha.situacao.value, CORES_SITUACAO[linha.situacao]),
-                celula(resultado.value, CORES_RESULTADO.get(resultado))
-                if resultado and resultado != Resultado.APROVADO_INDICATIVO
-                else celula("—" if resultado is None else ""),
+                # "orientação indicativa" sem cor de fundo: o destaque vem de aplicar_destaques
+                celula(resultado.value, None if resultado == Resultado.APROVADO_INDICATIVO
+                       else CORES_RESULTADO.get(resultado)) if resultado else celula("—"),
             ]
             for coluna, item in enumerate(valores):
                 tabela.setItem(indice, coluna, item)
-            tabela.removeCellWidget(indice, 6)
-            if resultado == Resultado.APROVADO_INDICATIVO:
-                # Só as palavras "orientação indicativa" com a cor da etiqueta física.
-                valores[6].setText("")
-                tabela.setCellWidget(indice, 6, QLabel(resultado_em_html(resultado),
-                                                       alignment=Qt.AlignCenter))
+        aplicar_destaques(tabela)
         self.contagem_cronograma.setText(f"{len(linhas)} instrumento(s)")
