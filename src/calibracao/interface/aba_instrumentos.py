@@ -151,6 +151,7 @@ class AbaInstrumentos(QWidget):
         self.condicoes: dict[int, MudancaCondicao] = {}
         self._instrumentos: list[Instrumento] = []
         self.atual: Instrumento | None = None
+        self.pode_editar = True
 
         self.painel_plano = PainelPlano(repositorio)
         self.painel_plano.alterado.connect(self.alterado)
@@ -358,8 +359,11 @@ class AbaInstrumentos(QWidget):
         self.plano.setCurrentIndex(max(self.plano.findData(dados.plano_id), 0))
         self.exige.setChecked(dados.exige_calibracao)
         self.observacoes.setText(dados.observacoes or "")
-        self.titulo_dados.setText(f"Editando {dados.codigo}" if instrumento
-                                  else "Novo instrumento: preencha e clique em SALVAR")
+        if not self.pode_editar:
+            self.titulo_dados.setText(f"Consultando {dados.codigo}" if instrumento else "")
+        else:
+            self.titulo_dados.setText(f"Editando {dados.codigo}" if instrumento
+                                      else "Novo instrumento: preencha e clique em SALVAR")
         self.mudar_condicao.setEnabled(instrumento is not None)
         self.lixeira.setEnabled(instrumento is not None)
         self.painel_plano.mostrar(instrumento.plano_id if instrumento else None)
@@ -387,6 +391,19 @@ class AbaInstrumentos(QWidget):
         aplicar_destaques(tabela)
 
     # --- Ações ------------------------------------------------------------------------------
+
+    def definir_edicao(self, pode: bool) -> None:
+        """Modo consulta: botões de mudar somem e os campos não aceitam digitação."""
+        for botao in (self.novo, self.salvar, self.mudar_condicao, self.lixeira):
+            botao.setVisible(pode)
+        for campo in (*self.campos.values(), self.observacoes):
+            campo.setReadOnly(not pode)
+        self.plano.setEnabled(pode)
+        self.exige.setEnabled(pode)
+        self.pode_editar = pode
+        self.painel_plano.definir_edicao(pode)
+        self.painel_calibracoes.definir_edicao(pode)
+        self.recarregar_atual()
 
     def recarregar_atual(self) -> None:
         """Redesenha o instrumento aberto (mudou algo pela Lixeira)."""
@@ -478,8 +495,12 @@ class AbaInstrumentos(QWidget):
         if not janela.exec():
             return
         codigo = self.atual.codigo
-        self.repo.enviar_para_lixeira(Tipo.INSTRUMENTO, self.atual.id, janela.motivo.text(),
-                                      datetime.datetime.now())
+        try:
+            self.repo.enviar_para_lixeira(Tipo.INSTRUMENTO, self.atual.id, janela.motivo.text(),
+                                          datetime.datetime.now())
+        except ErroDeValidacao as erro:
+            self._aviso("\n".join(f"✖ {m}" for m in erro.mensagens), erro=True)
+            return
         self.atual = None
         self.alterado.emit()
         self.mostrar(None)

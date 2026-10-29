@@ -8,6 +8,7 @@ import datetime
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QComboBox,
     QHBoxLayout,
     QHeaderView,
@@ -73,6 +74,7 @@ class PainelPlano(QWidget):
         self.repo = repositorio
         self.plano_id: int | None = None
         self._pontos: list[PontoPlano] = []
+        self.pode_editar = True
 
         self.titulo = QLabel(objectName="dica")
         self.tabela = QTableWidget(0, len(COLUNAS))
@@ -81,6 +83,7 @@ class PainelPlano(QWidget):
             item = QTableWidgetItem(titulo)
             item.setToolTip(dica)
             self.tabela.setHorizontalHeaderItem(indice, item)
+        self._gatilhos_edicao = self.tabela.editTriggers()  # volta a eles ao sair da consulta
         cabecalho = self.tabela.horizontalHeader()
         # Cada coluna do tamanho do conteúdo (rola para o lado se precisar); a última completa.
         cabecalho.setSectionResizeMode(QHeaderView.ResizeToContents)
@@ -120,7 +123,8 @@ class PainelPlano(QWidget):
         else:
             nome = self.repo.obter_plano(plano_id).nome
             self.titulo.setText(f"{nome}: {len(self._pontos)} ponto(s). "
-                                "Clique duas vezes numa célula para editar.")
+                                + ("Clique duas vezes numa célula para editar."
+                                   if self.pode_editar else "(somente consulta)"))
         for botao in (self.adicionar, self.remover, self.salvar):
             botao.setEnabled(plano_id is not None)
         self._aviso(f"⚠ {sem_u} ponto(s) sem Incerteza (U): preencha antes de registrar a "
@@ -136,6 +140,7 @@ class PainelPlano(QWidget):
                     escolha.addItem(texto, sigla)
                     escolha.setItemData(escolha.count() - 1, dica, Qt.ToolTipRole)
                 escolha.setCurrentIndex(max(escolha.findData(ponto.tipo), 0))
+                escolha.setEnabled(self.pode_editar)
                 self.tabela.setCellWidget(linha, indice, escolha)
                 continue
             valor = getattr(ponto, nome)
@@ -213,10 +218,23 @@ class PainelPlano(QWidget):
         if ponto_id is None:  # ponto novo, ainda não salvo
             self.tabela.removeRow(linha)
             return
-        self.repo.enviar_para_lixeira(Tipo.PONTO, ponto_id, None, datetime.datetime.now())
+        try:
+            self.repo.enviar_para_lixeira(Tipo.PONTO, ponto_id, None, datetime.datetime.now())
+        except ErroDeValidacao as erro:
+            self._aviso("\n".join(f"✖ {m}" for m in erro.mensagens), erro=True)
+            return
         self.mostrar(self.plano_id)
         self.alterado.emit()
         self._aviso("✔ Ponto enviado para a Lixeira (pode ser restaurado de lá).", certo=True)
+
+    def definir_edicao(self, pode: bool) -> None:
+        """Modo consulta: sem botões e sem dar para digitar nas células."""
+        self.pode_editar = pode
+        for botao in (self.adicionar, self.remover, self.salvar):
+            botao.setVisible(pode)
+        self.tabela.setEditTriggers(self._gatilhos_edicao if pode
+                                    else QAbstractItemView.NoEditTriggers)
+        self.mostrar(self.plano_id)
 
     def _aviso(self, texto: str, erro: bool = False, certo: bool = False) -> None:
         cor = "#ef5350" if erro else "#43a047" if certo else "#ffd54f"

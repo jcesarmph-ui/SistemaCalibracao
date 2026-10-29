@@ -3,12 +3,16 @@
 Layout em faixas (padrão MG): cabeçalho; indicadores (caixas iguais); abas Instrumentos,
 Cronograma e Lixeira. Desativados não têm aba: aparecem na lista de instrumentos (filtro Condição).
 Tudo o que é dado vem do `Repositorio`.
+
+Uso em rede (ver `calibracao.regras.trava`): com `identidade` (usuário do Windows e nome do PC),
+a janela pega a trava de edição ao abrir; se outra pessoa já estiver editando, abre em modo
+consulta — faixa amarela no topo, botões de mudar escondidos e dados se atualizando sozinhos.
 """
 
 import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
@@ -17,13 +21,14 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QPushButton,
     QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from calibracao import __version__
-from calibracao.dados.repositorio import LinhaCronograma, Repositorio
+from calibracao.dados.repositorio import ErroDeValidacao, LinhaCronograma, Repositorio, Trava
 from calibracao.interface.aba_instrumentos import AbaInstrumentos
 from calibracao.interface.aba_lixeira import AbaLixeira
 from calibracao.interface.componentes import (
@@ -41,6 +46,7 @@ from calibracao.interface.estilo import (
     estilo,
 )
 from calibracao.regras.cronograma import Situacao, somar_meses
+from calibracao.regras.trava import INTERVALO_SINAL, ObservadorDeSinal
 
 TITULO = "CALIBRAÇÃO DE INSTRUMENTOS"
 
@@ -71,16 +77,17 @@ LISTAS_DOS_PAINEIS = {
 
 class JanelaPrincipal(QMainWindow):
     def __init__(self, repositorio: Repositorio, pasta_dados: Path,
-                 hoje: datetime.date | None = None) -> None:
+                 hoje: datetime.date | None = None,
+                 identidade: tuple[str, str] | None = None) -> None:
         super().__init__()
         self.repo = repositorio
         self.pasta_dados = pasta_dados
         self.hoje = hoje or datetime.date.today()
         self.valores_indicadores: dict[str, QLabel] = {}
 
-        self.setWindowTitle(
-            f"Calibração de Instrumentos — MG Centro de Serviços — versão {__version__}"
-        )
+        self.titulo_janela = (
+            f"Calibração de Instrumentos — MG Centro de Serviços — versão {__version__}")
+        self.setWindowTitle(self.titulo_janela)
         self.setStyleSheet(estilo())
 
         self.abas = QTabWidget()
@@ -95,6 +102,7 @@ class JanelaPrincipal(QMainWindow):
 
         tela = QVBoxLayout()
         tela.addLayout(self._cabecalho())
+        tela.addWidget(self._faixa_consulta())
         tela.addLayout(self._faixa_indicadores())
         tela.addWidget(self.abas, 1)
         central = QWidget(objectName="central")
@@ -102,6 +110,16 @@ class JanelaPrincipal(QMainWindow):
         self.setCentralWidget(central)
 
         self.atualizar()
+
+        # Trava de edição (só quando a janela sabe quem está usando: no programa de verdade).
+        self.identidade = identidade
+        self.observador = ObservadorDeSinal()
+        self.relogio = QTimer(self)
+        self.relogio.setInterval(int(INTERVALO_SINAL.total_seconds() * 1000))
+        self.relogio.timeout.connect(self.a_cada_sinal)
+        if identidade is not None:
+            self.tentar_editar()
+            self.relogio.start()
 
     # --- Montagem da tela -------------------------------------------------------------------
 
@@ -121,6 +139,19 @@ class JanelaPrincipal(QMainWindow):
         grade.setColumnStretch(0, 1)
         grade.setColumnStretch(2, 1)  # coluna do mesmo tamanho da do logo → título no centro
         return grade
+
+    def _faixa_consulta(self) -> QWidget:
+        """Faixa amarela do modo consulta (escondida enquanto esta janela pode editar)."""
+        self.texto_consulta = QLabel(wordWrap=True, objectName="faixa_texto")
+        self.passar_para_edicao = QPushButton("Passar para edição")
+        self.passar_para_edicao.setToolTip("Funciona quando ninguém mais estiver editando.")
+        self.passar_para_edicao.clicked.connect(self.pedir_edicao)
+        self.faixa_consulta = QWidget(objectName="faixa_consulta")
+        linha = QHBoxLayout(self.faixa_consulta)
+        linha.addWidget(self.texto_consulta, 1)
+        linha.addWidget(self.passar_para_edicao)
+        self.faixa_consulta.setVisible(False)
+        return self.faixa_consulta
 
     def _faixa_indicadores(self) -> QHBoxLayout:
         proximo = somar_meses(self.hoje.replace(day=1), 1)
@@ -191,6 +222,74 @@ class JanelaPrincipal(QMainWindow):
         self.aba_instrumentos.atualizar(
             {linha.instrumento.id: linha.situacao for linha in self._cronograma})
         self.aba_lixeira.atualizar()
+
+    # --- Trava de edição ---------------------------------------------------------------------
+
+    @staticmethod
+    def agora() -> datetime.datetime:
+        return datetime.datetime.now()
+
+    def tentar_editar(self, assumir_sinal: int | None = None) -> None:
+        usuario, computador = self.identidade
+        try:
+            dono = self.repo.tentar_editar(usuario, computador, self.agora(), assumir_sinal)
+        except ErroDeValidacao as erro:  # banco ocupado: segue como estava
+            self.texto_consulta.setText(f"✖ {erro.mensagens[0]}")
+            return
+        self.aplicar_modo(dono)
+
+    def aplicar_modo(self, dono: Trava | None) -> None:
+        """dono None = esta janela edita; senão, modo consulta mostrando quem edita."""
+        pode = dono is None and not self.repo.modo_consulta
+        for aba in (self.aba_instrumentos, self.aba_lixeira):
+            aba.definir_edicao(pode)
+        self.faixa_consulta.setVisible(not pode)
+        self.setWindowTitle(self.titulo_janela if pode
+                            else f"{self.titulo_janela} — SOMENTE CONSULTA")
+        if not pode:
+            self.observador.ver(dono.sinal if dono else None, self.agora())
+            self._escrever_faixa(dono)
+
+    def _escrever_faixa(self, dono: Trava | None) -> None:
+        if dono is None:
+            texto = ("SOMENTE CONSULTA — ninguém está editando agora: clique em "
+                     "\"Passar para edição\".")
+        elif self.observador.parado(self.agora()):
+            texto = (f"SOMENTE CONSULTA — {dono.usuario} ({dono.computador}) parou de responder "
+                     "(computador desligado ou travado): você pode passar para edição.")
+        else:
+            texto = (f"SOMENTE CONSULTA — {dono.usuario} ({dono.computador}) está editando "
+                     f"desde {dono.desde:%H:%M}. Você vê tudo, mas não muda nada; os dados se "
+                     "atualizam sozinhos a cada 30 segundos.")
+        self.texto_consulta.setText(texto)
+
+    def pedir_edicao(self) -> None:
+        agora = self.agora()
+        dono = self.repo.obter_trava()
+        self.observador.ver(dono.sinal if dono else None, agora)
+        assumir = self.observador.sinal if self.observador.parado(agora) else None
+        self.tentar_editar(assumir)
+
+    def a_cada_sinal(self) -> None:
+        """A cada 30 s: quem edita avisa que continua; quem consulta relê os dados."""
+        if not self.repo.modo_consulta:
+            if not self.repo.dar_sinal(self.agora()):
+                self.aplicar_modo(self.repo.obter_trava())
+                self.texto_consulta.setText(
+                    "SOMENTE CONSULTA — outra pessoa passou a editar enquanto este computador "
+                    "ficou parado. O que não tinha sido salvo se perdeu.")
+            return
+        dono = self.repo.obter_trava()
+        self.observador.ver(dono.sinal if dono else None, self.agora())
+        self._escrever_faixa(dono)
+        self.atualizar()
+        self.aba_instrumentos.recarregar_atual()
+
+    def closeEvent(self, evento) -> None:  # noqa: N802 — nome exigido pelo Qt
+        self.relogio.stop()
+        if self.identidade is not None and not self.repo.modo_consulta:
+            self.repo.liberar_trava()
+        super().closeEvent(evento)
 
     def _lixeira_mudou(self) -> None:
         self.atualizar()

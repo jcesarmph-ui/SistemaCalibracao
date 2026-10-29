@@ -450,6 +450,7 @@ class PainelCalibracoes(QWidget):
         self.hoje = hoje
         self.instrumento: Instrumento | None = None
         self.calibracoes: list[Calibracao] = []
+        self.pode_editar = True
 
         self.titulo = QLabel(objectName="dica")
         self.tabela = tabela_somente_leitura(self.COLUNAS)
@@ -512,7 +513,8 @@ class PainelCalibracoes(QWidget):
                                 "programa. Clique duas vezes numa linha para ver os pontos.")
         else:
             self.titulo.setText("Nenhuma calibração registrada no programa ainda.")
-        self._aviso(f"⚠ {bloqueio}" if bloqueio and instrumento else "")
+        self._aviso(f"⚠ {bloqueio}" if bloqueio and instrumento and self.pode_editar
+                    else "")
 
     def _bloqueio_registrar(self) -> str | None:
         if self.instrumento is None:
@@ -564,12 +566,24 @@ class PainelCalibracoes(QWidget):
             self.descartar(calibracao, janela.motivo.text())
 
     def descartar(self, calibracao: Calibracao, motivo: str) -> None:
-        self.repo.enviar_para_lixeira(Tipo.CALIBRACAO, calibracao.id, motivo,
-                                      datetime.datetime.now())
+        try:
+            self.repo.enviar_para_lixeira(Tipo.CALIBRACAO, calibracao.id, motivo,
+                                          datetime.datetime.now())
+        except ErroDeValidacao as erro:
+            self._aviso("\n".join(f"✖ {m}" for m in erro.mensagens), erro=True)
+            return
         self.alterado.emit()
         self._aviso(f"✔ Calibração de {formatar_data(calibracao.data_calibracao)} enviada "
                     "para a Lixeira.", certo=True)
 
-    def _aviso(self, texto: str, certo: bool = False) -> None:
-        self.avisos.setStyleSheet(f"color: {CORES['certo'] if certo else CORES['aviso']};")
+    def definir_edicao(self, pode: bool) -> None:
+        """Modo consulta: dá para ver os pontos e o gráfico, mas não registrar nem descartar."""
+        self.registrar.setVisible(pode)
+        self.lixeira.setVisible(pode)
+        self.pode_editar = pode
+        self.mostrar(self.instrumento)
+
+    def _aviso(self, texto: str, certo: bool = False, erro: bool = False) -> None:
+        cor = CORES["erro"] if erro else CORES["certo"] if certo else CORES["aviso"]
+        self.avisos.setStyleSheet(f"color: {cor};")
         self.avisos.setText(texto)

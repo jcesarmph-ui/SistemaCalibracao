@@ -1,7 +1,9 @@
 """Abre o programa: banco da pasta de dados (com o backup do dia) e a janela em tela cheia."""
 
 import ctypes
+import getpass
 import os
+import platform
 import sys
 from pathlib import Path
 
@@ -37,7 +39,8 @@ def main() -> int:
     icone = pasta / "icone_mg.png"
     if icone.is_file():
         app.setWindowIcon(QIcon(str(icone)))
-    janela = JanelaPrincipal(repositorio, pasta)
+    # Quem está usando (para a trava de edição): usuário do Windows e nome do computador.
+    janela = JanelaPrincipal(repositorio, pasta, identidade=(getpass.getuser(), platform.node()))
     janela.showMaximized()
     try:
         return app.exec()

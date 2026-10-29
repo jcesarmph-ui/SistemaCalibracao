@@ -7,12 +7,13 @@ calibração".
 Versão 3: condição do instrumento (Em uso / Orientação indicativa / Desativado) com histórico, no
 lugar das desativações; parecer final e custo da calibração; custo de compra e responsável do
 instrumento.
+Versão 4: trava de edição para uso em rede (uma linha só: quem está editando).
 """
 
 import sqlite3
 from pathlib import Path
 
-VERSAO_ESQUEMA = 3
+VERSAO_ESQUEMA = 4
 
 TABELAS = """
 CREATE TABLE IF NOT EXISTS metadados (
@@ -142,6 +143,19 @@ CREATE TABLE IF NOT EXISTS condicoes (
 CREATE INDEX IF NOT EXISTS ix_condicoes_instrumento ON condicoes(instrumento_id);
 """
 
+# Versão 4. No máximo uma linha: quem está editando agora (ver `calibracao.regras.trava`).
+TABELAS_V4 = """
+CREATE TABLE IF NOT EXISTS trava_edicao (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    token TEXT NOT NULL,
+    usuario TEXT NOT NULL,
+    computador TEXT NOT NULL,
+    desde TEXT NOT NULL,
+    ultimo_sinal TEXT NOT NULL,
+    sinal INTEGER NOT NULL
+);
+"""
+
 # Colunas acrescentadas na versão 3: (tabela, coluna, tipo).
 COLUNAS_V3 = [
     ("instrumentos", "custo_compra", "REAL"),
@@ -189,6 +203,7 @@ def criar_tabelas(conexao: sqlite3.Connection) -> None:
         if coluna not in _colunas(conexao, tabela):
             conexao.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {tipo}")
     _migrar_desativacoes(conexao)
+    conexao.executescript(TABELAS_V4)
     conexao.execute(
         "INSERT OR REPLACE INTO metadados (chave, valor) VALUES ('versao_esquema', ?)",
         (str(VERSAO_ESQUEMA),),

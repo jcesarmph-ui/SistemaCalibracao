@@ -165,6 +165,10 @@ class AbaLixeira(QWidget):
         self.alterado.emit()
         self._aviso(f"✔ Excluído para sempre: {item.descricao}.")
 
+    def definir_edicao(self, pode: bool) -> None:
+        self.restaurar.setVisible(pode)
+        self.excluir.setVisible(pode)
+
     def _aviso(self, texto: str, erro: bool = False) -> None:
         self.avisos.setStyleSheet(f"color: {CORES['erro'] if erro else CORES['certo']};")
         self.avisos.setText(texto)

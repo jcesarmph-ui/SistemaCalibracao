@@ -6,7 +6,9 @@ de `calibracao.regras` — aqui só se guarda e se busca.
 """
 
 import datetime
+import functools
 import sqlite3
+import uuid
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
@@ -29,6 +31,11 @@ from calibracao.regras.condicao import (
 from calibracao.regras.cronograma import Situacao, proxima_calibracao, situacao
 from calibracao.regras.lixeira import Tipo, bloqueio_exclusao_permanente, bloqueio_restaurar
 from calibracao.regras.localizacao import padronizar_localizacao
+from calibracao.regras.trava import sinal_antigo
+
+MENSAGEM_CONSULTA = ("Modo consulta: outra pessoa está editando. Nada foi salvo.")
+MENSAGEM_OCUPADO = ("O banco de dados está ocupado por outro computador. Nada foi salvo: "
+                    "tente de novo em alguns segundos.")
 
 
 class ErroDeValidacao(Exception):
@@ -37,6 +44,34 @@ class ErroDeValidacao(Exception):
     def __init__(self, mensagens: list[str]):
         super().__init__("; ".join(mensagens))
         self.mensagens = mensagens
+
+
+def _escrita(metodo):
+    """Toda gravação: recusada no modo consulta; banco ocupado vira aviso na tela."""
+
+    @functools.wraps(metodo)
+    def envolto(self, *args, **kwargs):
+        if self.modo_consulta:
+            raise ErroDeValidacao([MENSAGEM_CONSULTA])
+        try:
+            return metodo(self, *args, **kwargs)
+        except sqlite3.OperationalError as erro:
+            if "locked" in str(erro) or "busy" in str(erro):
+                raise ErroDeValidacao([MENSAGEM_OCUPADO]) from erro
+            raise
+
+    return envolto
+
+
+@dataclass
+class Trava:
+    """Quem está editando agora."""
+
+    usuario: str
+    computador: str
+    desde: datetime.datetime
+    ultimo_sinal: datetime.datetime
+    sinal: int
 
 
 @dataclass
@@ -255,6 +290,9 @@ def _instrumento(linha: sqlite3.Row) -> Instrumento:
 class Repositorio:
     def __init__(self, conexao: sqlite3.Connection):
         self._conexao = conexao
+        self.token = uuid.uuid4().hex  # identifica esta janela aberta na trava de edição
+        # Sem trava (testes, fotos), pode editar; a janela liga o modo consulta se precisar.
+        self.modo_consulta = False
 
     @classmethod
     def abrir(cls, caminho: Path, hoje: datetime.date | None = None) -> "Repositorio":
@@ -274,6 +312,75 @@ class Repositorio:
 
     def __exit__(self, *_) -> None:
         self.fechar()
+
+    # ---------------------------------------------------------------- trava de edição
+
+    def obter_trava(self) -> Trava | None:
+        linha = self._conexao.execute("SELECT * FROM trava_edicao WHERE id = 1").fetchone()
+        if linha is None:
+            return None
+        return Trava(linha["usuario"], linha["computador"],
+                     datetime.datetime.fromisoformat(linha["desde"]),
+                     datetime.datetime.fromisoformat(linha["ultimo_sinal"]), linha["sinal"])
+
+    def tentar_editar(self, usuario: str, computador: str, agora: datetime.datetime,
+                      assumir_sinal: int | None = None) -> Trava | None:
+        """Pega a trava se estiver livre (ou vencida). Devolve None se pegou; senão, quem tem.
+
+        `assumir_sinal`: o sinal que este computador viu parado por 2 minutos — só toma a trava
+        se ela ainda estiver com esse mesmo sinal (ninguém voltou a dar sinal nem pegou antes).
+        """
+        try:
+            with self._conexao:
+                self._conexao.execute("BEGIN IMMEDIATE")  # duas pessoas não pegam ao mesmo tempo
+                linha = self._conexao.execute(
+                    "SELECT * FROM trava_edicao WHERE id = 1").fetchone()
+                livre = (
+                    linha is None
+                    or linha["token"] == self.token
+                    # mesma pessoa no mesmo computador: o programa anterior fechou sem liberar
+                    or (linha["usuario"], linha["computador"]) == (usuario, computador)
+                    or sinal_antigo(datetime.datetime.fromisoformat(linha["ultimo_sinal"]),
+                                    agora)
+                    or (assumir_sinal is not None and linha["sinal"] == assumir_sinal)
+                )
+                if livre:
+                    self._conexao.execute(
+                        """INSERT OR REPLACE INTO trava_edicao
+                           (id, token, usuario, computador, desde, ultimo_sinal, sinal)
+                           VALUES (1, ?, ?, ?, ?, ?, ?)""",
+                        (self.token, usuario, computador,
+                         agora.isoformat(timespec="seconds"),
+                         agora.isoformat(timespec="seconds"),
+                         (linha["sinal"] + 1) if linha else 1),
+                    )
+        except sqlite3.OperationalError as erro:
+            raise ErroDeValidacao([MENSAGEM_OCUPADO]) from erro
+        self.modo_consulta = not livre
+        return None if livre else self.obter_trava()
+
+    def dar_sinal(self, agora: datetime.datetime) -> bool:
+        """Avisa que esta janela continua editando. False = perdeu a trava (vira consulta)."""
+        try:
+            with self._conexao:
+                atualizadas = self._conexao.execute(
+                    "UPDATE trava_edicao SET sinal = sinal + 1, ultimo_sinal = ? "
+                    "WHERE id = 1 AND token = ?",
+                    (agora.isoformat(timespec="seconds"), self.token),
+                ).rowcount
+        except sqlite3.OperationalError:
+            return True  # banco ocupado neste instante: tenta de novo no próximo sinal
+        if not atualizadas:
+            self.modo_consulta = True
+        return bool(atualizadas)
+
+    def liberar_trava(self) -> None:
+        """Ao fechar o programa: libera para outra pessoa editar."""
+        try:
+            with self._conexao:
+                self._conexao.execute("DELETE FROM trava_edicao WHERE token = ?", (self.token,))
+        except sqlite3.OperationalError:
+            pass  # se não der agora, a trava vence sozinha (sinal parado)
 
     # ---------------------------------------------------------------- instrumentos
 
@@ -313,6 +420,7 @@ class Repositorio:
         if erros:
             raise ErroDeValidacao(erros)
 
+    @_escrita
     def incluir_instrumento(self, instrumento: Instrumento) -> int:
         self._validar_instrumento(instrumento)
         dados = asdict(instrumento)
@@ -326,6 +434,7 @@ class Repositorio:
             )
         return cursor.lastrowid
 
+    @_escrita
     def atualizar_instrumento(self, instrumento: Instrumento) -> None:
         if instrumento.id is None:
             raise ValueError("Instrumento sem id: use incluir_instrumento.")
@@ -363,6 +472,7 @@ class Repositorio:
     def esta_desativado(self, instrumento_id: int) -> bool:
         return self.condicao_atual(instrumento_id).condicao == Condicao.DESATIVADO
 
+    @_escrita
     def mudar_condicao(self, instrumento_id: int, condicao: Condicao,
                        data: datetime.date | None, motivo: str | None,
                        hoje: datetime.date) -> None:
@@ -414,6 +524,7 @@ class Repositorio:
             raise KeyError(f"Plano {plano_id} não existe.")
         return Plano(linha["nome"], linha["observacoes"], linha["id"])
 
+    @_escrita
     def incluir_plano(self, plano: Plano) -> int:
         if not (plano.nome or "").strip():
             raise ErroDeValidacao(["Informe o nome do plano."])
@@ -424,6 +535,7 @@ class Repositorio:
             )
         return cursor.lastrowid
 
+    @_escrita
     def atualizar_plano(self, plano: Plano) -> None:
         if not (plano.nome or "").strip():
             raise ErroDeValidacao(["Informe o nome do plano."])
@@ -461,6 +573,7 @@ class Repositorio:
         if erros:
             raise ErroDeValidacao(erros)
 
+    @_escrita
     def incluir_ponto(self, ponto: PontoPlano) -> int:
         self._validar_ponto(ponto)
         dados = asdict(ponto)
@@ -477,6 +590,7 @@ class Repositorio:
             )
         return cursor.lastrowid
 
+    @_escrita
     def atualizar_ponto(self, ponto: PontoPlano) -> None:
         """Muda o plano daqui para a frente; calibrações já feitas guardam a "foto" antiga."""
         self._validar_ponto(ponto)
@@ -510,6 +624,7 @@ class Repositorio:
             return Avaliacao(medido.escolha)
         return Avaliacao(Resultado.NAO_INFORMADO)
 
+    @_escrita
     def registrar_calibracao(self, nova: NovaCalibracao, hoje: datetime.date) -> int:
         """Salva a calibração; recusa (ErroDeValidacao) se faltar algo ou houver pendência."""
         instrumento = self.obter_instrumento(nova.instrumento_id)
@@ -690,6 +805,7 @@ class Repositorio:
         ).fetchone()
         return linha is not None and linha["excluido_em"] is not None
 
+    @_escrita
     def enviar_para_lixeira(self, tipo: Tipo, item_id: int, motivo: str | None,
                             agora: datetime.datetime) -> None:
         with self._conexao:
@@ -709,6 +825,7 @@ class Repositorio:
         pai = Tipo.INSTRUMENTO if tipo == Tipo.CALIBRACAO else Tipo.PLANO
         return pai_id is not None and self.na_lixeira(pai, pai_id)
 
+    @_escrita
     def restaurar(self, tipo: Tipo, item_id: int) -> None:
         bloqueio = bloqueio_restaurar(tipo, self._pai_na_lixeira(tipo, item_id))
         if bloqueio:
@@ -730,6 +847,7 @@ class Repositorio:
         }[tipo]
         return any(self._conexao.execute(sql, (item_id,)).fetchone() for sql in consultas)
 
+    @_escrita
     def excluir_permanentemente(self, tipo: Tipo, item_id: int, confirmacao: str) -> None:
         """Apaga de vez um item que já está na Lixeira (exige digitar EXCLUIR)."""
         if not self.na_lixeira(tipo, item_id):
