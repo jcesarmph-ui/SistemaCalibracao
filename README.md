@@ -380,11 +380,32 @@ fazer **novas** calibrações:
 
 O banco começa **sem calibrações**: o histórico antigo continua na planilha, só para consulta.
 
+**Fase 2 — Regras de negócio, refeitas do zero com testes.** As regras ficam numa camada própria, que
+não conhece a tela nem o banco, e cada uma foi definida junto com quem usa o sistema no dia a dia.
+
+| Regra | O que mudou em relação ao protótipo |
+|---|---|
+| Avaliação por ponto com a incerteza (U) | Passa a cobrir pontos de **limite** (máx./mín.) e pontos **sem nominal fixo**, avaliados pelo erro informado no certificado do laboratório externo. |
+| Resultado geral da calibração | Ponto em branco **não é mais ignorado**: a calibração só é salva com todos os pontos preenchidos ou marcados como "não aplicável", com motivo. "Aprovado com restrição" passa a se chamar **"Aprovado como orientação indicativa"**, o termo usado na empresa. |
+| Cronograma | Novo grupo **"Sem calibração no programa"**, que acompanha a transição da planilha até todos os instrumentos terem a primeira calibração registrada. |
+| Lixeira | Calibração registrada por engano **pode** ser excluída permanentemente. |
+| Desativação | Novo: instrumento que deixou de ser usado vai para **Desativados**, com motivo e data, e pode ser **reativado** sem perder o histórico. |
+
+```mermaid
+flowchart TD
+    A["Valor do certificado"] --> B{"Incerteza (U)<br/>informada?"}
+    B -->|Não| N["⚪ Não avaliado<br/>(não deixa salvar)"]
+    B -->|Sim| C["Faixa = erro ± U"]
+    C --> D{"Faixa inteira dentro<br/>da tolerância?"}
+    D -->|Sim| OK["🟢 Aprovado"]
+    D -->|Não| NOK["🔴 Reprovado"]
+```
+
 ### 🗺️ Roteiro
 
 - [x] Fase 0 — Fundação (estrutura, versão, testes, decisões de arquitetura)
 - [x] Fase 1 — Importador da planilha + relatório de conferência
-- [ ] Fase 2 — Regras de avaliação, cronograma e lixeira, com testes
+- [x] Fase 2 — Regras de avaliação, cronograma, lixeira e desativação, com testes
 - [ ] Fase 3 — Banco preparado para uso em rede, com backup automático
 - [ ] Fase 4 — Interface PySide6
 - [ ] Fase 5 — Melhorias e correções
@@ -421,7 +442,7 @@ SistemaCalibracao/
 ├── data/                       # banco SQLite (criado na 1ª execução; não versionado)
 ├── docs/                       # documentação da atualização da lixeira
 ├── scripts/                    # utilitários administrativos (importação, validação, limpeza)
-├── src/calibracao/             # programa final (PySide6) em construção: importador e dados
+├── src/calibracao/             # programa final (PySide6) em construção: importador, regras e dados
 ├── tests/                      # testes automáticos (unittest)
 ├── .vscode/                    # configuração de execução no VS Code
 ├── Abrir_CALIB.bat             # atalho para iniciar a aplicação no Windows

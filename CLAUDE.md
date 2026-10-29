@@ -104,7 +104,15 @@ usuário): o usuário quer fazer **depois, não agora** — apenas lembrar a pen
 vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_responsavel.py`);
 `Abrir_CALIB.bat` e `iniciar_calib.py` (deixam de existir sem Streamlit); `.vscode/`.
 
-## Onde paramos (2026-10-28, fim do dia)
+## Onde paramos
+- **2026-10-29:** fase 1 juntada ao `main` (PR #2). **Fase 2 (regras) concluída** na branch
+  `fase-2-regras`, versão `0.2.0`, PR aberto: `src/calibracao/regras/` (avaliacao, cronograma,
+  lixeira) com testes. Próximo: **fase 3** (banco para rede, classe repositório) — o esquema precisa
+  ganhar: calibrações e pontos medidos (com "não aplicável" + motivo, valor do padrão/medido opcionais),
+  desativação/reativação com histórico, marca "não precisa de calibração". Pendente `.gitattributes`.
+- Perguntas ao usuário: sempre com opções clicáveis (AskUserQuestion).
+
+### Histórico (2026-10-28, fim do dia)
 - Fase 0 concluída (PR #1 juntado ao `main`). Fase 1 (importador) pronta na branch
   `fase-1-importador` (já enviada ao GitHub; **PR ainda não aberto**). Versão `0.1.0`.
 - Banco novo gerado em `dados/calibracao.db` + `dados/conferencia_importacao.xlsx` (fora do Git):
