@@ -758,7 +758,8 @@ class Repositorio:
               FROM pontos_plano p JOIN planos pl ON pl.id = p.plano_id
              WHERE p.excluido_em IS NOT NULL
             UNION ALL
-            SELECT 'Calibração', c.id, i.codigo || ' — calibração de ' || c.data_calibracao,
+            SELECT 'Calibração', c.id,
+                   i.codigo || ' — calibração de ' || strftime('%d/%m/%Y', c.data_calibracao),
                    c.excluido_em, c.motivo_exclusao
               FROM calibracoes c JOIN instrumentos i ON i.id = c.instrumento_id
              WHERE c.excluido_em IS NOT NULL

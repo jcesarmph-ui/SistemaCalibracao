@@ -388,6 +388,15 @@ class AbaInstrumentos(QWidget):
 
     # --- Ações ------------------------------------------------------------------------------
 
+    def recarregar_atual(self) -> None:
+        """Redesenha o instrumento aberto (mudou algo pela Lixeira)."""
+        if self.atual is None:
+            return
+        if self.repo.na_lixeira(Tipo.INSTRUMENTO, self.atual.id):
+            self.mostrar(None)
+        else:
+            self.mostrar(self.repo.obter_instrumento(self.atual.id))
+
     def _calibracoes_mudaram(self) -> None:
         """Calibração registrada ou na Lixeira: cronograma, condição e histórico mudam."""
         instrumento = self.atual

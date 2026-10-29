@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from calibracao import __version__
 from calibracao.dados.repositorio import LinhaCronograma, Repositorio
 from calibracao.interface.aba_instrumentos import AbaInstrumentos
+from calibracao.interface.aba_lixeira import AbaLixeira
 from calibracao.interface.componentes import (
     ListaFlutuante,
     PainelClicavel,
@@ -87,7 +88,9 @@ class JanelaPrincipal(QMainWindow):
         self.aba_instrumentos.alterado.connect(self.atualizar)
         self.abas.addTab(self.aba_instrumentos, "Instrumentos")
         self.abas.addTab(self._aba_cronograma(), "Cronograma")
-        self.abas.addTab(self._aba_em_construcao("a Lixeira"), "Lixeira")
+        self.aba_lixeira = AbaLixeira(repositorio)
+        self.aba_lixeira.alterado.connect(self._lixeira_mudou)
+        self.abas.addTab(self.aba_lixeira, "Lixeira")
         self.abas.setCurrentIndex(1)
 
         tela = QVBoxLayout()
@@ -161,14 +164,6 @@ class JanelaPrincipal(QMainWindow):
         caixa.addWidget(self.tabela_cronograma)
         return aba
 
-    @staticmethod
-    def _aba_em_construcao(oque: str) -> QWidget:
-        aba = QWidget()
-        caixa = QVBoxLayout(aba)
-        caixa.addWidget(QLabel(f"Em construção: aqui ficará {oque}.", objectName="dica",
-                               alignment=Qt.AlignCenter))
-        return aba
-
     # --- Dados ------------------------------------------------------------------------------
 
     def atualizar(self) -> None:
@@ -195,6 +190,11 @@ class JanelaPrincipal(QMainWindow):
         self._preencher_cronograma(self.filtro_cronograma.currentText())
         self.aba_instrumentos.atualizar(
             {linha.instrumento.id: linha.situacao for linha in self._cronograma})
+        self.aba_lixeira.atualizar()
+
+    def _lixeira_mudou(self) -> None:
+        self.atualizar()
+        self.aba_instrumentos.recarregar_atual()  # ex.: ponto restaurado volta ao plano aberto
 
     def mostrar_lista_do_painel(self, chave: str, painel: QWidget) -> None:
         """Janelinha com os instrumentos do painel (código, tipo, localização, situação)."""
