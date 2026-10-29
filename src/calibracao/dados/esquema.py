@@ -4,12 +4,16 @@ Exclusão é lógica: `excluido_em` preenchido = registro na Lixeira.
 Versão 1: cadastro (instrumentos, planos e pontos) — é a do banco gerado pelo importador.
 Versão 2: calibrações com os pontos medidos, desativação de instrumentos e "não precisa de
 calibração".
+Versão 3: condição do instrumento (Em uso / Orientação indicativa / Desativado) com histórico, no
+lugar das desativações; parecer final e custo da calibração; custo de compra e responsável do
+instrumento.
+Versão 4: trava de edição para uso em rede (uma linha só: quem está editando).
 """
 
 import sqlite3
 from pathlib import Path
 
-VERSAO_ESQUEMA = 2
+VERSAO_ESQUEMA = 4
 
 TABELAS = """
 CREATE TABLE IF NOT EXISTS metadados (
@@ -70,18 +74,7 @@ CREATE TABLE IF NOT EXISTS pontos_plano (
 );
 """
 
-# Versão 2. O instrumento está desativado enquanto houver uma desativação sem `reativado_em`;
-# as linhas antigas ficam como histórico (desativado em X por Y, reativado em Z).
 TABELAS_V2 = """
-CREATE TABLE IF NOT EXISTS desativacoes (
-    id INTEGER PRIMARY KEY,
-    instrumento_id INTEGER NOT NULL REFERENCES instrumentos(id),
-    data TEXT NOT NULL,
-    motivo TEXT NOT NULL,
-    reativado_em TEXT,
-    criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS calibracoes (
     id INTEGER PRIMARY KEY,
     instrumento_id INTEGER NOT NULL REFERENCES instrumentos(id),
@@ -130,8 +123,51 @@ CREATE TABLE IF NOT EXISTS pontos_calibracao (
 
 CREATE INDEX IF NOT EXISTS ix_calibracoes_instrumento ON calibracoes(instrumento_id);
 CREATE INDEX IF NOT EXISTS ix_pontos_calibracao ON pontos_calibracao(calibracao_id);
-CREATE INDEX IF NOT EXISTS ix_desativacoes_instrumento ON desativacoes(instrumento_id);
 """
+
+# Versão 3. A condição atual é a da mudança mais recente (data, depois ordem de registro); sem
+# nenhuma mudança, o instrumento está "Em uso". Mudança feita por uma calibração guarda o
+# `calibracao_id`: se a calibração for para a Lixeira, a mudança deixa de valer.
+TABELAS_V3 = """
+CREATE TABLE IF NOT EXISTS condicoes (
+    id INTEGER PRIMARY KEY,
+    instrumento_id INTEGER NOT NULL REFERENCES instrumentos(id),
+    condicao TEXT NOT NULL
+        CHECK (condicao IN ('Em uso', 'Orientação indicativa', 'Desativado')),
+    data TEXT NOT NULL,
+    motivo TEXT,
+    calibracao_id INTEGER REFERENCES calibracoes(id) ON DELETE CASCADE,
+    criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS ix_condicoes_instrumento ON condicoes(instrumento_id);
+"""
+
+# Versão 4. No máximo uma linha: quem está editando agora (ver `calibracao.regras.trava`).
+TABELAS_V4 = """
+CREATE TABLE IF NOT EXISTS trava_edicao (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    token TEXT NOT NULL,
+    usuario TEXT NOT NULL,
+    computador TEXT NOT NULL,
+    desde TEXT NOT NULL,
+    ultimo_sinal TEXT NOT NULL,
+    sinal INTEGER NOT NULL,
+    -- quem, no modo consulta, pediu para editar (quem edita recebe o aviso para liberar)
+    pedido_usuario TEXT,
+    pedido_computador TEXT,
+    pedido_em TEXT
+);
+"""
+
+# Colunas acrescentadas na versão 3: (tabela, coluna, tipo).
+COLUNAS_V3 = [
+    ("instrumentos", "custo_compra", "REAL"),
+    ("instrumentos", "responsavel", "TEXT"),
+    ("calibracoes", "parecer_final", "TEXT"),
+    ("calibracoes", "motivo_parecer", "TEXT"),
+    ("calibracoes", "custo_calibracao", "REAL"),
+]
 
 
 def conectar(caminho: Path) -> sqlite3.Connection:
@@ -166,7 +202,34 @@ def criar_tabelas(conexao: sqlite3.Connection) -> None:
             "ALTER TABLE instrumentos ADD COLUMN exige_calibracao INTEGER NOT NULL DEFAULT 1"
         )
     conexao.executescript(TABELAS_V2)
+    conexao.executescript(TABELAS_V3)
+    for tabela, coluna, tipo in COLUNAS_V3:
+        if coluna not in _colunas(conexao, tabela):
+            conexao.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {tipo}")
+    _migrar_desativacoes(conexao)
+    conexao.executescript(TABELAS_V4)
+    for coluna in ("pedido_usuario", "pedido_computador", "pedido_em"):
+        if coluna not in _colunas(conexao, "trava_edicao"):
+            conexao.execute(f"ALTER TABLE trava_edicao ADD COLUMN {coluna} TEXT")
     conexao.execute(
         "INSERT OR REPLACE INTO metadados (chave, valor) VALUES ('versao_esquema', ?)",
         (str(VERSAO_ESQUEMA),),
     )
+
+
+def _migrar_desativacoes(conexao: sqlite3.Connection) -> None:
+    """Banco da versão 2: cada desativação vira "Desativado" e a reativação vira "Em uso"."""
+    if not _colunas(conexao, "desativacoes"):
+        return
+    for linha in conexao.execute("SELECT * FROM desativacoes ORDER BY data, id").fetchall():
+        conexao.execute(
+            "INSERT INTO condicoes (instrumento_id, condicao, data, motivo) "
+            "VALUES (?, 'Desativado', ?, ?)",
+            (linha["instrumento_id"], linha["data"], linha["motivo"]),
+        )
+        if linha["reativado_em"]:
+            conexao.execute(
+                "INSERT INTO condicoes (instrumento_id, condicao, data) VALUES (?, 'Em uso', ?)",
+                (linha["instrumento_id"], linha["reativado_em"]),
+            )
+    conexao.execute("DROP TABLE desativacoes")

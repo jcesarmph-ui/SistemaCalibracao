@@ -155,7 +155,7 @@ def test_banco_gravado_sem_calibracoes(planilha_ficticia, tmp_path):
     assert sem_plano is None
     assert conexao.execute("PRAGMA journal_mode").fetchone()[0] == "delete"
     # O programa começa sem nenhuma calibração (o histórico antigo fica na planilha).
-    for tabela in ("calibracoes", "pontos_calibracao", "desativacoes"):
+    for tabela in ("calibracoes", "pontos_calibracao", "condicoes"):
         assert conexao.execute(f"SELECT COUNT(*) FROM {tabela}").fetchone()[0] == 0
     conexao.close()
 

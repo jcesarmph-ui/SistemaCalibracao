@@ -1,4 +1,4 @@
-"""Cronograma: próxima calibração e situação de cada instrumento."""
+"""Cronograma por mês: próxima calibração e situação de cada instrumento."""
 
 from datetime import date
 
@@ -35,21 +35,49 @@ def test_proxima_sem_dados():
 
 
 @pytest.mark.parametrize(
-    ("ultima", "esperado"),
+    ("proxima", "esperado"),
     [
-        (date(2026, 3, 14), Situacao.VENCIDA),           # venceu ontem
-        (date(2026, 3, 15), Situacao.PROXIMOS_30_DIAS),  # vence hoje: ainda não está vencida
-        (date(2026, 4, 14), Situacao.PROXIMOS_30_DIAS),  # vence daqui a 30 dias
-        (date(2026, 4, 15), Situacao.EM_DIA),            # 31 dias
-        (None, Situacao.SEM_CALIBRACAO),                 # transição: nunca calibrado no programa
+        (date(2027, 2, 28), Situacao.VENCIDA),         # mês passado e não foi feito
+        (date(2027, 3, 1), Situacao.PENDENTE_MES),     # já passou o dia, mas o mês não acabou
+        (date(2027, 3, 31), Situacao.PENDENTE_MES),
+        (date(2027, 4, 1), Situacao.PROXIMO_MES),
+        (date(2027, 4, 30), Situacao.PROXIMO_MES),
+        (date(2027, 5, 1), Situacao.EM_DIA),
     ],
 )
-def test_situacao(ultima, esperado):
-    assert situacao(ultima, 12, HOJE) == esperado
+def test_situacao_por_mes(proxima, esperado):
+    assert situacao(date(2026, 3, 1), proxima, HOJE) == esperado
 
 
-def test_sem_periodicidade():
+def test_pendente_so_vira_vencida_no_mes_seguinte():
+    prevista = date(2027, 3, 10)
+    assert situacao(date(2026, 3, 10), prevista, date(2027, 3, 31)) == Situacao.PENDENTE_MES
+    assert situacao(date(2026, 3, 10), prevista, date(2027, 4, 1)) == Situacao.VENCIDA
+
+
+def test_feita_este_mes():
+    # Estava prevista para 10/03; calibrada em 05/03 → próxima em 2028.
+    assert situacao(date(2027, 3, 5), date(2028, 3, 5), HOJE,
+                    prevista_anterior=date(2027, 3, 10)) == Situacao.FEITA_MES
+
+
+def test_vencida_de_mes_anterior_feita_agora_fica_em_dia():
+    # Estava prevista para fevereiro (vencida); calibrada em março: não entra no total de março.
+    assert situacao(date(2027, 3, 5), date(2028, 3, 5), HOJE,
+                    prevista_anterior=date(2027, 2, 10)) == Situacao.EM_DIA
+
+
+def test_primeira_calibracao_no_programa_fica_em_dia():
+    assert situacao(date(2027, 3, 5), date(2028, 3, 5), HOJE) == Situacao.EM_DIA
+
+
+def test_sem_calibracao_e_sem_periodicidade():
+    assert situacao(None, None, HOJE) == Situacao.SEM_CALIBRACAO
     assert situacao(date(2027, 1, 1), None, HOJE) == Situacao.SEM_PERIODICIDADE
+
+
+def test_virada_de_ano():
+    assert situacao(date(2026, 1, 5), date(2028, 1, 5), date(2027, 12, 20)) == Situacao.PROXIMO_MES
 
 
 def test_previsto_no_mes():

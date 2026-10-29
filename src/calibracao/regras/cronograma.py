@@ -1,22 +1,25 @@
-"""Cronograma: próxima calibração e situação de cada instrumento (regras do protótipo).
+"""Cronograma por mês (como a MG acompanha: as calibrações do mês, do dia 1 ao 31).
 
+Decisões do usuário em 2026-10-29:
 - Próxima calibração = data da última calibração + periodicidade em meses.
-- Vencida: a data prevista já passou (no próprio dia ainda não está vencida).
-- Próximos 30 dias: vence de hoje até hoje + 30 dias.
+- Previsto para este mês e ainda não feito → "Pendente este mês" até o dia 31; só vira "Vencida"
+  a partir do dia 1º do mês seguinte.
+- Previsto para este mês e já calibrado neste mês → "Feita este mês" (conta no total do mês).
+- Previsto para o mês seguinte → "Próximo mês". Depois disso → "Em dia".
 - O programa começa sem calibrações: até a primeira, o instrumento fica em "Sem calibração no
-  programa" (transição da planilha; o grupo diminui conforme as calibrações são registradas).
+  programa" (transição da planilha).
 """
 
 import calendar
 import datetime
 from enum import StrEnum
 
-DIAS_PROXIMOS = 30
-
 
 class Situacao(StrEnum):
     VENCIDA = "Vencida"
-    PROXIMOS_30_DIAS = "Próximos 30 dias"
+    PENDENTE_MES = "Pendente este mês"
+    FEITA_MES = "Feita este mês"
+    PROXIMO_MES = "Próximo mês"
     EM_DIA = "Em dia"
     SEM_CALIBRACAO = "Sem calibração no programa"
     SEM_PERIODICIDADE = "Sem periodicidade"
@@ -36,18 +39,30 @@ def proxima_calibracao(ultima: datetime.date | None,
     return somar_meses(ultima, periodicidade_meses)
 
 
-def situacao(ultima: datetime.date | None, periodicidade_meses: int | None,
-             hoje: datetime.date) -> Situacao:
-    """`ultima` é a data da última calibração **visível** (fora da lixeira)."""
+def mesmo_mes(data: datetime.date | None, referencia: datetime.date) -> bool:
+    return data is not None and (data.year, data.month) == (referencia.year, referencia.month)
+
+
+def situacao(ultima: datetime.date | None, proxima: datetime.date | None,
+             hoje: datetime.date, prevista_anterior: datetime.date | None = None) -> Situacao:
+    """Situação do instrumento.
+
+    `ultima`: data da última calibração **visível** (fora da Lixeira); `proxima`: a data prevista a
+    partir dela; `prevista_anterior`: a data que estava prevista antes dessa última calibração (para
+    saber se ela foi a calibração prevista para este mês).
+    """
     if ultima is None:
         return Situacao.SEM_CALIBRACAO
-    proxima = proxima_calibracao(ultima, periodicidade_meses)
+    if mesmo_mes(ultima, hoje) and mesmo_mes(prevista_anterior, hoje):
+        return Situacao.FEITA_MES
     if proxima is None:
         return Situacao.SEM_PERIODICIDADE
-    if proxima < hoje:
+    if proxima < hoje.replace(day=1):
         return Situacao.VENCIDA
-    if proxima <= hoje + datetime.timedelta(days=DIAS_PROXIMOS):
-        return Situacao.PROXIMOS_30_DIAS
+    if mesmo_mes(proxima, hoje):
+        return Situacao.PENDENTE_MES
+    if mesmo_mes(proxima, somar_meses(hoje.replace(day=1), 1)):
+        return Situacao.PROXIMO_MES
     return Situacao.EM_DIA
 
 

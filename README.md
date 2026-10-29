@@ -2,6 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"/>
+  <img src="https://img.shields.io/badge/PySide6-41CD52?style=for-the-badge&logo=qt&logoColor=white" alt="PySide6"/>
   <img src="https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="Streamlit"/>
   <img src="https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite"/>
   <img src="https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white" alt="Pandas"/>
@@ -387,7 +388,7 @@ não conhece a tela nem o banco, e cada uma foi definida junto com quem usa o si
 |---|---|
 | Avaliação por ponto com a incerteza (U) | Passa a cobrir pontos de **limite** (máx./mín.) e pontos **sem nominal fixo**, avaliados pelo erro informado no certificado do laboratório externo. |
 | Resultado geral da calibração | Ponto em branco **não é mais ignorado**: a calibração só é salva com todos os pontos preenchidos ou marcados como "não aplicável", com motivo. "Aprovado com restrição" passa a se chamar **"Aprovado como orientação indicativa"**, o termo usado na empresa. |
-| Cronograma | Novo grupo **"Sem calibração no programa"**, que acompanha a transição da planilha até todos os instrumentos terem a primeira calibração registrada. |
+| Cronograma | Acompanhamento **por mês**, como a empresa trabalha (dia 1 ao último dia): o que está previsto vira "pendente este mês" e só conta como vencido quando o mês termina; no lugar de "próximos 30 dias" entra "próximo mês". Novo grupo **"Sem calibração no programa"**, que acompanha a transição da planilha até todos os instrumentos terem a primeira calibração registrada. |
 | Lixeira | Calibração registrada por engano **pode** ser excluída permanentemente. |
 | Desativação | Novo: instrumento que deixou de ser usado vai para **Desativados**, com motivo e data, e pode ser **reativado** sem perder o histórico. |
 
@@ -420,13 +421,61 @@ flowchart LR
     B -.->|1x por dia| K[("🗄️ backup/<br/>últimas 30 cópias")]
 ```
 
+**Fase 4 — Interface desktop em PySide6.** O programa ganhou a tela nova, com a mesma identidade
+visual dos demais programas internos: tema escuro, layout em faixas, logo, versão na tela e cores
+com significado fixo (verde = certo, vermelho = problema, amarelo = aviso).
+
+| Tela | O que faz |
+|---|---|
+| **Topo** | Total de instrumentos, vencidas e o acompanhamento **por mês** ("calibrações de outubro: 3 \| 2 pendentes" e as do mês seguinte). Clicar num painel abre uma lista flutuante com os instrumentos daquele grupo. |
+| **Instrumentos** | Lista com filtros por **condição**, **tipo** e **localização** ("clico em paquímetro e aparecem todos os paquímetros"), ficha do instrumento (com custo de compra e responsável) e três sub-abas: plano, calibrações e histórico de condição. |
+| **Plano de calibração** | Pontos editáveis direto na tabela; aviso em amarelo para os pontos sem incerteza (U). Mudar o plano vale daqui para a frente: calibrações antigas guardam a "foto" do plano usado. |
+| **Calibrações** | Registro em tela cheia: o resultado de cada ponto aparece **enquanto se digita**, sempre considerando a incerteza (U); depois, quem analisa escolhe o **parecer final**. Histórico, ver os pontos de cada calibração e **gráfico de tendência**. |
+| **Cronograma** | Situação de cada instrumento no mês, com filtro e o parecer da última calibração. |
+| **Lixeira** | Restaurar o que foi registrado por engano ou excluir de vez (só digitando EXCLUIR). |
+
+```mermaid
+flowchart LR
+    M["Pontos medidos<br/>(com U)"] --> A["Resultado pelos pontos<br/>automático"]
+    A --> P{"Parecer final<br/>(quem analisa)"}
+    P -->|Aprovado| U["🟢 Em uso"]
+    P -->|Orientação indicativa| O["🟡 Orientação indicativa<br/>segue no cronograma"]
+    P -->|Reprovado - Desativado| D["⚫ Desativado<br/>sai do cronograma"]
+```
+
+| Novidade | O que mudou |
+|---|---|
+| **Condição do instrumento** | No lugar da aba "Desativados": cada instrumento está **em uso**, como **orientação indicativa** ou **desativado**, com histórico (data, observação e se veio de uma calibração ou de uma mudança manual). |
+| **Parecer final** | O resultado dos pontos é calculado sozinho; o parecer é decisão de quem analisa e **muda a condição** do instrumento. Calibração reprovada nos pontos não pode receber "Aprovado". Enviar a calibração à Lixeira desfaz essa mudança. |
+| **Gráfico de tendência** | Um ponto do plano por vez: o erro de cada calibração com a barra da incerteza (U) e as linhas de tolerância — o ponto só é aprovado se a barra inteira ficar dentro. Ponto reprovado em vermelho, valores ao passar o mouse e exportação em PNG. |
+| **Uso por várias pessoas na rede** | **Trava de edição**: quem abre primeiro edita; os outros entram em modo consulta (botões de mudar escondidos, campos travados, dados se atualizando sozinhos). Um texto discreto no canto mostra o modo e quem está editando; clicar nele **pede a edição**, e quem edita escolhe liberar ou continuar. A trava se libera sozinha se o computador travar ou ficar 30 minutos parado. |
+| **Desempenho** | Medido com 20 anos de uso simulado (2.000 calibrações): banco com **2,4 MB** e cronograma calculado em **0,014 s** — o oposto da planilha, que travava por excesso de abas e fórmulas. |
+
+```mermaid
+sequenceDiagram
+    participant A as 👤 Quem edita
+    participant B as 🗄️ Banco (pasta de rede)
+    participant C as 👤 Quem consulta
+    A->>B: pega a trava ao abrir
+    C->>B: abre depois → modo consulta
+    loop a cada 30 s
+        A->>B: sinal "continuo aqui"
+        C->>B: relê os dados
+    end
+    C->>B: clica no texto → pede a edição
+    B-->>A: aviso: liberar ou continuar?
+    A->>B: libera
+    B-->>C: passa para edição
+```
+
 ### 🗺️ Roteiro
 
 - [x] Fase 0 — Fundação (estrutura, versão, testes, decisões de arquitetura)
 - [x] Fase 1 — Importador da planilha + relatório de conferência
 - [x] Fase 2 — Regras de avaliação, cronograma, lixeira e desativação, com testes
 - [x] Fase 3 — Banco preparado para uso em rede, com backup automático
-- [ ] Fase 4 — Interface PySide6
+- [x] Fase 4 — Interface PySide6 (condição do instrumento, parecer final, gráfico de tendência,
+  lixeira e trava de edição para uso em rede)
 - [ ] Fase 5 — Melhorias e correções
 - [ ] Fase 6 — Versão `1.0.0` em uso na empresa
 
@@ -461,7 +510,7 @@ SistemaCalibracao/
 ├── data/                       # banco SQLite (criado na 1ª execução; não versionado)
 ├── docs/                       # documentação da atualização da lixeira
 ├── scripts/                    # utilitários administrativos (importação, validação, limpeza)
-├── src/calibracao/             # programa final (PySide6) em construção: importador, regras e dados
+├── src/calibracao/             # programa final (PySide6): importador, regras, dados e interface
 ├── tests/                      # testes automáticos (unittest)
 ├── .vscode/                    # configuração de execução no VS Code
 ├── Abrir_CALIB.bat             # atalho para iniciar a aplicação no Windows
@@ -481,7 +530,9 @@ SistemaCalibracao/
 | | Competência |
 |---|---|
 | 🐍 | Desenvolvimento de aplicações em Python. |
-| 🖥️ | Construção de interfaces com Streamlit. |
+| 🖥️ | Construção de interfaces com Streamlit (protótipo) e desktop com PySide6 (programa final). |
+| 🌐 | Uso simultâneo em pasta de rede sem servidor: trava de edição e banco preparado para rede. |
+| 📈 | Visualização de dados técnicos (gráfico de tendência com incerteza e tolerância). |
 | 🗃️ | Modelagem e persistência de dados relacionais. |
 | 📋 | Digitalização de processos de qualidade. |
 | 🔗 | Organização e rastreabilidade de informações técnicas. |
