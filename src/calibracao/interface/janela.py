@@ -8,18 +8,14 @@ import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QPixmap
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QComboBox,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QMainWindow,
-    QTableWidget,
-    QTableWidgetItem,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -27,6 +23,14 @@ from PySide6.QtWidgets import (
 
 from calibracao import __version__
 from calibracao.dados.repositorio import LinhaCronograma, Repositorio
+from calibracao.interface.aba_instrumentos import AbaInstrumentos
+from calibracao.interface.componentes import (
+    ListaFlutuante,
+    PainelClicavel,
+    celula,
+    formatar_data,
+    tabela_somente_leitura,
+)
 from calibracao.interface.estilo import (
     CORES,
     CORES_RESULTADO,
@@ -55,19 +59,13 @@ MESES = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO", "JULHO", "A
 
 FILTROS_CRONOGRAMA = ["Todos", *[s.value for s in Situacao]]
 
-
-def formatar_data(data: datetime.date | None) -> str:
-    return data.strftime("%d/%m/%Y") if data else "—"
-
-
-def celula(texto: str, cores: tuple[str, str] | None = None) -> QTableWidgetItem:
-    item = QTableWidgetItem(texto)
-    item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-    if cores:
-        item.setBackground(QColor(cores[0]))
-        item.setForeground(QColor(cores[1]))
-        item.setTextAlignment(Qt.AlignCenter)
-    return item
+# Painéis que abrem a lista flutuante ao clicar (pedido do usuário em 2026-10-29): situações
+# mostradas em cada um.
+LISTAS_DOS_PAINEIS = {
+    "vencidas": (Situacao.VENCIDA,),
+    "mes": (Situacao.PENDENTE_MES, Situacao.FEITA_MES),
+    "proximo_mes": (Situacao.PROXIMO_MES,),
+}
 
 
 class JanelaPrincipal(QMainWindow):
@@ -85,8 +83,9 @@ class JanelaPrincipal(QMainWindow):
         self.setStyleSheet(estilo())
 
         self.abas = QTabWidget()
-        self.abas.addTab(self._aba_em_construcao("o cadastro de instrumentos, planos e "
-                                                 "calibrações"), "Instrumentos")
+        self.aba_instrumentos = AbaInstrumentos(repositorio, self.hoje)
+        self.aba_instrumentos.alterado.connect(self.atualizar)
+        self.abas.addTab(self.aba_instrumentos, "Instrumentos")
         self.abas.addTab(self._aba_cronograma(), "Cronograma")
         self.abas.addTab(self._aba_em_construcao("os instrumentos desativados"), "Desativados")
         self.abas.addTab(self._aba_em_construcao("a Lixeira"), "Lixeira")
@@ -125,9 +124,17 @@ class JanelaPrincipal(QMainWindow):
         proximo = somar_meses(self.hoje.replace(day=1), 1)
         nomes_mes = {"mes": MESES[self.hoje.month - 1], "proximo_mes": MESES[proximo.month - 1]}
         faixa = QHBoxLayout()
+        self.titulos_paineis = {}
         for chave, (texto, dica) in INDICADORES.items():
-            caixa = QGroupBox(texto.format(mes=nomes_mes.get(chave, "")))
-            caixa.setToolTip(dica)
+            titulo = texto.format(mes=nomes_mes.get(chave, ""))
+            self.titulos_paineis[chave] = titulo
+            if chave in LISTAS_DOS_PAINEIS:
+                caixa = PainelClicavel(titulo)
+                caixa.setToolTip(f"{dica} Clique para ver quais instrumentos são.")
+                caixa.clicado.connect(lambda c=chave, p=caixa: self.mostrar_lista_do_painel(c, p))
+            else:
+                caixa = QGroupBox(titulo)
+                caixa.setToolTip(dica)
             valor = QLabel("0", objectName="indicador", alignment=Qt.AlignCenter)
             QVBoxLayout(caixa).addWidget(valor)
             self.valores_indicadores[chave] = valor
@@ -147,14 +154,7 @@ class JanelaPrincipal(QMainWindow):
 
         colunas = ["Código", "Tipo", "Localização", "Última calibração", "Próxima calibração",
                    "Situação", "Resultado da última"]
-        self.tabela_cronograma = QTableWidget(0, len(colunas))
-        self.tabela_cronograma.setHorizontalHeaderLabels(colunas)
-        self.tabela_cronograma.verticalHeader().setVisible(False)
-        self.tabela_cronograma.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.tabela_cronograma.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        cabecalho = self.tabela_cronograma.horizontalHeader()
-        cabecalho.setSectionResizeMode(QHeaderView.Stretch)
-        cabecalho.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.tabela_cronograma = tabela_somente_leitura(colunas)
 
         aba = QWidget()
         caixa = QVBoxLayout(aba)
@@ -194,6 +194,30 @@ class JanelaPrincipal(QMainWindow):
         for chave, texto in textos.items():
             self.valores_indicadores[chave].setText(texto)
         self._preencher_cronograma(self.filtro_cronograma.currentText())
+        self.aba_instrumentos.atualizar(
+            {linha.instrumento.id: linha.situacao for linha in self._cronograma})
+
+    def mostrar_lista_do_painel(self, chave: str, painel: QWidget) -> None:
+        """Janelinha com os instrumentos do painel (código, tipo, localização, situação)."""
+        situacoes = LISTAS_DOS_PAINEIS[chave]
+        linhas = sorted(
+            (linha for linha in self._cronograma if linha.situacao in situacoes),
+            key=lambda linha: (situacoes.index(linha.situacao), linha.proxima or self.hoje,
+                               linha.instrumento.codigo),
+        )
+        itens = [
+            [celula(linha.instrumento.codigo), celula(linha.instrumento.tipo),
+             celula(linha.instrumento.localizacao or "—"),
+             # feita: quando foi feita; as outras: quando está prevista
+             celula(formatar_data(linha.ultima if linha.situacao == Situacao.FEITA_MES
+                                  else linha.proxima)),
+             celula(linha.situacao.value, CORES_SITUACAO[linha.situacao])]
+            for linha in linhas
+        ]
+        self._lista_aberta = ListaFlutuante(
+            self.titulos_paineis[chave],
+            ["Código", "Tipo", "Localização", "Prevista / feita em", "Situação"], itens, self)
+        self._lista_aberta.mostrar_abaixo_de(painel)
 
     def _preencher_cronograma(self, filtro: str) -> None:
         linhas: list[LinhaCronograma] = [
