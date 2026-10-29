@@ -12,6 +12,14 @@ from pathlib import Path
 
 from calibracao.dados.backup import fazer_backup_diario
 from calibracao.dados.esquema import conectar, criar_tabelas
+from calibracao.regras.avaliacao import (
+    Avaliacao,
+    Resultado,
+    avaliar_limite,
+    avaliar_numerico,
+    resultado_geral,
+)
+from calibracao.regras.cronograma import proxima_calibracao
 from calibracao.regras.lixeira import erros_desativacao
 
 
@@ -77,8 +85,78 @@ class PontoPlano:
     id: int | None = None
 
 
+@dataclass
+class PontoMedido:
+    """O que o usuário preenche em cada ponto ao registrar a calibração.
+
+    Numérico/limite: `valor` (medido, ou o erro do certificado se o ponto não tem nominal fixo) e a
+    `incerteza` do certificado — a tela já traz a U do plano preenchida. Classe/critério/
+    verificação: `escolha` (aprovado, orientação indicativa ou reprovado). Qualquer ponto pode ser
+    `NAO_APLICAVEL`, com o motivo em `observacao`.
+    """
+
+    ponto_plano_id: int
+    valor: float | None = None
+    incerteza: float | None = None
+    escolha: Resultado | None = None
+    valor_padrao: float | None = None  # só registro
+    valor_medido: float | None = None  # só registro
+    observacao: str | None = None
+
+
+@dataclass
+class NovaCalibracao:
+    instrumento_id: int
+    data_calibracao: datetime.date
+    pontos: list[PontoMedido]
+    laboratorio: str | None = None
+    certificado: str | None = None
+    responsavel: str | None = None
+    observacoes: str | None = None
+
+
+@dataclass
+class Calibracao:
+    id: int
+    instrumento_id: int
+    data_calibracao: datetime.date
+    data_proxima: datetime.date | None
+    resultado: Resultado
+    laboratorio: str | None
+    certificado: str | None
+    responsavel: str | None
+    observacoes: str | None
+
+
+@dataclass
+class PontoRegistrado:
+    """A "foto" do ponto guardada com a calibração, mais o que foi medido."""
+
+    ordem: int
+    secao: str | None
+    tipo: str
+    descricao: str
+    valor_nominal: float | None
+    unidade: str | None
+    tolerancia_inferior: float | None
+    tolerancia_superior: float | None
+    valor_minimo: float | None
+    valor_maximo: float | None
+    classe_exigida: str | None
+    criterio: str | None
+    valor: float | None
+    incerteza: float | None
+    valor_padrao: float | None
+    valor_medido: float | None
+    resultado: Resultado
+    observacao: str | None
+
+
+ESCOLHAS_QUALITATIVAS = (Resultado.APROVADO, Resultado.APROVADO_INDICATIVO, Resultado.REPROVADO)
+
 _CAMPOS_INSTRUMENTO = [c.name for c in fields(Instrumento) if c.name != "id"]
 _CAMPOS_PONTO = [c.name for c in fields(PontoPlano) if c.name != "id"]
+_CAMPOS_REGISTRADO = [c.name for c in fields(PontoRegistrado)]
 
 # Desativado = existe desativação sem data de reativação.
 _DESATIVADO = """EXISTS (SELECT 1 FROM desativacoes d
@@ -329,3 +407,102 @@ class Repositorio:
                 "WHERE id = ?",
                 [*(dados[campo] for campo in _CAMPOS_PONTO), ponto.id],
             )
+
+    # ---------------------------------------------------------------- calibrações
+
+    @staticmethod
+    def avaliar_ponto(ponto: PontoPlano, medido: PontoMedido) -> Avaliacao:
+        """Resultado de um ponto (a tela usa para mostrar a cor enquanto o usuário digita)."""
+        if medido.escolha == Resultado.NAO_APLICAVEL:
+            if not (medido.observacao or "").strip():
+                return Avaliacao(Resultado.NAO_INFORMADO, "informe por que não se aplica")
+            return Avaliacao(Resultado.NAO_APLICAVEL)
+        if ponto.tipo == "NUMERICO":
+            return avaliar_numerico(
+                medido.valor, nominal=ponto.valor_nominal,
+                tolerancia_inferior=ponto.tolerancia_inferior,
+                tolerancia_superior=ponto.tolerancia_superior, incerteza=medido.incerteza,
+            )
+        if ponto.tipo == "LIMITE":
+            return avaliar_limite(medido.valor, minimo=ponto.valor_minimo,
+                                  maximo=ponto.valor_maximo, incerteza=medido.incerteza)
+        if medido.escolha in ESCOLHAS_QUALITATIVAS:
+            return Avaliacao(medido.escolha)
+        return Avaliacao(Resultado.NAO_INFORMADO)
+
+    def registrar_calibracao(self, nova: NovaCalibracao, hoje: datetime.date) -> int:
+        """Salva a calibração; recusa (ErroDeValidacao) se faltar algo ou houver pendência."""
+        instrumento = self.obter_instrumento(nova.instrumento_id)
+        erros = []
+        if self.esta_desativado(instrumento.id):
+            erros.append("Instrumento desativado: reative-o antes de registrar a calibração.")
+        if nova.data_calibracao > hoje:
+            erros.append("A data da calibração não pode ser no futuro.")
+        if instrumento.plano_id is None:
+            raise ErroDeValidacao([*erros, "Instrumento sem plano de calibração."])
+        pontos = self.listar_pontos(instrumento.plano_id)
+        medidos = {m.ponto_plano_id: m for m in nova.pontos}
+        if set(medidos) != {p.id for p in pontos}:
+            erros.append("Os pontos informados não correspondem ao plano atual do instrumento.")
+            raise ErroDeValidacao(erros)
+
+        avaliacoes = [(p, medidos[p.id], self.avaliar_ponto(p, medidos[p.id])) for p in pontos]
+        for ponto, _, avaliacao in avaliacoes:
+            if avaliacao.resultado in (Resultado.NAO_INFORMADO, Resultado.NAO_AVALIADO):
+                motivo = avaliacao.motivo or "não preenchido"
+                erros.append(f"Ponto {ponto.ordem} ({ponto.descricao}): {motivo}.")
+        if erros:
+            raise ErroDeValidacao(erros)
+
+        geral = resultado_geral([a.resultado for _, _, a in avaliacoes])
+        proxima = proxima_calibracao(nova.data_calibracao, instrumento.periodicidade_meses)
+        with self._conexao:
+            calibracao_id = self._conexao.execute(
+                """INSERT INTO calibracoes (instrumento_id, data_calibracao, periodicidade_meses,
+                       data_proxima, laboratorio, certificado, responsavel, resultado, observacoes)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (instrumento.id, nova.data_calibracao.isoformat(),
+                 instrumento.periodicidade_meses, proxima.isoformat() if proxima else None,
+                 nova.laboratorio, nova.certificado, nova.responsavel, str(geral),
+                 nova.observacoes),
+            ).lastrowid
+            for ponto, medido, avaliacao in avaliacoes:
+                foto = {c: getattr(ponto, c) for c in _CAMPOS_REGISTRADO if hasattr(ponto, c)}
+                foto.update(valor=medido.valor, incerteza=medido.incerteza,
+                            valor_padrao=medido.valor_padrao, valor_medido=medido.valor_medido,
+                            resultado=str(avaliacao.resultado), observacao=medido.observacao)
+                self._conexao.execute(
+                    f"INSERT INTO pontos_calibracao (calibracao_id, ponto_plano_id, "
+                    f"{', '.join(_CAMPOS_REGISTRADO)}) "
+                    f"VALUES (?, ?, {', '.join('?' * len(_CAMPOS_REGISTRADO))})",
+                    [calibracao_id, ponto.id, *(foto[c] for c in _CAMPOS_REGISTRADO)],
+                )
+        return calibracao_id
+
+    @staticmethod
+    def _calibracao(linha: sqlite3.Row) -> Calibracao:
+        return Calibracao(
+            linha["id"], linha["instrumento_id"], _data(linha["data_calibracao"]),
+            _data(linha["data_proxima"]), Resultado(linha["resultado"]), linha["laboratorio"],
+            linha["certificado"], linha["responsavel"], linha["observacoes"],
+        )
+
+    def listar_calibracoes(self, instrumento_id: int) -> list[Calibracao]:
+        """Calibrações fora da Lixeira, da mais antiga para a mais recente."""
+        linhas = self._conexao.execute(
+            "SELECT * FROM calibracoes WHERE instrumento_id = ? AND excluido_em IS NULL "
+            "ORDER BY data_calibracao, id",
+            (instrumento_id,),
+        )
+        return [self._calibracao(linha) for linha in linhas]
+
+    def pontos_da_calibracao(self, calibracao_id: int) -> list[PontoRegistrado]:
+        linhas = self._conexao.execute(
+            "SELECT * FROM pontos_calibracao WHERE calibracao_id = ? ORDER BY ordem, id",
+            (calibracao_id,),
+        )
+        return [
+            PontoRegistrado(**{c: linha[c] for c in _CAMPOS_REGISTRADO}
+                            | {"resultado": Resultado(linha["resultado"])})
+            for linha in linhas
+        ]
