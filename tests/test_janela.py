@@ -197,3 +197,20 @@ def test_plano_adiciona_ponto(janela, plano_da_trena):
     painel.tabela.item(linha, 4).setText("900")
     painel.salvar_plano()
     assert len(janela.repo.listar_pontos(plano_id)) == antes + 1
+
+
+def test_salvar_plano_mantem_o_numero_original_da_planilha(janela):
+    aba = janela.aba_instrumentos
+    repo = janela.repo
+    plano_id = repo.obter_instrumento(
+        next(i.id for i in repo.listar_instrumentos() if i.codigo == "TRE-902")).plano_id
+    repo.incluir_ponto(PontoPlano(plano_id, "NUMERICO", "300", ordem_original="7",
+                                  valor_nominal=300.0, tolerancia_inferior=-0.5,
+                                  tolerancia_superior=0.5))
+    escolher(aba, "TRE-902")
+    painel = aba.painel_plano
+    assert not painel.tem_alteracao()
+    painel.tabela.item(painel.tabela.rowCount() - 1, 12).setText("0,2")
+    assert painel.tem_alteracao()
+    painel.salvar_plano()
+    assert repo.listar_pontos(plano_id)[-1].ordem_original == "7"

@@ -182,7 +182,22 @@ class PainelPlano(QWidget):
             else:
                 dados[nome] = texto.strip() or None
         dados["descricao"] = dados["descricao"] or ""
+        # O nº original da planilha não aparece na tabela: mantém o que está guardado.
+        salvo = next((p for p in self._pontos if p.id == dados["id"]), None)
+        dados["ordem_original"] = salvo.ordem_original if salvo else None
         return PontoPlano(**dados)
+
+    def tem_alteracao(self) -> bool:
+        """Algo digitado na tabela e ainda não salvo (ponto novo, mudado ou inválido)."""
+        antigos = {p.id: p for p in self._pontos}
+        for linha in range(self.tabela.rowCount()):
+            try:
+                ponto = self._ponto_da_linha(linha)
+            except ValueError:
+                return True
+            if ponto.id is None or ponto != antigos.get(ponto.id):
+                return True
+        return False
 
     def salvar_plano(self) -> None:
         erros, pontos = [], []

@@ -43,9 +43,8 @@ def visivel(widget):
 
 def test_quem_abre_depois_so_consulta(duas_janelas):
     a, b = duas_janelas
-    assert not visivel(a.faixa_consulta)
-    assert visivel(b.faixa_consulta)
-    assert "ana (PC-1) está editando desde" in b.texto_consulta.text()
+    assert a.rotulo_modo.text() == "Modo edição"
+    assert b.rotulo_modo.text() == "Modo consulta - ana - PC-1"
     assert "SOMENTE CONSULTA" in b.windowTitle()
     aba = b.aba_instrumentos
     for botao in (aba.novo, aba.salvar, aba.mudar_condicao, aba.lixeira,
@@ -64,24 +63,63 @@ def test_consulta_ve_o_que_o_outro_salvou(duas_janelas):
     a.repo.incluir_instrumento(Instrumento("TRE-902", "Trena"))
     b.a_cada_sinal()  # 30 segundos depois
     assert b.valores_indicadores["instrumentos"].text() == "2"
+    assert b.repo.modo_consulta  # A continua editando
 
 
-def test_quando_o_outro_fecha_da_para_passar_para_edicao(duas_janelas):
+def test_quando_o_outro_fecha_passa_sozinho_para_edicao(duas_janelas):
     a, b = duas_janelas
     a.close()
     b.a_cada_sinal()
-    assert "ninguém está editando" in b.texto_consulta.text()
-    b.pedir_edicao()
-    assert not visivel(b.faixa_consulta)
+    assert b.rotulo_modo.text() == "Modo edição"
     assert visivel(b.aba_instrumentos.salvar)
     assert not b.aba_instrumentos.campos["codigo"].isReadOnly()
 
 
-def test_quem_perde_a_trava_vira_consulta(duas_janelas):
+def test_quando_o_outro_para_de_responder_assume(duas_janelas):
+    from datetime import timedelta
     a, b = duas_janelas
-    a.repo.liberar_trava()           # como se a trava de A tivesse vencido…
-    b.pedir_edicao()                 # …e B tivesse assumido
-    a.a_cada_sinal()                 # A volta a dar sinal: percebe que perdeu
-    assert visivel(a.faixa_consulta)
-    assert "passou a editar" in a.texto_consulta.text()
+    a.relogio.stop()                       # o PC de A travou: não dá mais sinal
+    b.a_cada_sinal()
+    assert b.repo.modo_consulta            # ainda não: precisa ficar 2 minutos parado
+    b.observador._desde -= timedelta(minutes=2)
+    b.a_cada_sinal()
+    assert b.rotulo_modo.text() == "Modo edição"
+    a.a_cada_sinal()                       # A volta: percebe que perdeu e vira consulta
+    assert a.rotulo_modo.text() == "Modo consulta - beto - PC-2"
     assert not visivel(a.aba_instrumentos.salvar)
+
+
+def test_parado_30_minutos_libera_a_edicao(duas_janelas):
+    from datetime import timedelta
+    a, b = duas_janelas
+    a.ultima_atividade -= timedelta(minutes=31)
+    a.a_cada_sinal()
+    assert a.rotulo_modo.text() == "Modo consulta"
+    a.a_cada_sinal()                       # sem mexer no programa, não pega de volta sozinha
+    assert a.repo.modo_consulta
+    b.a_cada_sinal()                       # B estava consultando: passa para edição
+    assert b.rotulo_modo.text() == "Modo edição"
+
+
+def test_parado_volta_a_editar_ao_mexer_se_estiver_livre(duas_janelas):
+    from datetime import timedelta
+    a, b = duas_janelas
+    b.close()
+    a.ultima_atividade -= timedelta(minutes=31)
+    a.a_cada_sinal()
+    assert a.repo.modo_consulta
+    a.ultima_atividade = a.agora()         # a pessoa voltou e mexeu no mouse
+    a.a_cada_sinal()
+    assert a.rotulo_modo.text() == "Modo edição"
+
+
+def test_parado_com_algo_digitado_nao_libera(duas_janelas):
+    from datetime import timedelta
+    a, _ = duas_janelas
+    aba = a.aba_instrumentos
+    aba.tabela.selectRow(0)
+    aba.campos["faixa"].setText("0-5 m")  # digitado e não salvo
+    a.ultima_atividade -= timedelta(minutes=31)
+    a.a_cada_sinal()
+    assert a.rotulo_modo.text() == "Modo edição"
+    assert a.repo.obter_trava().usuario == "ana"

@@ -59,9 +59,7 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
 #dica {{ color: #9e9e9e; font-style: italic; }}
 #avisos {{ color: {aviso}; }}
 #erro {{ color: {erro}; }}
-#faixa_consulta {{ background: {aviso}; border-radius: 6px; }}
-#faixa_texto {{ color: #000000; font-weight: bold; }}
-#faixa_consulta QPushButton {{ background: #000000; color: {aviso}; border: none; }}
+#modo {{ color: #ffffff; font-size: 10pt; }}
 """
 
 # Faixas coloridas das células (fundo, letra). "Orientação indicativa" imita a etiqueta física da

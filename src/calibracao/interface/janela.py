@@ -6,22 +6,23 @@ Tudo o que é dado vem do `Repositorio`.
 
 Uso em rede (ver `calibracao.regras.trava`): com `identidade` (usuário do Windows e nome do PC),
 a janela pega a trava de edição ao abrir; se outra pessoa já estiver editando, abre em modo
-consulta — faixa amarela no topo, botões de mudar escondidos e dados se atualizando sozinhos.
+consulta — "Modo consulta - usuário - PC" no canto superior direito, botões de mudar
+escondidos e dados se atualizando sozinhos; quando quem editava sai, passa sozinha para edição.
 """
 
 import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QEvent, Qt, QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QPushButton,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -46,7 +47,7 @@ from calibracao.interface.estilo import (
     estilo,
 )
 from calibracao.regras.cronograma import Situacao, somar_meses
-from calibracao.regras.trava import INTERVALO_SINAL, ObservadorDeSinal
+from calibracao.regras.trava import INTERVALO_SINAL, TEMPO_PARADO, ObservadorDeSinal
 
 TITULO = "CALIBRAÇÃO DE INSTRUMENTOS"
 
@@ -102,7 +103,6 @@ class JanelaPrincipal(QMainWindow):
 
         tela = QVBoxLayout()
         tela.addLayout(self._cabecalho())
-        tela.addWidget(self._faixa_consulta())
         tela.addLayout(self._faixa_indicadores())
         tela.addWidget(self.abas, 1)
         central = QWidget(objectName="central")
@@ -117,14 +117,17 @@ class JanelaPrincipal(QMainWindow):
         self.relogio = QTimer(self)
         self.relogio.setInterval(int(INTERVALO_SINAL.total_seconds() * 1000))
         self.relogio.timeout.connect(self.a_cada_sinal)
+        self.ultima_atividade = self.agora()
+        self.liberou_parado_em: datetime.datetime | None = None
         if identidade is not None:
             self.tentar_editar()
             self.relogio.start()
+            QApplication.instance().installEventFilter(self)  # mouse/teclado = não está parado
 
     # --- Montagem da tela -------------------------------------------------------------------
 
     def _cabecalho(self) -> QGridLayout:
-        """Logo à esquerda, título centralizado na largura toda, versão à direita."""
+        """Logo à esquerda, título centralizado; à direita, o modo (em cima) e a versão."""
         arquivo_logo = self.pasta_dados / "logo_mg.png"
         if arquivo_logo.is_file():
             logo = QLabel()
@@ -136,22 +139,14 @@ class JanelaPrincipal(QMainWindow):
         grade.addWidget(QLabel(TITULO, objectName="titulo"), 0, 1)
         grade.addWidget(QLabel(f"versão {__version__}", objectName="dica"), 0, 2,
                         Qt.AlignRight | Qt.AlignBottom)
+        # "Modo edição" ou "Modo consulta - usuário - PC": pequeno, branco, discreto.
+        self.rotulo_modo = QLabel("Modo edição", objectName="modo")
+        self.rotulo_modo.setToolTip("Modo consulta: outra pessoa está editando; aqui só se vê. "
+                                    "Passa sozinho para edição quando ela fechar o programa.")
+        grade.addWidget(self.rotulo_modo, 0, 2, Qt.AlignRight | Qt.AlignTop)
         grade.setColumnStretch(0, 1)
         grade.setColumnStretch(2, 1)  # coluna do mesmo tamanho da do logo → título no centro
         return grade
-
-    def _faixa_consulta(self) -> QWidget:
-        """Faixa amarela do modo consulta (escondida enquanto esta janela pode editar)."""
-        self.texto_consulta = QLabel(wordWrap=True, objectName="faixa_texto")
-        self.passar_para_edicao = QPushButton("Passar para edição")
-        self.passar_para_edicao.setToolTip("Funciona quando ninguém mais estiver editando.")
-        self.passar_para_edicao.clicked.connect(self.pedir_edicao)
-        self.faixa_consulta = QWidget(objectName="faixa_consulta")
-        linha = QHBoxLayout(self.faixa_consulta)
-        linha.addWidget(self.texto_consulta, 1)
-        linha.addWidget(self.passar_para_edicao)
-        self.faixa_consulta.setVisible(False)
-        return self.faixa_consulta
 
     def _faixa_indicadores(self) -> QHBoxLayout:
         proximo = somar_meses(self.hoje.replace(day=1), 1)
@@ -233,8 +228,7 @@ class JanelaPrincipal(QMainWindow):
         usuario, computador = self.identidade
         try:
             dono = self.repo.tentar_editar(usuario, computador, self.agora(), assumir_sinal)
-        except ErroDeValidacao as erro:  # banco ocupado: segue como estava
-            self.texto_consulta.setText(f"✖ {erro.mensagens[0]}")
+        except ErroDeValidacao:  # banco ocupado: segue como estava e tenta no próximo sinal
             return
         self.aplicar_modo(dono)
 
@@ -243,45 +237,51 @@ class JanelaPrincipal(QMainWindow):
         pode = dono is None and not self.repo.modo_consulta
         for aba in (self.aba_instrumentos, self.aba_lixeira):
             aba.definir_edicao(pode)
-        self.faixa_consulta.setVisible(not pode)
         self.setWindowTitle(self.titulo_janela if pode
                             else f"{self.titulo_janela} — SOMENTE CONSULTA")
-        if not pode:
-            self.observador.ver(dono.sinal if dono else None, self.agora())
-            self._escrever_faixa(dono)
+        if pode:
+            self.rotulo_modo.setText("Modo edição")
+            return
+        self.observador.ver(dono.sinal if dono else None, self.agora())
+        self.rotulo_modo.setText(f"Modo consulta - {dono.usuario} - {dono.computador}" if dono
+                                 else "Modo consulta")
 
-    def _escrever_faixa(self, dono: Trava | None) -> None:
-        if dono is None:
-            texto = ("SOMENTE CONSULTA — ninguém está editando agora: clique em "
-                     "\"Passar para edição\".")
-        elif self.observador.parado(self.agora()):
-            texto = (f"SOMENTE CONSULTA — {dono.usuario} ({dono.computador}) parou de responder "
-                     "(computador desligado ou travado): você pode passar para edição.")
-        else:
-            texto = (f"SOMENTE CONSULTA — {dono.usuario} ({dono.computador}) está editando "
-                     f"desde {dono.desde:%H:%M}. Você vê tudo, mas não muda nada; os dados se "
-                     "atualizam sozinhos a cada 30 segundos.")
-        self.texto_consulta.setText(texto)
+    def eventFilter(self, objeto, evento) -> bool:  # noqa: N802 — nome exigido pelo Qt
+        if evento.type() in (QEvent.MouseButtonPress, QEvent.KeyPress, QEvent.Wheel):
+            self.ultima_atividade = self.agora()
+        return super().eventFilter(objeto, evento)
 
-    def pedir_edicao(self) -> None:
-        agora = self.agora()
-        dono = self.repo.obter_trava()
-        self.observador.ver(dono.sinal if dono else None, agora)
-        assumir = self.observador.sinal if self.observador.parado(agora) else None
-        self.tentar_editar(assumir)
+    def _parado_sem_pendencia(self) -> bool:
+        """30 minutos sem mouse nem teclado e nada digitado sem salvar."""
+        if self.agora() - self.ultima_atividade < TEMPO_PARADO:
+            return False
+        janela_aberta = QApplication.activeModalWidget() is not None  # ex.: registrar calibração
+        return not janela_aberta and not self.aba_instrumentos.tem_alteracao()
 
     def a_cada_sinal(self) -> None:
-        """A cada 30 s: quem edita avisa que continua; quem consulta relê os dados."""
+        """A cada 30 s: quem edita avisa que continua; quem consulta relê os dados e passa
+        sozinho para edição quando ninguém mais estiver editando (pedido de 2026-10-29: sem
+        faixa nem botão, só o texto do modo no canto)."""
+        agora = self.agora()
         if not self.repo.modo_consulta:
-            if not self.repo.dar_sinal(self.agora()):
-                self.aplicar_modo(self.repo.obter_trava())
-                self.texto_consulta.setText(
-                    "SOMENTE CONSULTA — outra pessoa passou a editar enquanto este computador "
-                    "ficou parado. O que não tinha sido salvo se perdeu.")
+            if self._parado_sem_pendencia():
+                self.repo.liberar_trava()
+                self.repo.modo_consulta = True
+                self.liberou_parado_em = agora
+                self.aplicar_modo(None)
+            elif not self.repo.dar_sinal(agora):
+                self.aplicar_modo(self.repo.obter_trava())  # outro assumiu: vira consulta
             return
         dono = self.repo.obter_trava()
-        self.observador.ver(dono.sinal if dono else None, self.agora())
-        self._escrever_faixa(dono)
+        self.observador.ver(dono.sinal if dono else None, agora)
+        # Quem liberou por estar parado só volta a editar depois de mexer no programa.
+        voltou = self.liberou_parado_em is None or self.ultima_atividade > self.liberou_parado_em
+        if voltou and (dono is None or self.observador.parado(agora)):
+            self.tentar_editar(self.observador.sinal if dono else None)
+        if self.repo.modo_consulta:
+            self.aplicar_modo(self.repo.obter_trava())
+        else:
+            self.liberou_parado_em = None
         self.atualizar()
         self.aba_instrumentos.recarregar_atual()
 

@@ -15,6 +15,9 @@ import datetime
 INTERVALO_SINAL = datetime.timedelta(seconds=30)
 SINAL_PARADO = datetime.timedelta(minutes=2)
 SINAL_ANTIGO = datetime.timedelta(minutes=10)
+# Quem edita e deixa o programa parado (sem mouse nem teclado) por 30 minutos libera a edição
+# para os outros — mas só se não houver nada digitado sem salvar (decisão de 2026-10-29).
+TEMPO_PARADO = datetime.timedelta(minutes=30)
 
 
 def sinal_antigo(ultimo_sinal: datetime.datetime, agora: datetime.datetime) -> bool:

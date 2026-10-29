@@ -405,6 +405,22 @@ class AbaInstrumentos(QWidget):
         self.painel_calibracoes.definir_edicao(pode)
         self.recarregar_atual()
 
+    def tem_alteracao(self) -> bool:
+        """Algo digitado na ficha ou no plano e ainda não salvo."""
+        if self.painel_plano.tem_alteracao():
+            return True
+        dados = self.atual or Instrumento(codigo="", tipo="")
+        for nome, campo in self.campos.items():
+            valor = getattr(dados, nome)
+            salvo = (numero_em_texto(valor) if nome == "custo_compra"
+                     else "" if valor is None else str(valor))
+            if campo.text().strip() != salvo.strip():
+                return True
+        return ((self.observacoes.text().strip() != (dados.observacoes or "").strip())
+                or (self.atual is not None and (self.plano.currentData() != dados.plano_id
+                                                or self.exige.isChecked()
+                                                != dados.exige_calibracao)))
+
     def recarregar_atual(self) -> None:
         """Redesenha o instrumento aberto (mudou algo pela Lixeira)."""
         if self.atual is None:
