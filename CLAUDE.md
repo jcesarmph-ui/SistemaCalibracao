@@ -114,6 +114,13 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   atualizar o README; (3) fase 2 — perguntar como avaliar os pontos sem nominal fixo (9 do DUR-001
   e "Diferença entre 5 pontos" de BAL-002/BAL-004).
 - Pendente: `.gitattributes` (avisos LF/CRLF), copiando do projeto de classificação.
+- 2026-10-29: usuário **aprovou** a conferência da importação. Pontos sem U no banco novo (fiel à
+  planilha): 148 numéricos (25 trenas, MIC-015, PAQ-013, ESC-006, 1 de ESC-005, 1 de LAF-017) e 21
+  limites (Planeza/Paralelismo dos micrômetros, nó de MA-09/11/12) — a U é informada na edição do plano
+  ou ao registrar. Classe e verificação visual não usam U.
+- **Regra para a fase 2 (decidida em 2026-10-29):** ponto de **Limite** segue a mesma lógica do
+  numérico — máximo: aprovado se `medido + U ≤ máximo`; mínimo: aprovado se `medido − U ≥ mínimo`;
+  sem U → "não avaliado" (salvar bloqueado).
 
 ## Programa novo × protótipo (decisão do usuário em 2026-10-28)
 - O programa oficial é **feito do zero** (PySide6), usando o protótipo Streamlit como referência das
