@@ -34,6 +34,7 @@ from calibracao.dados.repositorio import (
     MudancaCondicao,
     Repositorio,
 )
+from calibracao.interface.aba_calibracoes import PainelCalibracoes
 from calibracao.interface.componentes import (
     aplicar_destaques,
     celula,
@@ -157,9 +158,9 @@ class AbaInstrumentos(QWidget):
             ["Data", "Condição", "Observação", "Origem"])
         self.subabas = QTabWidget()
         self.subabas.addTab(self.painel_plano, "Plano de calibração")
-        espera = QLabel("Em construção: histórico de calibrações, registro de nova calibração e "
-                        "gráfico de tendência.", objectName="dica", alignment=Qt.AlignCenter)
-        self.subabas.addTab(espera, "Calibrações")
+        self.painel_calibracoes = PainelCalibracoes(repositorio, hoje)
+        self.painel_calibracoes.alterado.connect(self._calibracoes_mudaram)
+        self.subabas.addTab(self.painel_calibracoes, "Calibrações")
         self.subabas.addTab(self.tabela_historico, "Histórico de condição")
 
         direita = QVBoxLayout()
@@ -362,6 +363,7 @@ class AbaInstrumentos(QWidget):
         self.mudar_condicao.setEnabled(instrumento is not None)
         self.lixeira.setEnabled(instrumento is not None)
         self.painel_plano.mostrar(instrumento.plano_id if instrumento else None)
+        self.painel_calibracoes.mostrar(instrumento)
         self._mostrar_condicao(instrumento)
         self._aviso("")
 
@@ -385,6 +387,12 @@ class AbaInstrumentos(QWidget):
         aplicar_destaques(tabela)
 
     # --- Ações ------------------------------------------------------------------------------
+
+    def _calibracoes_mudaram(self) -> None:
+        """Calibração registrada ou na Lixeira: cronograma, condição e histórico mudam."""
+        instrumento = self.atual
+        self.alterado.emit()
+        self.mostrar(self.repo.obter_instrumento(instrumento.id))
 
     def novo_instrumento(self) -> None:
         self.tabela.clearSelection()

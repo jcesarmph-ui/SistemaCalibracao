@@ -172,6 +172,31 @@ class PontoRegistrado:
 
 
 @dataclass
+class MedicaoTendencia:
+    """Um ponto numérico de uma calibração, para o gráfico de tendência.
+
+    `erro` = medido − nominal (ou o erro digitado, se o ponto não tem nominal fixo); a tolerância
+    é a da "foto" guardada com a calibração.
+    """
+
+    data: datetime.date
+    erro: float
+    incerteza: float | None
+    tolerancia_inferior: float | None
+    tolerancia_superior: float | None
+    resultado: Resultado
+
+
+@dataclass
+class SerieTendencia:
+    """Histórico de um ponto do plano ao longo das calibrações."""
+
+    nome: str
+    unidade: str | None
+    medicoes: list[MedicaoTendencia]
+
+
+@dataclass
 class LinhaCronograma:
     instrumento: Instrumento
     ultima: datetime.date | None
@@ -593,6 +618,36 @@ class Repositorio:
                             | {"resultado": Resultado(linha["resultado"])})
             for linha in linhas
         ]
+
+    def tendencia(self, instrumento_id: int) -> list[SerieTendencia]:
+        """Pontos numéricos medidos nas calibrações fora da Lixeira, um grupo por ponto do plano.
+
+        Ponto marcado "não aplicável" fica de fora. O nome do grupo vem da calibração mais recente
+        (se a descrição do ponto mudou no plano, vale a atual).
+        """
+        linhas = self._conexao.execute(
+            """SELECT c.data_calibracao, p.*
+               FROM pontos_calibracao p JOIN calibracoes c ON c.id = p.calibracao_id
+               WHERE c.instrumento_id = ? AND c.excluido_em IS NULL AND p.tipo = 'NUMERICO'
+                 AND p.valor IS NOT NULL AND p.resultado != ?
+               ORDER BY c.data_calibracao, c.id, p.ordem""",
+            (instrumento_id, str(Resultado.NAO_APLICAVEL)),
+        ).fetchall()
+        series: dict[object, SerieTendencia] = {}
+        for linha in linhas:
+            chave = linha["ponto_plano_id"] or (linha["secao"], linha["descricao"])
+            nome = " — ".join(t for t in (linha["secao"], linha["descricao"]) if t)
+            serie = series.setdefault(chave, SerieTendencia(nome, linha["unidade"], []))
+            serie.nome, serie.unidade = nome, linha["unidade"]
+            nominal = linha["valor_nominal"]
+            serie.medicoes.append(MedicaoTendencia(
+                _data(linha["data_calibracao"]),
+                linha["valor"] - nominal if nominal is not None else linha["valor"],
+                abs(linha["incerteza"]) if linha["incerteza"] is not None else None,
+                linha["tolerancia_inferior"], linha["tolerancia_superior"],
+                Resultado(linha["resultado"]),
+            ))
+        return list(series.values())
 
     # ---------------------------------------------------------------- cronograma
 

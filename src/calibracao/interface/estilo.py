@@ -44,6 +44,9 @@ QHeaderView::section {{ background: {campo}; color: {titulo}; font-weight: bold;
                         border: none; border-right: 1px solid {campo_borda};
                         border-bottom: 1px solid {borda}; }}
 QTableCornerButton::section {{ background: {campo}; border: none; }}
+QTableView::indicator {{ width: 18px; height: 18px; border: 1px solid {borda}; border-radius: 3px;
+                         background: {campo}; }}
+QTableView::indicator:checked {{ background: {borda}; }}
 QScrollBar:vertical {{ background: {caixa}; width: 14px; }}
 QScrollBar::handle:vertical {{ background: {campo_borda}; border-radius: 6px; min-height: 30px; }}
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: {caixa}; }}
