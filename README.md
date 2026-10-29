@@ -387,7 +387,7 @@ não conhece a tela nem o banco, e cada uma foi definida junto com quem usa o si
 |---|---|
 | Avaliação por ponto com a incerteza (U) | Passa a cobrir pontos de **limite** (máx./mín.) e pontos **sem nominal fixo**, avaliados pelo erro informado no certificado do laboratório externo. |
 | Resultado geral da calibração | Ponto em branco **não é mais ignorado**: a calibração só é salva com todos os pontos preenchidos ou marcados como "não aplicável", com motivo. "Aprovado com restrição" passa a se chamar **"Aprovado como orientação indicativa"**, o termo usado na empresa. |
-| Cronograma | Novo grupo **"Sem calibração no programa"**, que acompanha a transição da planilha até todos os instrumentos terem a primeira calibração registrada. |
+| Cronograma | Acompanhamento **por mês**, como a empresa trabalha (dia 1 ao último dia): o que está previsto vira "pendente este mês" e só conta como vencido quando o mês termina; no lugar de "próximos 30 dias" entra "próximo mês". Novo grupo **"Sem calibração no programa"**, que acompanha a transição da planilha até todos os instrumentos terem a primeira calibração registrada. |
 | Lixeira | Calibração registrada por engano **pode** ser excluída permanentemente. |
 | Desativação | Novo: instrumento que deixou de ser usado vai para **Desativados**, com motivo e data, e pode ser **reativado** sem perder o histórico. |
 

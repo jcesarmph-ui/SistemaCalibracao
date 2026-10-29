@@ -48,25 +48,32 @@ def situacoes(repo):
 # ---------------------------------------------------------------- cronograma
 
 def test_cronograma_com_cada_situacao(repo):
-    calibrar(repo, novo_instrumento(repo, "A-VENCIDA"), date(2026, 3, 1))
-    calibrar(repo, novo_instrumento(repo, "B-PROXIMA"), date(2026, 4, 1))
-    calibrar(repo, novo_instrumento(repo, "C-EM-DIA"), date(2027, 1, 1))
-    novo_instrumento(repo, "D-NOVO")
+    # Hoje = 15/03/2027; periodicidade de 12 meses.
+    calibrar(repo, novo_instrumento(repo, "A-VENCIDA"), date(2026, 2, 1))   # previsto fev/2027
+    calibrar(repo, novo_instrumento(repo, "B-PENDENTE"), date(2026, 3, 20))  # previsto mar/2027
+    calibrar(repo, novo_instrumento(repo, "C-PROXIMO"), date(2026, 4, 10))   # previsto abr/2027
+    calibrar(repo, novo_instrumento(repo, "D-EM-DIA"), date(2027, 1, 1))
+    feita = novo_instrumento(repo, "E-FEITA")
+    calibrar(repo, feita, date(2026, 3, 10))  # previsto 10/03/2027…
+    calibrar(repo, feita, date(2027, 3, 5))   # …e feito em 05/03/2027
+    novo_instrumento(repo, "F-NOVO")
     assert situacoes(repo) == {
         "A-VENCIDA": Situacao.VENCIDA,
-        "B-PROXIMA": Situacao.PROXIMOS_30_DIAS,
-        "C-EM-DIA": Situacao.EM_DIA,
-        "D-NOVO": Situacao.SEM_CALIBRACAO,
+        "B-PENDENTE": Situacao.PENDENTE_MES,
+        "C-PROXIMO": Situacao.PROXIMO_MES,
+        "D-EM-DIA": Situacao.EM_DIA,
+        "E-FEITA": Situacao.FEITA_MES,
+        "F-NOVO": Situacao.SEM_CALIBRACAO,
     }
 
 
 def test_cronograma_usa_a_ultima_calibracao(repo):
     a = novo_instrumento(repo, "A")
-    calibrar(repo, a, date(2026, 3, 1))
-    calibrar(repo, a, date(2027, 3, 1))
+    calibrar(repo, a, date(2025, 6, 1))
+    calibrar(repo, a, date(2026, 6, 1))
     [linha] = repo.cronograma(HOJE)
     assert (linha.ultima, linha.proxima, linha.situacao) == (
-        date(2027, 3, 1), date(2028, 3, 1), Situacao.EM_DIA)
+        date(2026, 6, 1), date(2027, 6, 1), Situacao.EM_DIA)
 
 
 def test_cronograma_ignora_desativados_e_quem_nao_precisa(repo):
@@ -79,7 +86,7 @@ def test_cronograma_ignora_desativados_e_quem_nao_precisa(repo):
 
 def test_calibracao_na_lixeira_nao_conta_no_cronograma(repo):
     a = novo_instrumento(repo, "A")
-    calibrar(repo, a, date(2026, 3, 1))
+    calibrar(repo, a, date(2026, 2, 1))
     engano = calibrar(repo, a, date(2027, 3, 1))
     repo.enviar_para_lixeira(Tipo.CALIBRACAO, engano, "Registrada no instrumento errado", AGORA)
     assert situacoes(repo)["A"] == Situacao.VENCIDA

@@ -552,26 +552,25 @@ class Repositorio:
     def cronograma(self, hoje: datetime.date) -> list[LinhaCronograma]:
         """Instrumentos ativos que exigem calibração, com a situação de cada um.
 
-        Vale a última calibração fora da Lixeira. A periodicidade é a guardada com ela (a do
-        cadastro só é usada se a calibração não tiver uma).
+        Vale a última calibração fora da Lixeira. A próxima data é a guardada com ela (calculada
+        com a periodicidade do cadastro só se a calibração não tiver uma).
         """
         linhas = []
         for instrumento in self.listar_instrumentos():
             if not instrumento.exige_calibracao:
                 continue
             calibracoes = self.listar_calibracoes(instrumento.id)
+            previstas = [
+                c.data_proxima or proxima_calibracao(c.data_calibracao,
+                                                     instrumento.periodicidade_meses)
+                for c in calibracoes
+            ]
             ultima = calibracoes[-1] if calibracoes else None
             data = ultima.data_calibracao if ultima else None
-            if ultima and ultima.data_proxima:
-                proxima = ultima.data_proxima
-                meses = self._conexao.execute(
-                    "SELECT periodicidade_meses FROM calibracoes WHERE id = ?", (ultima.id,)
-                ).fetchone()[0]
-            else:
-                meses = instrumento.periodicidade_meses
-                proxima = proxima_calibracao(data, meses)
+            proxima = previstas[-1] if previstas else None
+            anterior = previstas[-2] if len(previstas) > 1 else None
             linhas.append(LinhaCronograma(
-                instrumento, data, proxima, situacao(data, meses, hoje),
+                instrumento, data, proxima, situacao(data, proxima, hoje, anterior),
                 ultima.resultado if ultima else None,
             ))
         return linhas

@@ -117,9 +117,15 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   planos/pontos, registrar calibração, cronograma, lixeira). Conferido numa **cópia** do banco real:
   123 instrumentos, todos em "Sem calibração no programa". Próximo: **fase 4 — interface PySide6**
   (mostrar "fotos" da tela para aprovação; seguir `Classificação_Automática/.../janela.py`).
-- **Tela (fase 4, aprovado em 2026-10-29):** título "CALIBRAÇÃO DE INSTRUMENTOS"; indicadores no
-  topo **só** Instrumentos, Vencidas e Próximos 30 dias (o usuário **não quer** "Calibrações" nem
-  "Sem calibração no programa" lá em cima — este último fica no filtro "Mostrar:" do Cronograma).
+- **Tela (fase 4, 2026-10-29):** título "CALIBRAÇÃO DE INSTRUMENTOS". Topo: Instrumentos |
+  Vencidas | **CALIBRAÇÕES DE [MÊS ATUAL]** ("total | N pendentes") | **CALIBRAÇÕES DE [PRÓXIMO
+  MÊS]** (só o total). O usuário **não quer** "Calibrações" nem "Sem calibração no programa" lá em
+  cima (este fica no filtro "Mostrar:" do Cronograma).
+- **Cronograma por mês (substitui "próximos 30 dias", decidido em 2026-10-29):** a MG acompanha as
+  calibrações do mês, do dia 1 ao último. Situações: Vencida (previsto para mês **já terminado**),
+  Pendente este mês (vira vencida só no dia 1º do mês seguinte), Feita este mês, Próximo mês, Em dia,
+  Sem calibração no programa, Sem periodicidade. Total do mês = pendentes + feitas (previstas para o
+  mês); vencida de mês anterior feita agora não entra no total.
   Fotos da tela vão para `dados/fotos/` e são abertas por mim (PowerShell `Invoke-Item`).
 - Perguntas ao usuário: sempre com opções clicáveis (AskUserQuestion).
 

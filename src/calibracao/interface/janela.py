@@ -35,18 +35,23 @@ from calibracao.interface.estilo import (
     resultado_em_html,
 )
 from calibracao.regras.avaliacao import Resultado
-from calibracao.regras.cronograma import Situacao
+from calibracao.regras.cronograma import Situacao, somar_meses
 
 TITULO = "CALIBRAÇÃO DE INSTRUMENTOS"
 
 # (texto do indicador, dica ao passar o mouse)
 INDICADORES = {
     "instrumentos": ("Instrumentos", "Instrumentos ativos (fora da Lixeira e não desativados)."),
-    "vencidas": ("Vencidas", "A data prevista da próxima calibração já passou."),
-    "proximas": ("Próximos 30 dias", "Calibração prevista de hoje até daqui a 30 dias."),
+    "vencidas": ("Vencidas", "Previstas para um mês que já terminou e ainda não feitas."),
+    "mes": ("CALIBRAÇÕES DE {mes}",
+            "Previstas para este mês (dia 1 ao último dia): total | quantas ainda faltam fazer."),
+    "proximo_mes": ("CALIBRAÇÕES DE {mes}", "Previstas para o mês que vem."),
 }
-# "Calibrações" e "Sem calibração no programa" não ficam no topo (pedido do usuário em
-# 2026-10-29); o segundo aparece no filtro "Mostrar:" do Cronograma.
+# Acompanhamento por mês, como na MG (pedido do usuário em 2026-10-29). "Calibrações" e "Sem
+# calibração no programa" não ficam no topo; o segundo aparece no filtro "Mostrar:" do Cronograma.
+
+MESES = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO", "JULHO", "AGOSTO",
+         "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"]
 
 FILTROS_CRONOGRAMA = ["Todos", *[s.value for s in Situacao]]
 
@@ -117,9 +122,11 @@ class JanelaPrincipal(QMainWindow):
         return grade
 
     def _faixa_indicadores(self) -> QHBoxLayout:
+        proximo = somar_meses(self.hoje.replace(day=1), 1)
+        nomes_mes = {"mes": MESES[self.hoje.month - 1], "proximo_mes": MESES[proximo.month - 1]}
         faixa = QHBoxLayout()
         for chave, (texto, dica) in INDICADORES.items():
-            caixa = QGroupBox(texto)
+            caixa = QGroupBox(texto.format(mes=nomes_mes.get(chave, "")))
             caixa.setToolTip(dica)
             valor = QLabel("0", objectName="indicador", alignment=Qt.AlignCenter)
             QVBoxLayout(caixa).addWidget(valor)
@@ -171,17 +178,21 @@ class JanelaPrincipal(QMainWindow):
         contagem = {s: 0 for s in Situacao}
         for linha in self._cronograma:
             contagem[linha.situacao] += 1
-        valores = {
-            "instrumentos": len(self.repo.listar_instrumentos()),
-            "vencidas": contagem[Situacao.VENCIDA],
-            "proximas": contagem[Situacao.PROXIMOS_30_DIAS],
+        vencidas = contagem[Situacao.VENCIDA]
+        pendentes = contagem[Situacao.PENDENTE_MES]
+        total_mes = pendentes + contagem[Situacao.FEITA_MES]
+        cor_vencidas = CORES["erro"] if vencidas else "#f0f0f0"
+        cor_pendentes = CORES["aviso"] if pendentes else "#9e9e9e"
+        textos = {
+            "instrumentos": str(len(self.repo.listar_instrumentos())),
+            "vencidas": f'<span style="color:{cor_vencidas}">{vencidas}</span>',
+            "mes": f'{total_mes} <span style="color:#9e9e9e">|</span> '
+                   f'<span style="color:{cor_pendentes}">{pendentes} '
+                   f'pendente{"s" if pendentes != 1 else ""}</span>',
+            "proximo_mes": str(contagem[Situacao.PROXIMO_MES]),
         }
-        cor_se_houver = {"vencidas": CORES["erro"], "proximas": CORES["aviso"]}
-        for chave, valor in valores.items():
-            rotulo = self.valores_indicadores[chave]
-            rotulo.setText(str(valor))
-            cor = cor_se_houver.get(chave) if valor else None
-            rotulo.setStyleSheet(f"color: {cor};" if cor else "")
+        for chave, texto in textos.items():
+            self.valores_indicadores[chave].setText(texto)
         self._preencher_cronograma(self.filtro_cronograma.currentText())
 
     def _preencher_cronograma(self, filtro: str) -> None:
