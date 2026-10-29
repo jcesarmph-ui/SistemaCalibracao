@@ -121,6 +121,11 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
 - **Regra para a fase 2 (decidida em 2026-10-29):** ponto de **Limite** segue a mesma lógica do
   numérico — máximo: aprovado se `medido + U ≤ máximo`; mínimo: aprovado se `medido − U ≥ mínimo`;
   sem U → "não avaliado" (salvar bloqueado).
+- **Pontos numéricos sem nominal fixo (decidido em 2026-10-29)** — DUR-001 (faixas "67 a 80 HR15T"…) e
+  "Diferença entre 5 pontos" das balanças: calibração feita por **laboratório externo**, que entrega o
+  certificado. O usuário digita o **erro/desvio** (ou a diferença) e a **U** do certificado; aprovado se
+  `erro ± U` fica dentro da tolerância. Campos opcionais de valor do padrão/medido só para registro.
+  **U negativa** na planilha (ex.: −0,36 no DUR-001) é usada **sem o sinal** (|U|), como no protótipo.
 
 ## Programa novo × protótipo (decisão do usuário em 2026-10-28)
 - O programa oficial é **feito do zero** (PySide6), usando o protótipo Streamlit como referência das
