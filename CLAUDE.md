@@ -104,7 +104,15 @@ usuário): o usuário quer fazer **depois, não agora** — apenas lembrar a pen
 vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_responsavel.py`);
 `Abrir_CALIB.bat` e `iniciar_calib.py` (deixam de existir sem Streamlit); `.vscode/`.
 
-## Onde paramos (2026-10-28, fim do dia)
+## Onde paramos
+- **2026-10-29:** fase 1 juntada ao `main` (PR #2). **Fase 2 (regras) concluída** na branch
+  `fase-2-regras`, versão `0.2.0`, PR aberto: `src/calibracao/regras/` (avaliacao, cronograma,
+  lixeira) com testes. Próximo: **fase 3** (banco para rede, classe repositório) — o esquema precisa
+  ganhar: calibrações e pontos medidos (com "não aplicável" + motivo, valor do padrão/medido opcionais),
+  desativação/reativação com histórico, marca "não precisa de calibração". Pendente `.gitattributes`.
+- Perguntas ao usuário: sempre com opções clicáveis (AskUserQuestion).
+
+### Histórico (2026-10-28, fim do dia)
 - Fase 0 concluída (PR #1 juntado ao `main`). Fase 1 (importador) pronta na branch
   `fase-1-importador` (já enviada ao GitHub; **PR ainda não aberto**). Versão `0.1.0`.
 - Banco novo gerado em `dados/calibracao.db` + `dados/conferencia_importacao.xlsx` (fora do Git):
@@ -121,6 +129,37 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
 - **Regra para a fase 2 (decidida em 2026-10-29):** ponto de **Limite** segue a mesma lógica do
   numérico — máximo: aprovado se `medido + U ≤ máximo`; mínimo: aprovado se `medido − U ≥ mínimo`;
   sem U → "não avaliado" (salvar bloqueado).
+- **Pontos numéricos sem nominal fixo (decidido em 2026-10-29)** — DUR-001 (faixas "67 a 80 HR15T"…) e
+  "Diferença entre 5 pontos" das balanças: calibração feita por **laboratório externo**, que entrega o
+  certificado. O usuário digita o **erro/desvio** (ou a diferença) e a **U** do certificado; aprovado se
+  `erro ± U` fica dentro da tolerância. Campos opcionais de valor do padrão/medido só para registro.
+  **U negativa** na planilha (ex.: −0,36 no DUR-001) é usada **sem o sinal** (|U|), como no protótipo.
+- **Pontos de Classe (decidido em 2026-10-29)** — EXT-001 e MTR-001: o usuário escolhe
+  **Aprovado/Reprovado** olhando o certificado; o programa só mostra a classe exigida ao lado.
+- **Resultado geral (decidido em 2026-10-29):** algum reprovado → Reprovado; algum "orientação
+  indicativa" → **"Aprovado como orientação indicativa"** (nome usado na MG para o "aprovado com
+  restrição" do protótipo — usar esse texto no programa); senão Aprovado. **Todo ponto precisa ser
+  preenchido** para salvar (ponto em branco nunca é ignorado, diferente do protótipo); se não se aplica
+  naquela vez, o usuário marca **"Não aplicável" com motivo** e o ponto não conta.
+- **Visual da "orientação indicativa" (pedido de 2026-10-29):** onde aparecer, as palavras
+  **"orientação indicativa"** ficam com **letra vermelha `#c62828` sobre fundo amarelo `#ffd54f`**,
+  igual à etiqueta física usada na MG ("Aprovado como" em cor normal). Exceção consciente à regra
+  de cores do padrão geral.
+- **Cronograma (decidido em 2026-10-29):** regras do protótipo (vencida = data prevista já passou;
+  próximos 30 dias; previstos no mês). Instrumento nunca calibrado no programa fica no grupo
+  **"Sem calibração no programa"** (aviso amarelo, com a quantidade) — **sem** mencionar a planilha DQ05
+  no texto (pedido do usuário).
+- **Lixeira (decidido em 2026-10-29):** regras do protótipo, **exceto** que calibração **pode** ser
+  excluída permanentemente da lixeira (digitando EXCLUIR) — pode ter sido registrada por engano.
+- **Desativar instrumento (pedido de 2026-10-29):** além da lixeira, opção **DESATIVAR**; o instrumento
+  vai para uma aba **"Desativados"** com **motivo** e **data da desativação**. Lixeira = engano;
+  desativado = deixou de ser usado (são os "tachados em vermelho" da planilha). Sai do cronograma.
+  A aba **começa vazia**: os desativados antigos da planilha **não** são importados — a planilha
+  continua existindo para consultar coisas antigas.
+  **Reativar** (decidido em 2026-10-29): botão na aba Desativados; volta à lista e ao cronograma, com
+  o mesmo código e histórico; o programa guarda a história (desativado em X por motivo Y, reativado em Z).
+- Na tela, escrever **"Incerteza (U)"** por extenso, com tooltip explicando (o usuário não conhecia
+  a sigla "U").
 
 ## Programa novo × protótipo (decisão do usuário em 2026-10-28)
 - O programa oficial é **feito do zero** (PySide6), usando o protótipo Streamlit como referência das
