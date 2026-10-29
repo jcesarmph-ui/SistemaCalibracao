@@ -125,7 +125,14 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   por vez, erro ± U, tolerância, reprovado em vermelho, dica do mouse, salvar PNG). 192 testes.
 - **Próximos passos:**
   1. Aba **Lixeira**.
-  2. Fechar a fase 4: README (sem "como rodar"), versão `0.4.0`, PR.
+  2. **Trava de edição** (decisão de 2026-10-29): quem abre primeiro edita; os outros entram em
+     **modo consulta** — botões de editar escondidos e campos travados (não dá nem para começar a
+     digitar, "para não ser igual ao Excel"), faixa amarela "Somente consulta — <usuário do
+     Windows> (<PC>) está editando desde HH:MM", tela se atualiza sozinha, botão "Passar para
+     edição" quando liberar; trava vence sozinha ~2 min sem sinal (PC travou). Identificação pelo
+     **usuário do Windows + nome do PC**, sem senha. Corrigir também: banco ocupado > 10 s hoje
+     não avisa nada (mostrar aviso).
+  3. Fechar a fase 4: README (sem "como rodar"), versão `0.4.0`, PR.
 - Fotos da tela: script em `dados/fotos/foto_janela.py` (fora do Git; rodar: `.venv/Scripts/python dados/fotos/foto_janela.py . dados/fotos/<pasta>`) (copia o banco para pasta temporária
   e cria calibrações de demonstração só na cópia); salvar em `dados/fotos/` e abrir eu mesmo com
   PowerShell `Invoke-Item`. Perguntas ao usuário: sempre com opções clicáveis (AskUserQuestion).
