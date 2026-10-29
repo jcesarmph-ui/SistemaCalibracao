@@ -146,6 +146,8 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
 - **Desativar instrumento (pedido de 2026-10-29):** além da lixeira, opção **DESATIVAR**; o instrumento
   vai para uma aba **"Desativados"** com **motivo** e **data da desativação**. Lixeira = engano;
   desativado = deixou de ser usado (são os "tachados em vermelho" da planilha). Sai do cronograma.
+  A aba **começa vazia**: os desativados antigos da planilha **não** são importados — a planilha
+  continua existindo para consultar coisas antigas.
 - Na tela, escrever **"Incerteza (U)"** por extenso, com tooltip explicando (o usuário não conhecia
   a sigla "U").
 
