@@ -47,7 +47,38 @@ class Desativacao:
     reativado_em: datetime.date | None = None
 
 
+@dataclass
+class Plano:
+    nome: str
+    observacoes: str | None = None
+    id: int | None = None
+
+
+TIPOS_PONTO = ("NUMERICO", "LIMITE", "CLASSE", "CRITERIO", "VERIFICACAO")
+
+
+@dataclass
+class PontoPlano:
+    plano_id: int
+    tipo: str
+    descricao: str
+    ordem: int | None = None  # None = vai para o fim do plano
+    secao: str | None = None
+    ordem_original: str | None = None
+    valor_nominal: float | None = None
+    unidade: str | None = None
+    tolerancia_inferior: float | None = None
+    tolerancia_superior: float | None = None
+    valor_minimo: float | None = None
+    valor_maximo: float | None = None
+    classe_exigida: str | None = None
+    criterio: str | None = None
+    incerteza: float | None = None
+    id: int | None = None
+
+
 _CAMPOS_INSTRUMENTO = [c.name for c in fields(Instrumento) if c.name != "id"]
+_CAMPOS_PONTO = [c.name for c in fields(PontoPlano) if c.name != "id"]
 
 # Desativado = existe desativação sem data de reativação.
 _DESATIVADO = """EXISTS (SELECT 1 FROM desativacoes d
@@ -208,3 +239,93 @@ class Repositorio:
                         _data(linha["reativado_em"]))
             for linha in linhas
         ]
+
+    # ---------------------------------------------------------------- planos e pontos
+
+    def listar_planos(self) -> list[Plano]:
+        linhas = self._conexao.execute(
+            "SELECT id, nome, observacoes FROM planos WHERE excluido_em IS NULL ORDER BY nome"
+        )
+        return [Plano(linha["nome"], linha["observacoes"], linha["id"]) for linha in linhas]
+
+    def obter_plano(self, plano_id: int) -> Plano:
+        linha = self._conexao.execute(
+            "SELECT id, nome, observacoes FROM planos WHERE id = ?", (plano_id,)
+        ).fetchone()
+        if linha is None:
+            raise KeyError(f"Plano {plano_id} não existe.")
+        return Plano(linha["nome"], linha["observacoes"], linha["id"])
+
+    def incluir_plano(self, plano: Plano) -> int:
+        if not (plano.nome or "").strip():
+            raise ErroDeValidacao(["Informe o nome do plano."])
+        with self._conexao:
+            cursor = self._conexao.execute(
+                "INSERT INTO planos (nome, observacoes) VALUES (?, ?)",
+                (plano.nome.strip(), plano.observacoes),
+            )
+        return cursor.lastrowid
+
+    def atualizar_plano(self, plano: Plano) -> None:
+        if not (plano.nome or "").strip():
+            raise ErroDeValidacao(["Informe o nome do plano."])
+        with self._conexao:
+            self._conexao.execute(
+                "UPDATE planos SET nome = ?, observacoes = ? WHERE id = ?",
+                (plano.nome.strip(), plano.observacoes, plano.id),
+            )
+
+    def listar_pontos(self, plano_id: int) -> list[PontoPlano]:
+        """Pontos do plano fora da Lixeira, na ordem."""
+        linhas = self._conexao.execute(
+            "SELECT * FROM pontos_plano WHERE plano_id = ? AND excluido_em IS NULL "
+            "ORDER BY ordem, id",
+            (plano_id,),
+        )
+        return [PontoPlano(**{c: linha[c] for c in [*_CAMPOS_PONTO, "id"]}) for linha in linhas]
+
+    @staticmethod
+    def _validar_ponto(ponto: PontoPlano) -> None:
+        # Só o que impede o ponto de existir; tolerância ou U em branco são permitidas
+        # (o ponto fica "não avaliado" na calibração até alguém preencher).
+        erros = []
+        if ponto.tipo not in TIPOS_PONTO:
+            erros.append(f"Tipo de ponto inválido: {ponto.tipo}.")
+        if not (ponto.descricao or "").strip():
+            erros.append("Informe a descrição do ponto.")
+        pares = [
+            (ponto.tolerancia_inferior, ponto.tolerancia_superior, "A tolerância inferior"),
+            (ponto.valor_minimo, ponto.valor_maximo, "O valor mínimo"),
+        ]
+        for menor, maior, nome in pares:
+            if menor is not None and maior is not None and menor > maior:
+                erros.append(f"{nome} não pode ser maior que a superior/máxima.")
+        if erros:
+            raise ErroDeValidacao(erros)
+
+    def incluir_ponto(self, ponto: PontoPlano) -> int:
+        self._validar_ponto(ponto)
+        dados = asdict(ponto)
+        with self._conexao:
+            if dados["ordem"] is None:
+                dados["ordem"] = self._conexao.execute(
+                    "SELECT COALESCE(MAX(ordem), 0) + 1 FROM pontos_plano WHERE plano_id = ?",
+                    (ponto.plano_id,),
+                ).fetchone()[0]
+            cursor = self._conexao.execute(
+                f"INSERT INTO pontos_plano ({', '.join(_CAMPOS_PONTO)}) "
+                f"VALUES ({', '.join('?' * len(_CAMPOS_PONTO))})",
+                [dados[campo] for campo in _CAMPOS_PONTO],
+            )
+        return cursor.lastrowid
+
+    def atualizar_ponto(self, ponto: PontoPlano) -> None:
+        """Muda o plano daqui para a frente; calibrações já feitas guardam a "foto" antiga."""
+        self._validar_ponto(ponto)
+        dados = asdict(ponto)
+        with self._conexao:
+            self._conexao.execute(
+                f"UPDATE pontos_plano SET {', '.join(f'{c} = ?' for c in _CAMPOS_PONTO)} "
+                "WHERE id = ?",
+                [*(dados[campo] for campo in _CAMPOS_PONTO), ponto.id],
+            )
