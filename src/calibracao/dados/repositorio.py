@@ -19,8 +19,13 @@ from calibracao.regras.avaliacao import (
     avaliar_numerico,
     resultado_geral,
 )
-from calibracao.regras.cronograma import proxima_calibracao
-from calibracao.regras.lixeira import erros_desativacao
+from calibracao.regras.cronograma import Situacao, proxima_calibracao, situacao
+from calibracao.regras.lixeira import (
+    Tipo,
+    bloqueio_exclusao_permanente,
+    bloqueio_restaurar,
+    erros_desativacao,
+)
 
 
 class ErroDeValidacao(Exception):
@@ -151,6 +156,30 @@ class PontoRegistrado:
     resultado: Resultado
     observacao: str | None
 
+
+@dataclass
+class LinhaCronograma:
+    instrumento: Instrumento
+    ultima: datetime.date | None
+    proxima: datetime.date | None
+    situacao: Situacao
+    resultado_ultima: Resultado | None
+
+
+@dataclass
+class ItemLixeira:
+    tipo: Tipo
+    id: int
+    descricao: str
+    excluido_em: str
+    motivo: str | None
+
+
+# Tabela de cada tipo e, quando há, a coluna que aponta para o "pai".
+_TABELA = {Tipo.INSTRUMENTO: "instrumentos", Tipo.PLANO: "planos",
+           Tipo.PONTO: "pontos_plano", Tipo.CALIBRACAO: "calibracoes"}
+_COLUNA_PAI = {Tipo.INSTRUMENTO: "plano_id", Tipo.PONTO: "plano_id",
+               Tipo.CALIBRACAO: "instrumento_id"}
 
 ESCOLHAS_QUALITATIVAS = (Resultado.APROVADO, Resultado.APROVADO_INDICATIVO, Resultado.REPROVADO)
 
@@ -434,6 +463,10 @@ class Repositorio:
         """Salva a calibração; recusa (ErroDeValidacao) se faltar algo ou houver pendência."""
         instrumento = self.obter_instrumento(nova.instrumento_id)
         erros = []
+        if self.na_lixeira(Tipo.INSTRUMENTO, instrumento.id):
+            raise ErroDeValidacao(["Instrumento na Lixeira: restaure-o antes."])
+        if instrumento.plano_id is not None and self.na_lixeira(Tipo.PLANO, instrumento.plano_id):
+            raise ErroDeValidacao(["O plano deste instrumento está na Lixeira: restaure-o antes."])
         if self.esta_desativado(instrumento.id):
             erros.append("Instrumento desativado: reative-o antes de registrar a calibração.")
         if nova.data_calibracao > hoje:
@@ -505,4 +538,120 @@ class Repositorio:
             PontoRegistrado(**{c: linha[c] for c in _CAMPOS_REGISTRADO}
                             | {"resultado": Resultado(linha["resultado"])})
             for linha in linhas
+        ]
+
+    # ---------------------------------------------------------------- cronograma
+
+    def cronograma(self, hoje: datetime.date) -> list[LinhaCronograma]:
+        """Instrumentos ativos que exigem calibração, com a situação de cada um.
+
+        Vale a última calibração fora da Lixeira. A periodicidade é a guardada com ela (a do
+        cadastro só é usada se a calibração não tiver uma).
+        """
+        linhas = []
+        for instrumento in self.listar_instrumentos():
+            if not instrumento.exige_calibracao:
+                continue
+            calibracoes = self.listar_calibracoes(instrumento.id)
+            ultima = calibracoes[-1] if calibracoes else None
+            data = ultima.data_calibracao if ultima else None
+            if ultima and ultima.data_proxima:
+                proxima = ultima.data_proxima
+                meses = self._conexao.execute(
+                    "SELECT periodicidade_meses FROM calibracoes WHERE id = ?", (ultima.id,)
+                ).fetchone()[0]
+            else:
+                meses = instrumento.periodicidade_meses
+                proxima = proxima_calibracao(data, meses)
+            linhas.append(LinhaCronograma(
+                instrumento, data, proxima, situacao(data, meses, hoje),
+                ultima.resultado if ultima else None,
+            ))
+        return linhas
+
+    # ---------------------------------------------------------------- lixeira
+
+    def na_lixeira(self, tipo: Tipo, item_id: int) -> bool:
+        linha = self._conexao.execute(
+            f"SELECT excluido_em FROM {_TABELA[tipo]} WHERE id = ?", (item_id,)
+        ).fetchone()
+        return linha is not None and linha["excluido_em"] is not None
+
+    def enviar_para_lixeira(self, tipo: Tipo, item_id: int, motivo: str | None,
+                            agora: datetime.datetime) -> None:
+        with self._conexao:
+            self._conexao.execute(
+                f"UPDATE {_TABELA[tipo]} SET excluido_em = ?, motivo_exclusao = ? "
+                "WHERE id = ? AND excluido_em IS NULL",
+                (agora.isoformat(timespec="seconds"), (motivo or "").strip() or None, item_id),
+            )
+
+    def _pai_na_lixeira(self, tipo: Tipo, item_id: int) -> bool:
+        coluna = _COLUNA_PAI.get(tipo)
+        if coluna is None:
+            return False
+        pai_id = self._conexao.execute(
+            f"SELECT {coluna} FROM {_TABELA[tipo]} WHERE id = ?", (item_id,)
+        ).fetchone()[0]
+        pai = Tipo.INSTRUMENTO if tipo == Tipo.CALIBRACAO else Tipo.PLANO
+        return pai_id is not None and self.na_lixeira(pai, pai_id)
+
+    def restaurar(self, tipo: Tipo, item_id: int) -> None:
+        bloqueio = bloqueio_restaurar(tipo, self._pai_na_lixeira(tipo, item_id))
+        if bloqueio:
+            raise ErroDeValidacao([bloqueio])
+        with self._conexao:
+            self._conexao.execute(
+                f"UPDATE {_TABELA[tipo]} SET excluido_em = NULL, motivo_exclusao = NULL "
+                "WHERE id = ?",
+                (item_id,),
+            )
+
+    def _tem_dependencias(self, tipo: Tipo, item_id: int) -> bool:
+        consultas = {
+            Tipo.PLANO: ["SELECT 1 FROM instrumentos WHERE plano_id = ?",
+                         "SELECT 1 FROM pontos_plano WHERE plano_id = ?"],
+            Tipo.PONTO: ["SELECT 1 FROM pontos_calibracao WHERE ponto_plano_id = ?"],
+            Tipo.INSTRUMENTO: ["SELECT 1 FROM calibracoes WHERE instrumento_id = ?"],
+            Tipo.CALIBRACAO: [],  # os pontos medidos são apagados junto
+        }[tipo]
+        return any(self._conexao.execute(sql, (item_id,)).fetchone() for sql in consultas)
+
+    def excluir_permanentemente(self, tipo: Tipo, item_id: int, confirmacao: str) -> None:
+        """Apaga de vez um item que já está na Lixeira (exige digitar EXCLUIR)."""
+        if not self.na_lixeira(tipo, item_id):
+            raise ErroDeValidacao(["Só é possível excluir permanentemente o que está na Lixeira."])
+        bloqueio = bloqueio_exclusao_permanente(
+            tipo, confirmacao, self._tem_dependencias(tipo, item_id))
+        if bloqueio:
+            raise ErroDeValidacao([bloqueio])
+        with self._conexao:
+            if tipo == Tipo.INSTRUMENTO:  # o histórico de desativação vai junto
+                self._conexao.execute(
+                    "DELETE FROM desativacoes WHERE instrumento_id = ?", (item_id,))
+            self._conexao.execute(f"DELETE FROM {_TABELA[tipo]} WHERE id = ?", (item_id,))
+
+    def listar_lixeira(self) -> list[ItemLixeira]:
+        """Tudo o que está na Lixeira, mais recente primeiro."""
+        consulta = """
+            SELECT 'Instrumento' AS tipo, id, codigo || ' — ' || tipo AS descricao,
+                   excluido_em, motivo_exclusao FROM instrumentos WHERE excluido_em IS NOT NULL
+            UNION ALL
+            SELECT 'Plano', id, nome, excluido_em, motivo_exclusao
+              FROM planos WHERE excluido_em IS NOT NULL
+            UNION ALL
+            SELECT 'Ponto do plano', p.id, pl.nome || ' — ponto ' || p.ordem || ': ' || p.descricao,
+                   p.excluido_em, p.motivo_exclusao
+              FROM pontos_plano p JOIN planos pl ON pl.id = p.plano_id
+             WHERE p.excluido_em IS NOT NULL
+            UNION ALL
+            SELECT 'Calibração', c.id, i.codigo || ' — calibração de ' || c.data_calibracao,
+                   c.excluido_em, c.motivo_exclusao
+              FROM calibracoes c JOIN instrumentos i ON i.id = c.instrumento_id
+             WHERE c.excluido_em IS NOT NULL
+            ORDER BY excluido_em DESC
+        """
+        return [
+            ItemLixeira(Tipo(linha[0]), linha[1], linha[2], linha[3], linha[4])
+            for linha in self._conexao.execute(consulta)
         ]
