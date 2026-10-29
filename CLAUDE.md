@@ -148,6 +148,8 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   desativado = deixou de ser usado (são os "tachados em vermelho" da planilha). Sai do cronograma.
   A aba **começa vazia**: os desativados antigos da planilha **não** são importados — a planilha
   continua existindo para consultar coisas antigas.
+  **Reativar** (decidido em 2026-10-29): botão na aba Desativados; volta à lista e ao cronograma, com
+  o mesmo código e histórico; o programa guarda a história (desativado em X por motivo Y, reativado em Z).
 - Na tela, escrever **"Incerteza (U)"** por extenso, com tooltip explicando (o usuário não conhecia
   a sigla "U").
 
