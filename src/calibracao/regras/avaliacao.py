@@ -19,8 +19,6 @@ _FOLGA = 1e-9
 
 class Resultado(StrEnum):
     APROVADO = "Aprovado"
-    # Na MG, "aprovado com restrição" se chama assim (definido pelo usuário em 2026-10-29).
-    APROVADO_INDICATIVO = "Aprovado como orientação indicativa"
     REPROVADO = "Reprovado"
     # Marcado pelo usuário, com motivo; não conta no resultado geral.
     NAO_APLICAVEL = "Não aplicável"
@@ -83,8 +81,6 @@ def resultado_geral(resultados: list[Resultado]) -> Resultado:
         return Resultado.PENDENTE
     if Resultado.REPROVADO in contam:
         return Resultado.REPROVADO
-    if Resultado.APROVADO_INDICATIVO in contam:
-        return Resultado.APROVADO_INDICATIVO
     return Resultado.APROVADO
 
 

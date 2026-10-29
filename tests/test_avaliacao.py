@@ -11,7 +11,6 @@ from calibracao.regras.avaliacao import (
 )
 
 A = Resultado.APROVADO
-IND = Resultado.APROVADO_INDICATIVO
 R = Resultado.REPROVADO
 NA = Resultado.NAO_APLICAVEL
 
@@ -98,8 +97,6 @@ def test_limite_sem_incerteza_nao_avalia():
     [
         ([A, A, A], A),
         ([A, R, A], R),
-        ([A, IND, A], IND),
-        ([IND, R], R),                      # reprovado vence a orientação indicativa
         ([A, NA, A], A),                    # não aplicável não conta
         ([NA, NA], Resultado.PENDENTE),      # nenhum ponto avaliado
         ([A, Resultado.NAO_INFORMADO], Resultado.PENDENTE),  # ponto em branco nunca é ignorado

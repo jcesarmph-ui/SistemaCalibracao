@@ -1,14 +1,13 @@
-"""Lixeira (exclusão lógica) e desativação de instrumentos.
+"""Lixeira (exclusão lógica).
 
 Lixeira = registrado por engano. Regras do protótipo: restaurar exige o "pai" ativo (ponto → plano,
 instrumento → plano, calibração → instrumento); excluir permanentemente exige digitar EXCLUIR e
 não é permitido com dependências — exceto a calibração, que pode ser apagada de vez junto com os
 seus pontos medidos (decisão do usuário em 2026-10-29: pode ter sido registrada por engano).
 
-Desativar = o instrumento deixou de ser usado; exige motivo e data, e pode ser reativado depois.
+Desativar não é Lixeira: ver `calibracao.regras.condicao`.
 """
 
-import datetime
 from enum import StrEnum
 
 CONFIRMACAO_EXCLUSAO = "EXCLUIR"
@@ -45,15 +44,3 @@ def bloqueio_exclusao_permanente(tipo: Tipo, confirmacao: str,
     if tem_dependencias and tipo != Tipo.CALIBRACAO:
         return "Não é possível excluir permanentemente: há registros ligados a este item."
     return None
-
-
-def erros_desativacao(motivo: str | None, data: datetime.date | None,
-                      hoje: datetime.date) -> list[str]:
-    erros = []
-    if not motivo or not motivo.strip():
-        erros.append("Informe o motivo da desativação.")
-    if data is None:
-        erros.append("Informe a data da desativação.")
-    elif data > hoje:
-        erros.append("A data da desativação não pode ser no futuro.")
-    return erros

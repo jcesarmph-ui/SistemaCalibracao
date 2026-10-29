@@ -1,4 +1,4 @@
-"""Regras da lixeira e da desativação de instrumentos (programa novo)."""
+"""Regras da lixeira (programa novo)."""
 
 from datetime import date
 
@@ -8,7 +8,6 @@ from calibracao.regras.lixeira import (
     Tipo,
     bloqueio_exclusao_permanente,
     bloqueio_restaurar,
-    erros_desativacao,
 )
 
 HOJE = date(2027, 3, 15)
@@ -37,20 +36,3 @@ def test_exclusao_permanente_bloqueada_com_dependencias(tipo):
 def test_calibracao_pode_ser_apagada_de_vez():
     # Decisão do usuário: calibração registrada por engano pode sair de vez (com os pontos medidos).
     assert bloqueio_exclusao_permanente(Tipo.CALIBRACAO, "EXCLUIR", tem_dependencias=True) is None
-
-
-def test_desativacao_valida():
-    assert erros_desativacao("Quebrou", HOJE, HOJE) == []
-
-
-@pytest.mark.parametrize(
-    ("motivo", "data", "erro"),
-    [
-        ("", HOJE, "motivo"),
-        ("   ", HOJE, "motivo"),
-        ("Quebrou", None, "data"),
-        ("Quebrou", date(2027, 3, 16), "futuro"),
-    ],
-)
-def test_desativacao_invalida(motivo, data, erro):
-    assert any(erro in e for e in erros_desativacao(motivo, data, HOJE))

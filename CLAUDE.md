@@ -104,98 +104,84 @@ usuário): o usuário quer fazer **depois, não agora** — apenas lembrar a pen
 vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_responsavel.py`);
 `Abrir_CALIB.bat` e `iniciar_calib.py` (deixam de existir sem Streamlit); `.vscode/`.
 
-## Onde paramos
-- **2026-10-29:** fase 1 juntada ao `main` (PR #2). **Fase 2 (regras) concluída** na branch
-  `fase-2-regras`, versão `0.2.0`, PR aberto: `src/calibracao/regras/` (avaliacao, cronograma,
-  lixeira) com testes. Próximo: **fase 3** (banco para rede, classe repositório) — o esquema precisa
-  ganhar: calibrações e pontos medidos (com "não aplicável" + motivo, valor do padrão/medido opcionais),
-  desativação/reativação com histórico, marca "não precisa de calibração". Pendente `.gitattributes`.
-- **2026-10-29 (depois):** fase 2 juntada (PR #3). **Fase 3 concluída** na branch `fase-3-banco`,
-  versão `0.3.0`: `.gitattributes`; esquema v2 (`calibracoes`, `pontos_calibracao` com "foto" do
-  ponto, `desativacoes`, `instrumentos.exige_calibracao`) com atualização automática do v1;
-  `dados/backup.py` (1x/dia, 30 cópias); `dados/repositorio.py` (instrumentos, desativar/reativar,
-  planos/pontos, registrar calibração, cronograma, lixeira). Conferido numa **cópia** do banco real:
-  123 instrumentos, todos em "Sem calibração no programa". Próximo: **fase 4 — interface PySide6**
-  (mostrar "fotos" da tela para aprovação; seguir `Classificação_Automática/.../janela.py`).
-- **Tela (fase 4, 2026-10-29):** título "CALIBRAÇÃO DE INSTRUMENTOS". Topo: Instrumentos |
-  Vencidas | **CALIBRAÇÕES DE [MÊS ATUAL]** ("total | N pendentes") | **CALIBRAÇÕES DE [PRÓXIMO
-  MÊS]** (só o total). O usuário **não quer** "Calibrações" nem "Sem calibração no programa" lá em
-  cima (este fica no filtro "Mostrar:" do Cronograma).
-- **Cronograma por mês (substitui "próximos 30 dias", decidido em 2026-10-29):** a MG acompanha as
-  calibrações do mês, do dia 1 ao último. Situações: Vencida (previsto para mês **já terminado**),
-  Pendente este mês (vira vencida só no dia 1º do mês seguinte), Feita este mês, Próximo mês, Em dia,
-  Sem calibração no programa, Sem periodicidade. Total do mês = pendentes + feitas (previstas para o
-  mês); vencida de mês anterior feita agora não entra no total.
-  Fotos da tela vão para `dados/fotos/` e são abertas por mim (PowerShell `Invoke-Item`).
-- **Condição do instrumento e parecer final (decidido em 2026-10-29 — substitui "Aprovado como
-  orientação indicativa" e a aba Desativados):**
-  - Cada calibração tem o resultado **automático** (Aprovado/Reprovado, pelos pontos) e um **parecer
-    final** escolhido pelo usuário (como no protótipo): **Aprovado** / **Orientação indicativa** /
-    **Reprovado - Desativado**. Sem "aprovado/reprovado" junto de "orientação indicativa".
-  - O instrumento tem uma **condição**: Em uso / Orientação indicativa / Desativado. O parecer final
-    muda a condição; desativar/reativar manual também. Guardar **histórico**: "desativado em X
-    (observação opcional)", "definido como orientação indicativa em X por motivo Y".
-  - Ver as 3 listas por um **filtro "Mostrar:" na aba Instrumentos** (Em uso / Orientação indicativa /
-    Desativados / Todos) com coluna Condição e "Desde"; a ficha mostra o histórico. **Sem** aba
-    Desativados separada.
-  - Orientação indicativa **continua no cronograma** (segue sendo calibrado); desativado sai.
-  - Pontos qualitativos: Aprovado/Reprovado (+ Não aplicável); resultado geral automático sem o
-    "orientação indicativa".
-- **Campos que faltavam do protótipo (pedido de 2026-10-29):** custo de compra (R$) e responsável no
-  instrumento; custo da calibração (R$) e responsável na calibração. (Modelo, nº de série, descrição
-  e local da calibração: o usuário **não** quis.)
-- Gráfico de tendência (protótipo: subaba Calibrações, exportar PNG) entra com o histórico de
-  calibrações — o usuário perguntou se eu sabia dele.
-- Perguntas ao usuário: sempre com opções clicáveis (AskUserQuestion).
+## Onde paramos (2026-10-29, fim do dia — antes do /clear)
+- Fases 0–3 juntadas ao `main` (PRs #1–#4). Versão `0.3.0`. **Fase 4 (interface PySide6) em
+  andamento** na branch `fase-4-interface` (enviada ao GitHub; PR ainda não aberto).
+- Já feito na fase 4 (e aprovado por foto): `interface/janela.py` (cabeçalho, painéis do topo
+  clicáveis com lista flutuante, aba Cronograma), `componentes.py` (célula, `aplicar_destaques`,
+  `PainelClicavel`, `ListaFlutuante`), `estilo.py`, `aba_instrumentos.py` (lista + ficha),
+  `painel_plano.py` (pontos editáveis), `app.py`. Localização padronizada (`regras/localizacao.py`,
+  aplicada no importador, ao salvar e no banco `dados/calibracao.db` — cópia de antes em
+  `dados/calibracao_antes_padronizar_localizacao.db`).
+- **TRABALHO PELA METADE (refatoração "condição + parecer final"), sem commit:**
+  - Feito: `regras/condicao.py` (+ `tests/test_condicao.py`); tirado `APROVADO_INDICATIVO` de
+    `regras/avaliacao.py`; tirado `erros_desativacao` de `regras/lixeira.py`. Testes das regras passam.
+  - **Quebrado até terminar:** `dados/repositorio.py` ainda importa `erros_desativacao` e usa
+    `desativacoes`/`APROVADO_INDICATIVO`; idem `interface/` e testes do repositório/janela (5 arquivos
+    de teste nem carregam). Rodar `pytest` para ver.
+  - **Próximos passos, nesta ordem:**
+    1. Esquema **v3** (`dados/esquema.py`): tabela `condicoes` (instrumento_id, condicao, data,
+       motivo opcional, calibracao_id, criado_em) no lugar de `desativacoes` (migrar linhas: desativação
+       → "Desativado"; reativado_em → "Em uso"); `instrumentos` + `custo_compra REAL`, `responsavel`;
+       `calibracoes` + `parecer_final`, `custo_calibracao REAL` (responsavel já existe).
+    2. Repositório: condição atual/histórico, `mudar_condicao`, desativar/reativar como atalhos;
+       `NovaCalibracao` com `parecer_final` (obrigatório; reprovado não pode ser "Aprovado") +
+       motivo + custo + responsável; o parecer muda a condição (histórico com a calibração).
+       Cronograma: desativado sai, orientação indicativa fica.
+    3. Tela: lista de instrumentos com filtros **Condição** (Em uso / Orientação indicativa /
+       Desativados / Todos), **Tipo** e **Localização** (pedido: "clico em paquímetro e aparecem
+       todos os paquímetros"), colunas Código | Localização | Condição | Desde | Situação; ficha com
+       custo de compra, responsável e histórico de condição; botão de mudar condição (desativar /
+       reativar / orientação indicativa) com data e observação opcional; tirar a aba Desativados.
+    4. Depois: sub-aba **Calibrações** (registrar calibração com parecer final; histórico; **gráfico
+       de tendência** Matplotlib com exportar PNG, como no protótipo) e aba **Lixeira**.
+    5. Fechar a fase 4: README (sem "como rodar"), versão `0.4.0`, PR.
+- Fotos da tela: script em `dados/fotos/foto_janela.py` (fora do Git; rodar: `.venv/Scripts/python dados/fotos/foto_janela.py . dados/fotos/janela_principal.png`) (copia o banco para pasta temporária
+  e cria calibrações de demonstração só na cópia); salvar em `dados/fotos/` e abrir eu mesmo com
+  PowerShell `Invoke-Item`. Perguntas ao usuário: sempre com opções clicáveis (AskUserQuestion).
 
-### Histórico (2026-10-28, fim do dia)
-- Fase 0 concluída (PR #1 juntado ao `main`). Fase 1 (importador) pronta na branch
-  `fase-1-importador` (já enviada ao GitHub; **PR ainda não aberto**). Versão `0.1.0`.
-- Banco novo gerado em `dados/calibracao.db` + `dados/conferencia_importacao.xlsx` (fora do Git):
-  123 instrumentos (100 com plano, 23 sem), 987 pontos, 74 fora; planilha original conferida intacta.
-- **Próximos passos (amanhã):** (1) usuário confere a planilha de conferência
-  (`! start dados/conferencia_importacao.xlsx`) e aprova ou pede ajustes; (2) abrir o PR da fase 1 e
-  atualizar o README; (3) fase 2 — perguntar como avaliar os pontos sem nominal fixo (9 do DUR-001
-  e "Diferença entre 5 pontos" de BAL-002/BAL-004).
-- Pendente: `.gitattributes` (avisos LF/CRLF), copiando do projeto de classificação.
-- 2026-10-29: usuário **aprovou** a conferência da importação. Pontos sem U no banco novo (fiel à
-  planilha): 148 numéricos (25 trenas, MIC-015, PAQ-013, ESC-006, 1 de ESC-005, 1 de LAF-017) e 21
-  limites (Planeza/Paralelismo dos micrômetros, nó de MA-09/11/12) — a U é informada na edição do plano
-  ou ao registrar. Classe e verificação visual não usam U.
-- **Regra para a fase 2 (decidida em 2026-10-29):** ponto de **Limite** segue a mesma lógica do
-  numérico — máximo: aprovado se `medido + U ≤ máximo`; mínimo: aprovado se `medido − U ≥ mínimo`;
-  sem U → "não avaliado" (salvar bloqueado).
-- **Pontos numéricos sem nominal fixo (decidido em 2026-10-29)** — DUR-001 (faixas "67 a 80 HR15T"…) e
-  "Diferença entre 5 pontos" das balanças: calibração feita por **laboratório externo**, que entrega o
-  certificado. O usuário digita o **erro/desvio** (ou a diferença) e a **U** do certificado; aprovado se
-  `erro ± U` fica dentro da tolerância. Campos opcionais de valor do padrão/medido só para registro.
-  **U negativa** na planilha (ex.: −0,36 no DUR-001) é usada **sem o sinal** (|U|), como no protótipo.
-- **Pontos de Classe (decidido em 2026-10-29)** — EXT-001 e MTR-001: o usuário escolhe
-  **Aprovado/Reprovado** olhando o certificado; o programa só mostra a classe exigida ao lado.
-- **Resultado geral (decidido em 2026-10-29):** algum reprovado → Reprovado; algum "orientação
-  indicativa" → **"Aprovado como orientação indicativa"** (nome usado na MG para o "aprovado com
-  restrição" do protótipo — usar esse texto no programa); senão Aprovado. **Todo ponto precisa ser
-  preenchido** para salvar (ponto em branco nunca é ignorado, diferente do protótipo); se não se aplica
-  naquela vez, o usuário marca **"Não aplicável" com motivo** e o ponto não conta.
-- **Visual da "orientação indicativa" (pedido de 2026-10-29):** onde aparecer, as palavras
-  **"orientação indicativa"** ficam com **letra vermelha `#c62828` sobre fundo amarelo `#ffd54f`**,
-  igual à etiqueta física usada na MG ("Aprovado como" em cor normal). Exceção consciente à regra
-  de cores do padrão geral.
-- **Cronograma (decidido em 2026-10-29):** regras do protótipo (vencida = data prevista já passou;
-  próximos 30 dias; previstos no mês). Instrumento nunca calibrado no programa fica no grupo
-  **"Sem calibração no programa"** (aviso amarelo, com a quantidade) — **sem** mencionar a planilha DQ05
-  no texto (pedido do usuário).
-- **Lixeira (decidido em 2026-10-29):** regras do protótipo, **exceto** que calibração **pode** ser
-  excluída permanentemente da lixeira (digitando EXCLUIR) — pode ter sido registrada por engano.
-- **Desativar instrumento (pedido de 2026-10-29):** além da lixeira, opção **DESATIVAR**; o instrumento
-  vai para uma aba **"Desativados"** com **motivo** e **data da desativação**. Lixeira = engano;
-  desativado = deixou de ser usado (são os "tachados em vermelho" da planilha). Sai do cronograma.
-  A aba **começa vazia**: os desativados antigos da planilha **não** são importados — a planilha
-  continua existindo para consultar coisas antigas.
-  **Reativar** (decidido em 2026-10-29): botão na aba Desativados; volta à lista e ao cronograma, com
-  o mesmo código e histórico; o programa guarda a história (desativado em X por motivo Y, reativado em Z).
-- Na tela, escrever **"Incerteza (U)"** por extenso, com tooltip explicando (o usuário não conhecia
-  a sigla "U").
+## Decisões em vigor (todas de 2026-10-29, combinadas com o usuário)
+- **Importação:** conferência aprovada (123 instrumentos, 100 com plano, 987 pontos). Desativados
+  antigos da planilha **não** entram (a planilha segue para consulta). Pontos sem U ficam sem U (fiel):
+  148 numéricos (25 trenas, MIC-015, PAQ-013, ESC-006, 1 de ESC-005, 1 de LAF-017) e 21 limites — a U
+  é preenchida na edição do plano (aviso amarelo) ou ao registrar.
+- **Avaliação com U** (`regras/avaliacao.py`): numérico com nominal → `(medido − nominal) ± U` dentro da
+  tolerância; **sem nominal fixo** (DUR-001 "67 a 80 HR15T"…, "Diferença entre 5 pontos" das balanças;
+  laboratório externo) → o usuário digita o **erro** do certificado; **limite** → `medido + U ≤ máx` /
+  `medido − U ≥ mín`; sem U → "não avaliado" (nunca U = 0; salvar bloqueado); **U negativa usada
+  sem sinal**. **Classe** (EXT-001, MTR-001) e qualitativos: usuário escolhe Aprovado/Reprovado.
+- **Resultado automático:** algum reprovado → Reprovado; senão Aprovado. **Todo ponto precisa ser
+  preenchido** (em branco nunca é ignorado); "Não aplicável" exige motivo e não conta.
+- **Parecer final e condição** (`regras/condicao.py`): parecer escolhido pelo usuário — **Aprovado** /
+  **Orientação indicativa** / **Reprovado - Desativado** (reprovado não pode ser "Aprovado"). Condição
+  do instrumento: **Em uso / Orientação indicativa / Desativado**, mudada pelo parecer ou manualmente
+  (desativar/reativar), sempre com **data** e **observação/motivo opcional**, guardada em histórico.
+  Orientação indicativa **segue no cronograma**; desativado sai. Lixeira = registro por engano.
+- **Visual "orientação indicativa":** onde aparecer, essas palavras em **letra vermelha `#c62828`
+  sobre fundo amarelo `#ffd54f`** (etiqueta física da MG) — exceção consciente à regra de cores.
+- **Localização padronizada** (`regras/localizacao.py`): "Laboratório", "Laboratório - Reserva",
+  "Laboratório - Orientação indicativa"; qualquer "Orientativo/(indicativa)/(indic.)/Or. Ind." vira
+  "<local> - Orientação indicativa". Aplicada ao importar e ao salvar.
+- **Cronograma por mês** (`regras/cronograma.py`): Vencida (previsto para mês já terminado), Pendente
+  este mês (até o último dia), Feita este mês, Próximo mês, Em dia, Sem calibração no programa (sem
+  citar a DQ05), Sem periodicidade. Próxima = data + periodicidade (31/01 + 1 mês = 28/02).
+- **Tela:** título "CALIBRAÇÃO DE INSTRUMENTOS"; topo **Instrumentos | Vencidas | CALIBRAÇÕES DE
+  [MÊS] ("total | N pendentes") | CALIBRAÇÕES DE [MÊS SEGUINTE] (total)** — sem "Calibrações" nem
+  "Sem calibração" no topo. Clicar em Vencidas/mês/mês seguinte abre **lista flutuante** (código,
+  tipo, localização, data, situação) que fecha ao clicar fora. Escrever **"Incerteza (U)"** por extenso
+  com tooltip.
+- **Lixeira:** regras do protótipo (restaurar exige o pai ativo; excluir de vez digitando EXCLUIR, não
+  com dependências), **exceto** que calibração pode ser excluída de vez (e leva os pontos medidos).
+- **Banco/rede:** journal tradicional (nunca WAL), `busy_timeout`, backup diário em `backup/`
+  (**30 cópias**), "foto" do ponto guardada em cada calibração.
+- **Campos do protótipo a manter:** custo de compra e responsável (instrumento); custo e responsável
+  (calibração). Modelo, nº de série, descrição e local da calibração: **não**.
+
+### Histórico curto
+- 2026-10-28: fase 0; importador (fase 1); banco novo em `dados/` + conferência.
+- 2026-10-29: conferência aprovada; fases 1–3 juntadas; fase 4 iniciada; README de todos os
+  repositórios do GitHub sem "como rodar" (PRs juntados em SistemaDeClassificacao, DataAnalytics,
+  SmartCityDataPlatform).
 
 ## Programa novo × protótipo (decisão do usuário em 2026-10-28)
 - O programa oficial é **feito do zero** (PySide6), usando o protótipo Streamlit como referência das
