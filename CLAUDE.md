@@ -127,6 +127,25 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   Sem calibração no programa, Sem periodicidade. Total do mês = pendentes + feitas (previstas para o
   mês); vencida de mês anterior feita agora não entra no total.
   Fotos da tela vão para `dados/fotos/` e são abertas por mim (PowerShell `Invoke-Item`).
+- **Condição do instrumento e parecer final (decidido em 2026-10-29 — substitui "Aprovado como
+  orientação indicativa" e a aba Desativados):**
+  - Cada calibração tem o resultado **automático** (Aprovado/Reprovado, pelos pontos) e um **parecer
+    final** escolhido pelo usuário (como no protótipo): **Aprovado** / **Orientação indicativa** /
+    **Reprovado - Desativado**. Sem "aprovado/reprovado" junto de "orientação indicativa".
+  - O instrumento tem uma **condição**: Em uso / Orientação indicativa / Desativado. O parecer final
+    muda a condição; desativar/reativar manual também. Guardar **histórico**: "desativado em X
+    (observação opcional)", "definido como orientação indicativa em X por motivo Y".
+  - Ver as 3 listas por um **filtro "Mostrar:" na aba Instrumentos** (Em uso / Orientação indicativa /
+    Desativados / Todos) com coluna Condição e "Desde"; a ficha mostra o histórico. **Sem** aba
+    Desativados separada.
+  - Orientação indicativa **continua no cronograma** (segue sendo calibrado); desativado sai.
+  - Pontos qualitativos: Aprovado/Reprovado (+ Não aplicável); resultado geral automático sem o
+    "orientação indicativa".
+- **Campos que faltavam do protótipo (pedido de 2026-10-29):** custo de compra (R$) e responsável no
+  instrumento; custo da calibração (R$) e responsável na calibração. (Modelo, nº de série, descrição
+  e local da calibração: o usuário **não** quis.)
+- Gráfico de tendência (protótipo: subaba Calibrações, exportar PNG) entra com o histórico de
+  calibrações — o usuário perguntou se eu sabia dele.
 - Perguntas ao usuário: sempre com opções clicáveis (AskUserQuestion).
 
 ### Histórico (2026-10-28, fim do dia)
