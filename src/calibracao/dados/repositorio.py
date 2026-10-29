@@ -520,6 +520,13 @@ class Repositorio:
             linha["certificado"], linha["responsavel"], linha["observacoes"],
         )
 
+    def contar_calibracoes(self) -> int:
+        """Calibrações fora da Lixeira, de instrumentos fora da Lixeira (indicador da tela)."""
+        return self._conexao.execute(
+            """SELECT COUNT(*) FROM calibracoes c JOIN instrumentos i ON i.id = c.instrumento_id
+               WHERE c.excluido_em IS NULL AND i.excluido_em IS NULL"""
+        ).fetchone()[0]
+
     def listar_calibracoes(self, instrumento_id: int) -> list[Calibracao]:
         """Calibrações fora da Lixeira, da mais antiga para a mais recente."""
         linhas = self._conexao.execute(
