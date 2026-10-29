@@ -137,6 +137,10 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   **"orientação indicativa"** ficam com **letra vermelha `#c62828` sobre fundo amarelo `#ffd54f`**,
   igual à etiqueta física usada na MG ("Aprovado como" em cor normal). Exceção consciente à regra
   de cores do padrão geral.
+- **Cronograma (decidido em 2026-10-29):** regras do protótipo (vencida = data prevista já passou;
+  próximos 30 dias; previstos no mês). Instrumento nunca calibrado no programa fica no grupo
+  **"Sem calibração no programa"** (aviso amarelo, com a quantidade) — **sem** mencionar a planilha DQ05
+  no texto (pedido do usuário).
 - Na tela, escrever **"Incerteza (U)"** por extenso, com tooltip explicando (o usuário não conhecia
   a sigla "U").
 
