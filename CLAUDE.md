@@ -110,6 +110,13 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   lixeira) com testes. Próximo: **fase 3** (banco para rede, classe repositório) — o esquema precisa
   ganhar: calibrações e pontos medidos (com "não aplicável" + motivo, valor do padrão/medido opcionais),
   desativação/reativação com histórico, marca "não precisa de calibração". Pendente `.gitattributes`.
+- **2026-10-29 (depois):** fase 2 juntada (PR #3). **Fase 3 concluída** na branch `fase-3-banco`,
+  versão `0.3.0`: `.gitattributes`; esquema v2 (`calibracoes`, `pontos_calibracao` com "foto" do
+  ponto, `desativacoes`, `instrumentos.exige_calibracao`) com atualização automática do v1;
+  `dados/backup.py` (1x/dia, 30 cópias); `dados/repositorio.py` (instrumentos, desativar/reativar,
+  planos/pontos, registrar calibração, cronograma, lixeira). Conferido numa **cópia** do banco real:
+  123 instrumentos, todos em "Sem calibração no programa". Próximo: **fase 4 — interface PySide6**
+  (mostrar "fotos" da tela para aprovação; seguir `Classificação_Automática/.../janela.py`).
 - Perguntas ao usuário: sempre com opções clicáveis (AskUserQuestion).
 
 ### Histórico (2026-10-28, fim do dia)

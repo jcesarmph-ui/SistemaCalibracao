@@ -401,12 +401,31 @@ flowchart TD
     D -->|Não| NOK["🔴 Reprovado"]
 ```
 
+**Fase 3 — Banco para uso em pasta de rede.** O programa fica numa pasta compartilhada, sem servidor,
+e às vezes é aberto por mais de uma pessoa. O banco foi preparado para isso:
+
+| Cuidado | Como foi resolvido |
+|---|---|
+| Um só lugar fala com o banco | **Classe repositório**: a tela nunca escreve SQL; trocar de banco no futuro muda um único arquivo. |
+| Pasta de rede | Modo de diário tradicional do SQLite (o modo WAL não funciona em rede), espera automática quando outra pessoa está gravando e transações curtas. |
+| Perda de dados | **Backup diário automático**, feito antes de qualquer atualização da estrutura; guarda as 30 cópias mais recentes e nunca deixa uma cópia "pela metade". |
+| Histórico confiável | Cada calibração guarda uma **"foto" dos pontos do plano** (nominal, tolerância, incerteza) do dia em que foi feita: corrigir o plano depois não altera calibrações antigas. |
+| Atualizações do programa | O banco antigo é **atualizado sozinho** para a estrutura nova, sem perder dados. |
+
+```mermaid
+flowchart LR
+    T["🖥️ Tela"] --> R["📦 Repositório"]
+    R --> G["⚙️ Regras<br/>avaliação, cronograma, lixeira"]
+    R --> B[("💾 SQLite<br/>pasta de rede")]
+    B -.->|1x por dia| K[("🗄️ backup/<br/>últimas 30 cópias")]
+```
+
 ### 🗺️ Roteiro
 
 - [x] Fase 0 — Fundação (estrutura, versão, testes, decisões de arquitetura)
 - [x] Fase 1 — Importador da planilha + relatório de conferência
 - [x] Fase 2 — Regras de avaliação, cronograma, lixeira e desativação, com testes
-- [ ] Fase 3 — Banco preparado para uso em rede, com backup automático
+- [x] Fase 3 — Banco preparado para uso em rede, com backup automático
 - [ ] Fase 4 — Interface PySide6
 - [ ] Fase 5 — Melhorias e correções
 - [ ] Fase 6 — Versão `1.0.0` em uso na empresa
