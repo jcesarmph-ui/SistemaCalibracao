@@ -20,7 +20,8 @@ CORES = {
 ESTILO = """
 QWidget {{ font-size: 13pt; color: #f0f0f0; font-family: "Segoe UI"; }}
 QMainWindow, #central {{ background: {fundo}; }}
-QDialog {{ background: {caixa}; }}
+QDialog, QMessageBox {{ background: {caixa}; }}
+QMessageBox {{ border: 1px solid {borda}; }}
 QGroupBox {{ font-weight: bold; background: {caixa}; border: 1px solid {borda};
              border-radius: 6px; margin-top: 12px; padding: 8px 8px 4px 8px; }}
 QGroupBox::title {{ subcontrol-origin: margin; left: 10px; padding: 0 4px; color: {titulo}; }}

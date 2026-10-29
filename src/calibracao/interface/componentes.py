@@ -67,6 +67,17 @@ def tabela_somente_leitura(colunas: list[str]) -> QTableWidget:
     return tabela
 
 
+class RotuloClicavel(QLabel):
+    """Texto que responde ao clique (ex.: o modo no canto, que pede a edição)."""
+
+    clicado = Signal()
+
+    def mousePressEvent(self, evento) -> None:  # noqa: N802 — nome exigido pelo Qt
+        if evento.button() == Qt.LeftButton:
+            self.clicado.emit()
+        super().mousePressEvent(evento)
+
+
 class PainelClicavel(QGroupBox):
     """Caixa de indicador que responde ao clique (abre a lista flutuante)."""
 

@@ -123,3 +123,46 @@ def test_parado_com_algo_digitado_nao_libera(duas_janelas):
     a.a_cada_sinal()
     assert a.rotulo_modo.text() == "Modo edição"
     assert a.repo.obter_trava().usuario == "ana"
+
+
+def test_pedir_edicao_e_quem_edita_libera(duas_janelas):
+    a, b = duas_janelas
+    b.pedir_edicao()                       # clique no texto do canto
+    assert b.rotulo_modo.text() == "Modo consulta - ana - PC-1 - pedido enviado"
+    a.verificar_pedido()                   # até 5 s depois, A recebe o aviso
+    assert a.caixa_pedido is not None
+    assert "beto (PC-2) pediu para editar" in a.caixa_pedido.text()
+    a.responder_pedido(liberar=True)
+    assert a.rotulo_modo.text() == "Modo consulta"
+    b.verificar_pedido()                   # B vê que foi liberado e passa para edição
+    assert b.rotulo_modo.text() == "Modo edição"
+    a.a_cada_sinal()                       # A não pega de volta sozinha
+    assert a.rotulo_modo.text() == "Modo consulta - beto - PC-2"
+
+
+def test_quem_edita_pode_recusar(duas_janelas):
+    a, b = duas_janelas
+    b.pedir_edicao()
+    a.verificar_pedido()
+    a.verificar_pedido()                   # o mesmo pedido não abre dois avisos
+    a.responder_pedido(liberar=False)
+    assert a.rotulo_modo.text() == "Modo edição"
+    b.verificar_pedido()
+    assert b.rotulo_modo.text() == "Modo consulta - ana - PC-1 - pedido recusado"
+
+
+def test_aviso_lembra_de_salvar_antes(duas_janelas):
+    a, b = duas_janelas
+    aba = a.aba_instrumentos
+    aba.tabela.selectRow(0)
+    aba.campos["faixa"].setText("0-5 m")   # digitado e não salvo
+    b.pedir_edicao()
+    a.verificar_pedido()
+    assert "não salvas" in a.caixa_pedido.text()
+
+
+def test_ninguem_editando_clicar_ja_passa_para_edicao(duas_janelas):
+    a, b = duas_janelas
+    a.close()
+    b.pedir_edicao()
+    assert b.rotulo_modo.text() == "Modo edição"

@@ -72,6 +72,9 @@ class Trava:
     desde: datetime.datetime
     ultimo_sinal: datetime.datetime
     sinal: int
+    pedido_usuario: str | None = None      # alguém no modo consulta pediu para editar
+    pedido_computador: str | None = None
+    pedido_em: datetime.datetime | None = None
 
 
 @dataclass
@@ -321,7 +324,32 @@ class Repositorio:
             return None
         return Trava(linha["usuario"], linha["computador"],
                      datetime.datetime.fromisoformat(linha["desde"]),
-                     datetime.datetime.fromisoformat(linha["ultimo_sinal"]), linha["sinal"])
+                     datetime.datetime.fromisoformat(linha["ultimo_sinal"]), linha["sinal"],
+                     linha["pedido_usuario"], linha["pedido_computador"],
+                     datetime.datetime.fromisoformat(linha["pedido_em"])
+                     if linha["pedido_em"] else None)
+
+    def pedir_edicao(self, usuario: str, computador: str, agora: datetime.datetime) -> bool:
+        """Modo consulta: pede para quem edita liberar. False se ninguém estiver editando."""
+        try:
+            with self._conexao:
+                return bool(self._conexao.execute(
+                    "UPDATE trava_edicao SET pedido_usuario = ?, pedido_computador = ?, "
+                    "pedido_em = ? WHERE id = 1",
+                    (usuario, computador, agora.isoformat(timespec="seconds")),
+                ).rowcount)
+        except sqlite3.OperationalError as erro:
+            raise ErroDeValidacao([MENSAGEM_OCUPADO]) from erro
+
+    def recusar_pedido(self) -> None:
+        """Quem edita escolheu continuar editando: apaga o pedido."""
+        try:
+            with self._conexao:
+                self._conexao.execute(
+                    "UPDATE trava_edicao SET pedido_usuario = NULL, pedido_computador = NULL, "
+                    "pedido_em = NULL WHERE token = ?", (self.token,))
+        except sqlite3.OperationalError:
+            pass  # o pedido continua lá; quem pediu só não recebe a resposta agora
 
     def tentar_editar(self, usuario: str, computador: str, agora: datetime.datetime,
                       assumir_sinal: int | None = None) -> Trava | None:

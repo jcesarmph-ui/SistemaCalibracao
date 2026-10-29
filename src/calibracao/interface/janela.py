@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -35,6 +36,7 @@ from calibracao.interface.aba_lixeira import AbaLixeira
 from calibracao.interface.componentes import (
     ListaFlutuante,
     PainelClicavel,
+    RotuloClicavel,
     aplicar_destaques,
     celula,
     formatar_data,
@@ -117,11 +119,20 @@ class JanelaPrincipal(QMainWindow):
         self.relogio = QTimer(self)
         self.relogio.setInterval(int(INTERVALO_SINAL.total_seconds() * 1000))
         self.relogio.timeout.connect(self.a_cada_sinal)
+        # Pedido de edição: conferido a cada 5 s, para a resposta não demorar.
+        self.relogio_pedido = QTimer(self)
+        self.relogio_pedido.setInterval(5000)
+        self.relogio_pedido.timeout.connect(self.verificar_pedido)
+        self.pedido_enviado = False
+        self.situacao_pedido = ""          # " - pedido enviado" / " - pedido recusado"
+        self.caixa_pedido: QMessageBox | None = None
+        self._pedido_mostrado = None
         self.ultima_atividade = self.agora()
         self.liberou_parado_em: datetime.datetime | None = None
         if identidade is not None:
             self.tentar_editar()
             self.relogio.start()
+            self.relogio_pedido.start()
             QApplication.instance().installEventFilter(self)  # mouse/teclado = não está parado
 
     # --- Montagem da tela -------------------------------------------------------------------
@@ -140,9 +151,8 @@ class JanelaPrincipal(QMainWindow):
         grade.addWidget(QLabel(f"versão {__version__}", objectName="dica"), 0, 2,
                         Qt.AlignRight | Qt.AlignBottom)
         # "Modo edição" ou "Modo consulta - usuário - PC": pequeno, branco, discreto.
-        self.rotulo_modo = QLabel("Modo edição", objectName="modo")
-        self.rotulo_modo.setToolTip("Modo consulta: outra pessoa está editando; aqui só se vê. "
-                                    "Passa sozinho para edição quando ela fechar o programa.")
+        self.rotulo_modo = RotuloClicavel("Modo edição", objectName="modo")
+        self.rotulo_modo.clicado.connect(self.pedir_edicao)
         grade.addWidget(self.rotulo_modo, 0, 2, Qt.AlignRight | Qt.AlignTop)
         grade.setColumnStretch(0, 1)
         grade.setColumnStretch(2, 1)  # coluna do mesmo tamanho da do logo → título no centro
@@ -240,11 +250,79 @@ class JanelaPrincipal(QMainWindow):
         self.setWindowTitle(self.titulo_janela if pode
                             else f"{self.titulo_janela} — SOMENTE CONSULTA")
         if pode:
+            self.pedido_enviado, self.situacao_pedido = False, ""
             self.rotulo_modo.setText("Modo edição")
+            self.rotulo_modo.setCursor(Qt.ArrowCursor)
+            self.rotulo_modo.setToolTip("")
             return
         self.observador.ver(dono.sinal if dono else None, self.agora())
-        self.rotulo_modo.setText(f"Modo consulta - {dono.usuario} - {dono.computador}" if dono
-                                 else "Modo consulta")
+        texto = f"Modo consulta - {dono.usuario} - {dono.computador}" if dono else "Modo consulta"
+        self.rotulo_modo.setText(texto + self.situacao_pedido)
+        self.rotulo_modo.setCursor(Qt.PointingHandCursor)
+        self.rotulo_modo.setToolTip("Outra pessoa está editando; aqui só se vê. Clique para pedir "
+                                    "que ela libere a edição.")
+
+    # --- Pedido de edição ------------------------------------------------------------------
+
+    def pedir_edicao(self) -> None:
+        """Clique no texto do modo consulta: pede para quem edita liberar."""
+        if not self.repo.modo_consulta or self.identidade is None:
+            return
+        usuario, computador = self.identidade
+        try:
+            enviado = self.repo.pedir_edicao(usuario, computador, self.agora())
+        except ErroDeValidacao:
+            return
+        if not enviado:  # ninguém editando: já passa para edição
+            self.tentar_editar()
+            return
+        self.pedido_enviado, self.situacao_pedido = True, " - pedido enviado"
+        self.aplicar_modo(self.repo.obter_trava())
+
+    def verificar_pedido(self) -> None:
+        """A cada 5 s. Quem edita: mostra o pedido. Quem pediu: vê se foi liberado ou recusado."""
+        trava = self.repo.obter_trava()
+        if not self.repo.modo_consulta:
+            if trava and trava.pedido_usuario:
+                chave = (trava.pedido_usuario, trava.pedido_computador, trava.pedido_em)
+                if chave != self._pedido_mostrado:
+                    self._pedido_mostrado = chave
+                    self._mostrar_pedido(trava)
+            return
+        if not self.pedido_enviado:
+            return
+        if trava is None:
+            self.tentar_editar()  # liberou: passa para edição
+        elif trava.pedido_usuario is None:
+            self.pedido_enviado, self.situacao_pedido = False, " - pedido recusado"
+            self.aplicar_modo(trava)
+
+    def _mostrar_pedido(self, trava: Trava) -> None:
+        texto = (f"{trava.pedido_usuario} ({trava.pedido_computador}) pediu para editar o "
+                 "programa.\n\nSe liberar, este computador passa para o modo consulta.")
+        if self.aba_instrumentos.tem_alteracao():
+            texto += "\n\nAtenção: há alterações digitadas e não salvas. Salve antes de liberar."
+        caixa = QMessageBox(QMessageBox.Question, "Pedido para editar", texto, parent=self)
+        liberar = caixa.addButton("Liberar agora", QMessageBox.AcceptRole)
+        caixa.addButton("Continuar editando", QMessageBox.RejectRole)
+        caixa.setModal(False)  # não trava o programa de quem está editando
+        caixa.buttonClicked.connect(lambda botao: self.responder_pedido(botao is liberar))
+        self.caixa_pedido = caixa
+        caixa.show()
+
+    def responder_pedido(self, liberar: bool) -> None:
+        if self.caixa_pedido is not None:
+            self.caixa_pedido.close()
+            self.caixa_pedido = None
+        if self.repo.modo_consulta:
+            return  # já tinha liberado (ex.: 30 minutos parado)
+        if liberar:
+            self.repo.liberar_trava()
+            self.repo.modo_consulta = True
+            self.liberou_parado_em = self.agora()  # não pega de volta sozinho
+            self.aplicar_modo(None)
+        else:
+            self.repo.recusar_pedido()
 
     def eventFilter(self, objeto, evento) -> bool:  # noqa: N802 — nome exigido pelo Qt
         if evento.type() in (QEvent.MouseButtonPress, QEvent.KeyPress, QEvent.Wheel):
@@ -268,6 +346,9 @@ class JanelaPrincipal(QMainWindow):
                 self.repo.liberar_trava()
                 self.repo.modo_consulta = True
                 self.liberou_parado_em = agora
+                if self.caixa_pedido is not None:  # o pedido fica atendido
+                    self.caixa_pedido.close()
+                    self.caixa_pedido = None
                 self.aplicar_modo(None)
             elif not self.repo.dar_sinal(agora):
                 self.aplicar_modo(self.repo.obter_trava())  # outro assumiu: vira consulta
@@ -287,6 +368,7 @@ class JanelaPrincipal(QMainWindow):
 
     def closeEvent(self, evento) -> None:  # noqa: N802 — nome exigido pelo Qt
         self.relogio.stop()
+        self.relogio_pedido.stop()
         if self.identidade is not None and not self.repo.modo_consulta:
             self.repo.liberar_trava()
         super().closeEvent(evento)

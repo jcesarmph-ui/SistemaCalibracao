@@ -128,7 +128,12 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   2. ~~Trava de edição~~ feita (esquema **v4**, tabela `trava_edicao`; `regras/trava.py`;
      repositório `tentar_editar`/`dar_sinal`/`liberar_trava`, toda gravação recusada no modo
      consulta e "banco ocupado" vira aviso; janela com faixa amarela e "Passar para edição";
-     identidade = usuário do Windows + nome do PC, em `app.py`). 210 testes.
+     identidade = usuário do Windows + nome do PC, em `app.py`).
+     Depois, a pedido do usuário: sem faixa amarela nem botão — só o texto pequeno e branco no
+     canto superior direito ("Modo edição" / "Modo consulta - usuário - PC"); passa sozinho para
+     edição quando quem editava sai/para de responder; 30 min parado libera (se nada digitado
+     sem salvar); **clicar no texto pede a edição** e quem edita recebe aviso Liberar / Continuar
+     editando (vale para todos os projetos: ver CLAUDE.md do usuário). 218 testes.
      Peso medido (simulação de 20 anos, 2.000 calibrações): banco 2,4 MB, cronograma 14 ms.
   3. Fechar a fase 4: README (sem "como rodar"), versão `0.4.0`, PR.
 - Fotos da tela: script em `dados/fotos/foto_janela.py` (fora do Git; rodar: `.venv/Scripts/python dados/fotos/foto_janela.py . dados/fotos/<pasta>`) (copia o banco para pasta temporária

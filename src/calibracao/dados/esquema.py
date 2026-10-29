@@ -152,7 +152,11 @@ CREATE TABLE IF NOT EXISTS trava_edicao (
     computador TEXT NOT NULL,
     desde TEXT NOT NULL,
     ultimo_sinal TEXT NOT NULL,
-    sinal INTEGER NOT NULL
+    sinal INTEGER NOT NULL,
+    -- quem, no modo consulta, pediu para editar (quem edita recebe o aviso para liberar)
+    pedido_usuario TEXT,
+    pedido_computador TEXT,
+    pedido_em TEXT
 );
 """
 
@@ -204,6 +208,9 @@ def criar_tabelas(conexao: sqlite3.Connection) -> None:
             conexao.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {tipo}")
     _migrar_desativacoes(conexao)
     conexao.executescript(TABELAS_V4)
+    for coluna in ("pedido_usuario", "pedido_computador", "pedido_em"):
+        if coluna not in _colunas(conexao, "trava_edicao"):
+            conexao.execute(f"ALTER TABLE trava_edicao ADD COLUMN {coluna} TEXT")
     conexao.execute(
         "INSERT OR REPLACE INTO metadados (chave, valor) VALUES ('versao_esquema', ?)",
         (str(VERSAO_ESQUEMA),),

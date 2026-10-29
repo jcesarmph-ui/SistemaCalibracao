@@ -119,7 +119,8 @@ class PainelPlano(QWidget):
                     and p.incerteza is None)
         if plano_id is None:
             self.titulo.setText("Este instrumento não tem plano: escolha um plano nos dados "
-                                "acima e clique em SALVAR.")
+                                "acima e clique em SALVAR." if self.pode_editar
+                                else "Este instrumento não tem plano de calibração.")
         else:
             nome = self.repo.obter_plano(plano_id).nome
             self.titulo.setText(f"{nome}: {len(self._pontos)} ponto(s). "
