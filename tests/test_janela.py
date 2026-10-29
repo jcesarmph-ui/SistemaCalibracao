@@ -121,6 +121,7 @@ def test_mudar_condicao_pela_tela(janela):
     # sai do cronograma e dos indicadores, mas continua na lista (filtro Desativados)
     assert texto(janela.valores_indicadores["instrumentos"]) == "3"
     assert "1 pendente" not in texto(janela.valores_indicadores["mes"])
+    assert "TRE-901" not in codigos_da_lista(aba)  # a lista abre sem os desativados
     aba.filtro_condicao.setCurrentText("Desativados")
     assert codigos_da_lista(aba) == ["TRE-901"]
     assert aba.tabela.item(0, 3).text() == "20/10/2026"

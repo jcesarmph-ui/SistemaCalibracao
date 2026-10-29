@@ -45,12 +45,14 @@ from calibracao.interface.painel_plano import PainelPlano, numero, numero_em_tex
 from calibracao.regras.condicao import Condicao
 from calibracao.regras.lixeira import Tipo
 
-# Filtro "Condição" da lista (pedido do usuário em 2026-10-29).
+# Filtro "Condição" da lista: condições mostradas em cada opção (pedido do usuário em 2026-10-29).
+# A lista abre na primeira; os desativados só aparecem escolhendo o filtro.
 FILTROS_CONDICAO = {
-    "Todos": None,
-    "Em uso": Condicao.EM_USO,
-    "Orientação indicativa": Condicao.ORIENTACAO_INDICATIVA,
-    "Desativados": Condicao.DESATIVADO,
+    "Todos menos desativados": (Condicao.EM_USO, Condicao.ORIENTACAO_INDICATIVA),
+    "Em uso": (Condicao.EM_USO,),
+    "Orientação indicativa": (Condicao.ORIENTACAO_INDICATIVA,),
+    "Desativados": (Condicao.DESATIVADO,),
+    "Todos": tuple(Condicao),
 }
 TODOS_OS_TIPOS = "Todos os tipos"
 TODAS_AS_LOCALIZACOES = "Todas as localizações"
@@ -298,12 +300,12 @@ class AbaInstrumentos(QWidget):
 
     def _visiveis(self) -> list[Instrumento]:
         termo = self.busca.text().strip().lower()
-        condicao = FILTROS_CONDICAO[self.filtro_condicao.currentText()]
+        condicoes = FILTROS_CONDICAO[self.filtro_condicao.currentText()]
         tipo = self.filtro_tipo.currentText()
         local = self.filtro_local.currentText()
         return [
             i for i in self._instrumentos
-            if (condicao is None or self._condicao(i.id).condicao == condicao)
+            if self._condicao(i.id).condicao in condicoes
             and tipo in (TODOS_OS_TIPOS, i.tipo)
             and local in (TODAS_AS_LOCALIZACOES, i.localizacao)
             and (not termo or termo in f"{i.codigo} {i.tipo} {i.localizacao or ''}".lower())
