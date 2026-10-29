@@ -32,7 +32,7 @@
   <a href="#-arquitetura">Arquitetura</a> •
   <a href="#-modelo-de-dados">Modelo de dados</a> •
   <a href="#-lixeira">Lixeira</a> •
-  <a href="#-como-executar">Como executar</a> •
+  <a href="#-do-protótipo-ao-programa-final">Programa final</a> •
   <a href="#-estrutura-do-repositório">Estrutura</a>
 </p>
 
@@ -346,32 +346,51 @@ stateDiagram-v2
 
 </details>
 
-## 🚀 Como executar
+## 🔄 Do protótipo ao programa final
 
-Requisitos: **Windows** e **Python**. No PowerShell, na pasta do projeto:
+O sistema nasceu como um **protótipo em Streamlit** (descrito acima), que precisava abrir um servidor
+local e o navegador. O **programa final** está sendo refeito do zero como **aplicativo desktop em
+PySide6**, usando o protótipo como referência de regras e funcionalidades, com a mesma identidade visual
+dos demais programas internos (tema escuro, layout em faixas, versão na tela).
 
-```powershell
-python -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-```
-
-Depois, abra a aplicação de uma destas formas:
-
-| Forma | Como |
+| Tecnologia | Aplicação no projeto |
 |---|---|
-| Atalho do Windows | Dê dois cliques em `Abrir_CALIB.bat` (usa o Python da pasta `.venv`). |
-| Terminal | `.venv\Scripts\python.exe -m streamlit run main.py` |
-| Inicializador | `iniciar_calib.py` abre o Streamlit em `http://127.0.0.1:8501` (é o ponto de entrada do executável). |
+| PySide6 | Interface desktop nativa, sem servidor nem navegador. |
+| openpyxl | Leitura da planilha de cronograma original, incluindo o formato de exibição das células. |
+| SQLite | Banco preparado para pasta de rede (journal tradicional, backup diário). |
+| pytest + ruff | Testes automáticos com dados fictícios e padronização do código. |
 
-> [!NOTE]
-> O `main.py` importa `matplotlib` (gráfico de tendência), que não aparece no `requirements.txt`. Se a
-> aplicação acusar a falta do módulo, instale-o no mesmo ambiente virtual.
-
-### 🧪 Testes
-
-```powershell
-python -m unittest discover -s tests -v
+```mermaid
+flowchart LR
+    P["📊 Planilha de cronograma<br/>(somente leitura)"] --> I["⚙️ Importador"]
+    I --> B[("💾 Banco novo<br/>instrumentos, planos e pontos")]
+    I --> R["📋 Relatório de conferência"]
+    R --> H["👤 Revisão humana"]
 ```
+
+**Fase 1 — Importador da planilha.** O programa substitui uma planilha de cronograma grande e difícil de
+manter. O importador lê a planilha **sem alterá-la** e monta o banco novo com tudo o que é preciso para
+fazer **novas** calibrações:
+
+- instrumentos ativos (desativados ficam de fora; instrumentos sem plano entram mesmo assim);
+- planos com pontos **numéricos, de limite, de classe, de critério e de verificação visual**;
+- tolerâncias lidas também pelo **formato de exibição da célula** (ex.: `0.007` exibido como `± 0,007`);
+- incerteza (U) de cada ponto vinda da **calibração mais recente** que a informa;
+- relatório para conferência humana, com o que entrou, o que ficou de fora e o motivo.
+
+O banco começa **sem calibrações**: o histórico antigo continua na planilha, só para consulta.
+
+### 🗺️ Roteiro
+
+- [x] Fase 0 — Fundação (estrutura, versão, testes, decisões de arquitetura)
+- [x] Fase 1 — Importador da planilha + relatório de conferência
+- [ ] Fase 2 — Regras de avaliação, cronograma e lixeira, com testes
+- [ ] Fase 3 — Banco preparado para uso em rede, com backup automático
+- [ ] Fase 4 — Interface PySide6
+- [ ] Fase 5 — Melhorias e correções
+- [ ] Fase 6 — Versão `1.0.0` em uso na empresa
+
+### 🧪 Testes do protótipo
 
 <details>
 <summary><b>O que os testes conferem</b></summary>
@@ -390,14 +409,6 @@ conferem:
 
 </details>
 
-### 📦 Executável
-
-> [!WARNING]
-> O executável precisa ser **gerado novamente** para incorporar a atualização da lixeira — o `.exe`
-> anterior não deve ser considerado atualizado. Valide o novo pacote PyInstaller
-> (`Sistema_de_Calibracao.spec`) em uma cópia da instalação antes de substituir a distribuição e preserve o
-> banco e seus backups.
-
 ## 📁 Estrutura do Repositório
 
 ```text
@@ -410,6 +421,7 @@ SistemaCalibracao/
 ├── data/                       # banco SQLite (criado na 1ª execução; não versionado)
 ├── docs/                       # documentação da atualização da lixeira
 ├── scripts/                    # utilitários administrativos (importação, validação, limpeza)
+├── src/calibracao/             # programa final (PySide6) em construção: importador e dados
 ├── tests/                      # testes automáticos (unittest)
 ├── .vscode/                    # configuração de execução no VS Code
 ├── Abrir_CALIB.bat             # atalho para iniciar a aplicação no Windows

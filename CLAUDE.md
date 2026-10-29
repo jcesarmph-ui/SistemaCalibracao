@@ -64,6 +64,16 @@ tendência; lixeira com exclusão lógica. Detalhes do comportamento atual: `REA
   problema do programa: vão como estão (ex.: valor que parece digitado errado; abas sem
   tolerância). Quem confere é o usuário, com análise crítica a cada calibração, corrigindo pela tela de
   edição. Não perguntar sobre "possíveis erros" da planilha — só sobre como **interpretar** um dado.
+- **Quais instrumentos entram** (decisão do usuário em 2026-10-28): a lista mestra é a aba
+  **"Cronograma de Calibração"**. Ficam de fora: (a) abas de instrumentos que **não estão no
+  cronograma** (já desativados); (b) linhas do cronograma **tachadas com fundo vermelho**
+  (desativados). Localização em letra vermelha/fundo amarelo (reserva, orientativo) **não** exclui —
+  esses entram. Instrumentos do cronograma **sem aba** própria (reserva no laboratório ou não
+  calibrados) **entram sem plano**.
+  Localização vem do cronograma; o resto do cadastro e o plano vêm da aba do instrumento.
+- **O usuário pode fazer tudo pelo programa**: incluir/editar/desativar instrumentos, criar/editar
+  planos, incluir/editar/remover pontos (inclusive marcar que um instrumento não precisa de
+  calibração). Nada de cadastro pode depender de mexer no banco ou no código.
 - Leitura: considerar o `number_format` da célula (ex.: `0.007` com formato `"± "0.000` = ± 0,007).
   "Classificação (Classe)" com valor `1` (extensômetro, máquina de tração) = **classe exigida 1**, não tolerância.
 
@@ -93,6 +103,24 @@ usuário): o usuário quer fazer **depois, não agora** — apenas lembrar a pen
 `__pycache__/` versionado; `main_backup_antes_visual.py`; `notepad adicionar_responsavel.py`; arquivo
 vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_responsavel.py`);
 `Abrir_CALIB.bat` e `iniciar_calib.py` (deixam de existir sem Streamlit); `.vscode/`.
+
+## Onde paramos (2026-10-28, fim do dia)
+- Fase 0 concluída (PR #1 juntado ao `main`). Fase 1 (importador) pronta na branch
+  `fase-1-importador` (já enviada ao GitHub; **PR ainda não aberto**). Versão `0.1.0`.
+- Banco novo gerado em `dados/calibracao.db` + `dados/conferencia_importacao.xlsx` (fora do Git):
+  123 instrumentos (100 com plano, 23 sem), 987 pontos, 74 fora; planilha original conferida intacta.
+- **Próximos passos (amanhã):** (1) usuário confere a planilha de conferência
+  (`! start dados/conferencia_importacao.xlsx`) e aprova ou pede ajustes; (2) abrir o PR da fase 1 e
+  atualizar o README; (3) fase 2 — perguntar como avaliar os pontos sem nominal fixo (9 do DUR-001
+  e "Diferença entre 5 pontos" de BAL-002/BAL-004).
+- Pendente: `.gitattributes` (avisos LF/CRLF), copiando do projeto de classificação.
+- 2026-10-29: usuário **aprovou** a conferência da importação. Pontos sem U no banco novo (fiel à
+  planilha): 148 numéricos (25 trenas, MIC-015, PAQ-013, ESC-006, 1 de ESC-005, 1 de LAF-017) e 21
+  limites (Planeza/Paralelismo dos micrômetros, nó de MA-09/11/12) — a U é informada na edição do plano
+  ou ao registrar. Classe e verificação visual não usam U.
+- **Regra para a fase 2 (decidida em 2026-10-29):** ponto de **Limite** segue a mesma lógica do
+  numérico — máximo: aprovado se `medido + U ≤ máximo`; mínimo: aprovado se `medido − U ≥ mínimo`;
+  sem U → "não avaliado" (salvar bloqueado).
 
 ## Programa novo × protótipo (decisão do usuário em 2026-10-28)
 - O programa oficial é **feito do zero** (PySide6), usando o protótipo Streamlit como referência das
