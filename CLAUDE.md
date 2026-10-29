@@ -124,7 +124,7 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   resultado na hora e parecer final, ver pontos, Lixeira; `interface/grafico_tendencia.py`: um ponto
   por vez, erro ± U, tolerância, reprovado em vermelho, dica do mouse, salvar PNG). 192 testes.
 - **Próximos passos:**
-  1. ~~Aba Lixeira~~ feita (`interface/aba_lixeira.py`; 199 testes).
+  1. ~~Aba Lixeira~~ feita (`interface/aba_lixeira.py`; 198 testes).
   2. **Trava de edição** (decisão de 2026-10-29): quem abre primeiro edita; os outros entram em
      **modo consulta** — botões de editar escondidos e campos travados (não dá nem para começar a
      digitar, "para não ser igual ao Excel"), faixa amarela "Somente consulta — <usuário do
