@@ -141,6 +141,11 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   próximos 30 dias; previstos no mês). Instrumento nunca calibrado no programa fica no grupo
   **"Sem calibração no programa"** (aviso amarelo, com a quantidade) — **sem** mencionar a planilha DQ05
   no texto (pedido do usuário).
+- **Lixeira (decidido em 2026-10-29):** regras do protótipo, **exceto** que calibração **pode** ser
+  excluída permanentemente da lixeira (digitando EXCLUIR) — pode ter sido registrada por engano.
+- **Desativar instrumento (pedido de 2026-10-29):** além da lixeira, opção **DESATIVAR**; o instrumento
+  vai para uma aba **"Desativados"** com **motivo** e **data da desativação**. Lixeira = engano;
+  desativado = deixou de ser usado (são os "tachados em vermelho" da planilha). Sai do cronograma.
 - Na tela, escrever **"Incerteza (U)"** por extenso, com tooltip explicando (o usuário não conhecia
   a sigla "U").
 
