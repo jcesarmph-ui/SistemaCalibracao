@@ -133,6 +133,10 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   restrição" do protótipo — usar esse texto no programa); senão Aprovado. **Todo ponto precisa ser
   preenchido** para salvar (ponto em branco nunca é ignorado, diferente do protótipo); se não se aplica
   naquela vez, o usuário marca **"Não aplicável" com motivo** e o ponto não conta.
+- **Visual da "orientação indicativa" (pedido de 2026-10-29):** onde aparecer, as palavras
+  **"orientação indicativa"** ficam com **letra vermelha `#c62828` sobre fundo amarelo `#ffd54f`**,
+  igual à etiqueta física usada na MG ("Aprovado como" em cor normal). Exceção consciente à regra
+  de cores do padrão geral.
 - Na tela, escrever **"Incerteza (U)"** por extenso, com tooltip explicando (o usuário não conhecia
   a sigla "U").
 
