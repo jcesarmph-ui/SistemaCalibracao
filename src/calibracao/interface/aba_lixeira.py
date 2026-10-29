@@ -80,6 +80,9 @@ class AbaLixeira(QWidget):
         topo = QHBoxLayout()
         topo.addWidget(QLabel("Mostrar:"))
         topo.addWidget(self.filtro)
+        self.busca = QLineEdit(placeholderText="Pesquisar por código, descrição ou motivo")
+        self.busca.textChanged.connect(self._preencher)
+        topo.addWidget(self.busca, 1)
         topo.addWidget(QLabel("Use a Lixeira para o que foi registrado por engano. Restaurar "
                               "devolve o item para onde estava.", objectName="dica"), 1)
         topo.addWidget(self.contagem)
@@ -111,7 +114,10 @@ class AbaLixeira(QWidget):
 
     def _visiveis(self) -> list[ItemLixeira]:
         tipo = FILTROS[self.filtro.currentText()]
-        return [item for item in self.itens if tipo is None or item.tipo == tipo]
+        termo = self.busca.text().strip().lower()
+        return [item for item in self.itens
+                if (tipo is None or item.tipo == tipo)
+                and (not termo or termo in f"{item.descricao} {item.motivo or ''}".lower())]
 
     def _preencher(self) -> None:
         visiveis = self._visiveis()

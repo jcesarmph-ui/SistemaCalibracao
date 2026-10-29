@@ -214,3 +214,28 @@ def test_salvar_plano_mantem_o_numero_original_da_planilha(janela):
     assert painel.tem_alteracao()
     painel.salvar_plano()
     assert repo.listar_pontos(plano_id)[-1].ordem_original == "7"
+
+
+def test_criar_plano_novo_pela_tela(janela):
+    aba = janela.aba_instrumentos
+    aba.novo_instrumento()
+    aba.campos["codigo"].setText("PAQ-951")
+    aba.campos["tipo"].setText("Paquímetro")
+    aba.criar_plano("Plano PAQ-951")
+    assert "SALVAR" in aba.avisos.text()
+    assert aba.plano.currentText() == "Plano PAQ-951"
+    aba.salvar_instrumento()
+    salvo = next(i for i in janela.repo.listar_instrumentos() if i.codigo == "PAQ-951")
+    assert janela.repo.obter_plano(salvo.plano_id).nome == "Plano PAQ-951"
+
+
+def test_plano_na_lixeira_continua_aparecendo(janela):
+    aba = janela.aba_instrumentos
+    escolher(aba, "TRE-901")
+    aba.painel_plano.descartar("Criado por engano")
+    assert "(na Lixeira)" in aba.plano.currentText()
+    assert "está na Lixeira" in aba.painel_plano.titulo.text()
+    janela.aba_lixeira.busca.setText("engano")
+    assert janela.aba_lixeira.tabela.rowCount() == 1
+    janela.aba_lixeira.busca.setText("nada disso")
+    assert janela.aba_lixeira.tabela.rowCount() == 0

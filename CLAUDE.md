@@ -105,10 +105,17 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
 `Abrir_CALIB.bat` e `iniciar_calib.py` (deixam de existir sem Streamlit); `.vscode/`.
 
 ## Onde paramos (2026-10-29, fim do dia)
-- Fases 0–4 juntadas ao `main` (PRs #1–#5). Versão **`0.4.0`**. **Próximo: Fase 5 (melhorias e
-  correções listadas pelo usuário)** — perguntar quais são, uma por vez. Pendências conhecidas para
-  propor: botão "Enviar plano inteiro para a Lixeira" (a Lixeira já trata planos); comparar
-  funcionalidade por funcionalidade com o protótipo antes da 1.0.0.
+- Fases 0–4 juntadas ao `main` (PRs #1–#5). Versão **`0.4.0`**.
+- **Fase 5 (melhorias) começou** na branch `fase-5-melhorias` — **PR #6 aberto, NÃO juntado**
+  (usuário confere antes). Feito: botão **"Novo plano…"** na ficha (cria e escolhe; SALVAR liga),
+  **"Enviar plano para a Lixeira…"** no painel do plano (plano na Lixeira continua aparecendo como
+  "(na Lixeira)"), **pesquisa por texto na Lixeira**. 220 testes. Ainda sem foto dessas telas.
+- **Comparação com o protótipo (2026-10-29) — perguntar ao usuário (opções clicáveis):**
+  1. **Editar calibração já salva** (o protótipo deixava mudar valores e parecer depois); hoje o
+     caminho é Lixeira + registrar de novo.
+  2. **Cronograma de qualquer mês** (o protótipo tinha seletor: 12 meses para trás, 24 para frente);
+     hoje só este mês e o próximo.
+  3. Outras melhorias que o usuário tiver ("por agora, nada" em 2026-10-29).
 - Já feito na fase 4 (e aprovado por foto): `interface/janela.py` (cabeçalho, painéis do topo
   clicáveis com lista flutuante, aba Cronograma), `componentes.py` (célula, `aplicar_destaques`,
   `PainelClicavel`, `ListaFlutuante`), `estilo.py`, `aba_instrumentos.py` (lista + ficha),
