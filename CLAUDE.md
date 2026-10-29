@@ -104,9 +104,11 @@ usuário): o usuário quer fazer **depois, não agora** — apenas lembrar a pen
 vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_responsavel.py`);
 `Abrir_CALIB.bat` e `iniciar_calib.py` (deixam de existir sem Streamlit); `.vscode/`.
 
-## Onde paramos (2026-10-29, fim do dia — antes do /clear)
-- Fases 0–3 juntadas ao `main` (PRs #1–#4). Versão `0.3.0`. **Fase 4 (interface PySide6) em
-  andamento** na branch `fase-4-interface` (enviada ao GitHub; PR ainda não aberto).
+## Onde paramos (2026-10-29, fim do dia)
+- Fases 0–4 juntadas ao `main` (PRs #1–#5). Versão **`0.4.0`**. **Próximo: Fase 5 (melhorias e
+  correções listadas pelo usuário)** — perguntar quais são, uma por vez. Pendências conhecidas para
+  propor: botão "Enviar plano inteiro para a Lixeira" (a Lixeira já trata planos); comparar
+  funcionalidade por funcionalidade com o protótipo antes da 1.0.0.
 - Já feito na fase 4 (e aprovado por foto): `interface/janela.py` (cabeçalho, painéis do topo
   clicáveis com lista flutuante, aba Cronograma), `componentes.py` (célula, `aplicar_destaques`,
   `PainelClicavel`, `ListaFlutuante`), `estilo.py`, `aba_instrumentos.py` (lista + ficha),
@@ -135,7 +137,7 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
      sem salvar); **clicar no texto pede a edição** e quem edita recebe aviso Liberar / Continuar
      editando (vale para todos os projetos: ver CLAUDE.md do usuário). 218 testes.
      Peso medido (simulação de 20 anos, 2.000 calibrações): banco 2,4 MB, cronograma 14 ms.
-  3. Fechar a fase 4: README (sem "como rodar"), versão `0.4.0`, PR.
+  3. ~~Fechar a fase 4~~ feito: README, ADR 0002 (trava), versão `0.4.0`, PR #5.
 - Fotos da tela: script em `dados/fotos/foto_janela.py` (fora do Git; rodar: `.venv/Scripts/python dados/fotos/foto_janela.py . dados/fotos/<pasta>`) (copia o banco para pasta temporária
   e cria calibrações de demonstração só na cópia); salvar em `dados/fotos/` e abrir eu mesmo com
   PowerShell `Invoke-Item`. Perguntas ao usuário: sempre com opções clicáveis (AskUserQuestion).
