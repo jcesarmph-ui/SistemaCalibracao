@@ -238,7 +238,7 @@ class AbaInstrumentos(QWidget):
             linha, coluna = divmod(indice, 2)
             grade.addWidget(QLabel(rotulo), linha, coluna * 2)
             grade.addWidget(self.campos[nome], linha, coluna * 2 + 1)
-        self.novo_plano = QPushButton("Novo plano…")
+        self.novo_plano = QPushButton("Novo plano")
         self.novo_plano.setToolTip("Cria um plano vazio; depois inclua os pontos na sub-aba "
                                    "Plano de calibração.")
         self.novo_plano.clicked.connect(self.pedir_nome_do_plano)
@@ -255,11 +255,11 @@ class AbaInstrumentos(QWidget):
         self.novo.clicked.connect(self.novo_instrumento)
         self.salvar = QPushButton("SALVAR", objectName="principal")
         self.salvar.clicked.connect(self.salvar_instrumento)
-        self.mudar_condicao = QPushButton("Mudar condição…")
+        self.mudar_condicao = QPushButton("Mudar condição")
         self.mudar_condicao.setToolTip("Desativar, voltar a usar ou marcar como orientação "
                                        "indicativa, com data e observação.")
         self.mudar_condicao.clicked.connect(self.mudar_condicao_instrumento)
-        self.lixeira = QPushButton("Enviar para a Lixeira…")
+        self.lixeira = QPushButton("Enviar para a Lixeira")
         self.lixeira.clicked.connect(self.enviar_para_lixeira)
         botoes = QHBoxLayout()
         botoes.addWidget(self.novo, 1)

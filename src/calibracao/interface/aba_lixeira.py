@@ -94,7 +94,7 @@ class AbaLixeira(QWidget):
 
         self.restaurar = QPushButton("Restaurar")
         self.restaurar.clicked.connect(self.restaurar_item)
-        self.excluir = QPushButton("Excluir permanentemente…")
+        self.excluir = QPushButton("Excluir permanentemente")
         self.excluir.setToolTip(f"Apaga para sempre (pede para digitar {CONFIRMACAO_EXCLUSAO}).")
         self.excluir.clicked.connect(self.excluir_item)
         botoes = QHBoxLayout()

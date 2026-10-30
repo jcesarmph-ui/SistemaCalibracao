@@ -114,8 +114,15 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   Fotos: `dados/fotos/foto_fase5.py` e `foto_reserva.py` (fora do Git).
   Depois: **corrigir calibração salva** (branch `fase-5-editar-calibracao`): esquema **v5**
   (tabela `correcoes_calibracao`), `Repositorio.corrigir_calibracao`/`listar_correcoes`, botão
-  "Corrigir…" (janela de registro em modo correção) e caixa "Correções feitas" em "Ver pontos…".
+  "Corrigir" (janela de registro em modo correção) e caixa "Correções feitas" em "Ver pontos".
   Aprovado por foto. 233 testes. Foto: `dados/fotos/foto_correcao.py`.
+  Depois (branch `fase-5-protege-copia`): **proteção contra cópia** — o banco guarda o lugar
+  oficial (`metadados.pasta_oficial`, o primeiro de onde é aberto; `dados/local_banco.py`); aberto
+  de outro lugar = só consulta + aviso amarelo; clicar no aviso e digitar **MUDAR** torna aquele o
+  oficial; sem `calibracao.db` = erro (nunca cria banco vazio; `app.abrir_banco`). **Na entrega
+  (fase 6) o banco vai SEM `pasta_oficial`** (apagar a chave se o banco tiver sido aberto aqui pelo
+  `app.py`). Também: botões sem "…" e título das janelas só com o código. 240 testes.
+  Foto: `dados/fotos/foto_copia.py`.
   **Próximo do roteiro:** cronograma de qualquer mês.
 - **Comparação com o protótipo (2026-10-29):**
   1. ~~Editar calibração já salva~~ feito (2026-10-30).
@@ -180,6 +187,8 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   Lixeira + registrar de novo); pontos reavaliados pela "foto" guardada; mudar o parecer ajusta a
   condição (recusado se a condição mudou depois da calibração); **cada correção é registrada sem
   pedir motivo**: quando, "usuário - PC" e cada mudança "antes → depois".
+- **Textos da tela** (2026-10-30): botões **sem reticências**; título das janelas de calibração só
+  com o **código** do instrumento (sem o tipo entre parênteses).
 - **Visual "Reserva"** (2026-10-30): a palavra "Reserva" (ex.: "Laboratório - Reserva") em **fundo
   azul `#1565c0` com letra branca**, nos mesmos lugares da "orientação indicativa".
 - **Localização padronizada** (`regras/localizacao.py`): "Laboratório", "Laboratório - Reserva",

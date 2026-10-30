@@ -3,7 +3,7 @@
 Registrar abre uma janela maximizada com os pontos do plano: o resultado de cada ponto aparece
 enquanto se digita (verde/vermelho/amarelo) e, no fim, quem analisa escolhe o parecer final —
 que muda a condição do instrumento (ver `calibracao.regras.condicao`). A mesma janela corrige uma
-calibração salva (tudo menos a data); cada correção fica registrada e aparece em "Ver pontos…".
+calibração salva (tudo menos a data); cada correção fica registrada e aparece em "Ver pontos".
 """
 
 import datetime
@@ -134,7 +134,7 @@ class JanelaNovaCalibracao(QDialog):
         self.setWindowTitle(f"{acao} calibração — {instrumento.codigo}")
         _maximizar(self)
 
-        texto = f"{acao.upper()} CALIBRAÇÃO — {instrumento.codigo} ({instrumento.tipo})"
+        texto = f"{acao.upper()} CALIBRAÇÃO — {instrumento.codigo}"
         if corrigir:
             texto += f" DE {formatar_data(corrigir.data_calibracao)}"
         titulo = QLabel(texto, objectName="titulo", alignment=Qt.AlignCenter)
@@ -520,7 +520,7 @@ class JanelaVerCalibracao(QDialog):
         rodape.addStretch(3)
         rodape.addWidget(fechar, 1)
         coluna = QVBoxLayout(self)
-        coluna.addWidget(QLabel(f"CALIBRAÇÃO — {instrumento.codigo} ({instrumento.tipo})",
+        coluna.addWidget(QLabel(f"CALIBRAÇÃO — {instrumento.codigo}",
                                 objectName="titulo", alignment=Qt.AlignCenter))
         coluna.addWidget(caixa_dados)
         coluna.addWidget(caixa_pontos, 3)
@@ -533,7 +533,7 @@ class PainelCalibracoes(QWidget):
 
     alterado = Signal()
 
-    # Laboratório, responsável e observações aparecem em "Ver pontos…".
+    # Laboratório, responsável e observações aparecem em "Ver pontos".
     COLUNAS = ["Data", "Próxima", "Pelos pontos", "Parecer final", "Certificado", "Custo"]
 
     def __init__(self, repositorio: Repositorio, hoje: datetime.date) -> None:
@@ -554,20 +554,20 @@ class PainelCalibracoes(QWidget):
         self.tabela.doubleClicked.connect(self.ver_calibracao)
         self.avisos = QLabel(wordWrap=True, objectName="avisos")
 
-        self.registrar = QPushButton("Registrar calibração…")
+        self.registrar = QPushButton("Registrar calibração")
         self.registrar.clicked.connect(self.registrar_calibracao)
-        self.ver = QPushButton("Ver pontos…")
+        self.ver = QPushButton("Ver pontos")
         self.ver.clicked.connect(self.ver_calibracao)
-        self.corrigir = QPushButton("Corrigir…")
+        self.corrigir = QPushButton("Corrigir")
         self.corrigir.setToolTip("Corrigir valores, U, parecer ou dados do certificado da "
                                  "calibração escolhida (a data não muda). A correção fica "
                                  "registrada.")
         self.corrigir.clicked.connect(self.corrigir_calibracao)
-        self.grafico = QPushButton("Gráfico de tendência…")
+        self.grafico = QPushButton("Gráfico de tendência")
         self.grafico.setToolTip("Erro de cada ponto ao longo das calibrações, com a Incerteza "
                                 "(U) e a tolerância.")
         self.grafico.clicked.connect(self.abrir_grafico)
-        self.lixeira = QPushButton("Enviar para a Lixeira…")
+        self.lixeira = QPushButton("Enviar para a Lixeira")
         self.lixeira.setToolTip("Para calibração registrada por engano. A mudança de condição "
                                 "que ela fez é desfeita.")
         self.lixeira.clicked.connect(self.enviar_para_lixeira)
@@ -655,7 +655,7 @@ class PainelCalibracoes(QWidget):
             self.alterado.emit()
             self._aviso(f"✔ Calibração de {formatar_data(calibracao.data_calibracao)} "
                         f"corrigida ({len(janela.mudancas)} mudança(s), registradas em "
-                        "\"Ver pontos…\").", certo=True)
+                        "\"Ver pontos\").", certo=True)
 
     def abrir_grafico(self) -> None:
         from calibracao.interface.grafico_tendencia import JanelaTendencia  # carrega o Matplotlib

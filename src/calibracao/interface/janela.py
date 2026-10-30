@@ -8,6 +8,9 @@ Uso em rede (ver `calibracao.regras.trava`): com `identidade` (usuário do Windo
 a janela pega a trava de edição ao abrir; se outra pessoa já estiver editando, abre em modo
 consulta — "Modo consulta - usuário - PC" no canto superior direito, botões de mudar
 escondidos e dados se atualizando sozinhos; quando quem editava sai, passa sozinha para edição.
+
+Com `copia_de` (o banco aberto é uma CÓPIA; ver `calibracao.dados.local_banco`), fica só em
+consulta, com aviso amarelo; clicar no aviso e digitar MUDAR torna este o lugar oficial.
 """
 
 import datetime
@@ -21,6 +24,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMainWindow,
     QMessageBox,
@@ -30,6 +34,7 @@ from PySide6.QtWidgets import (
 )
 
 from calibracao import __version__
+from calibracao.dados.local_banco import local_do_banco
 from calibracao.dados.repositorio import ErroDeValidacao, LinhaCronograma, Repositorio, Trava
 from calibracao.interface.aba_instrumentos import AbaInstrumentos
 from calibracao.interface.aba_lixeira import AbaLixeira
@@ -81,7 +86,8 @@ LISTAS_DOS_PAINEIS = {
 class JanelaPrincipal(QMainWindow):
     def __init__(self, repositorio: Repositorio, pasta_dados: Path,
                  hoje: datetime.date | None = None,
-                 identidade: tuple[str, str] | None = None) -> None:
+                 identidade: tuple[str, str] | None = None,
+                 copia_de: str | None = None) -> None:
         super().__init__()
         self.repo = repositorio
         self.pasta_dados = pasta_dados
@@ -105,6 +111,13 @@ class JanelaPrincipal(QMainWindow):
 
         tela = QVBoxLayout()
         tela.addLayout(self._cabecalho())
+        self.aviso_copia = RotuloClicavel(objectName="aviso_copia", wordWrap=True)
+        self.aviso_copia.setStyleSheet(f"background: {CORES['aviso']}; color: #000000; "
+                                       "padding: 6px; font-weight: bold;")
+        self.aviso_copia.setCursor(Qt.PointingHandCursor)
+        self.aviso_copia.clicado.connect(self.mudar_pasta_oficial)
+        self.aviso_copia.hide()
+        tela.addWidget(self.aviso_copia)
         tela.addLayout(self._faixa_indicadores())
         tela.addWidget(self.abas, 1)
         central = QWidget(objectName="central")
@@ -129,13 +142,28 @@ class JanelaPrincipal(QMainWindow):
         self._pedido_mostrado = None
         self.ultima_atividade = self.agora()
         self.liberou_parado_em: datetime.datetime | None = None
+        self.copia_de = copia_de
         if identidade is not None:
             # quem corrige uma calibração fica registrado como "usuário - PC"
             self.aba_instrumentos.painel_calibracoes.usuario = " - ".join(identidade)
-            self.tentar_editar()
-            self.relogio.start()
-            self.relogio_pedido.start()
-            QApplication.instance().installEventFilter(self)  # mouse/teclado = não está parado
+        if copia_de is not None:
+            # Cópia: a trava daqui não vale para ninguém, então nunca edita.
+            self.repo.modo_consulta = True
+            self.aplicar_modo(None)
+            pasta = Path(copia_de).parent.parent
+            self.aviso_copia.setText(
+                f"⚠ Esta é uma CÓPIA do banco: o oficial fica em {pasta}. Aqui é só consulta "
+                "e os dados podem estar desatualizados. Se a pasta oficial do programa mudou "
+                "para cá, clique aqui.")
+            self.aviso_copia.show()
+        elif identidade is not None:
+            self._ligar_trava()
+
+    def _ligar_trava(self) -> None:
+        self.tentar_editar()
+        self.relogio.start()
+        self.relogio_pedido.start()
+        QApplication.instance().installEventFilter(self)  # mouse/teclado = não está parado
 
     # --- Montagem da tela -------------------------------------------------------------------
 
@@ -258,17 +286,47 @@ class JanelaPrincipal(QMainWindow):
             self.rotulo_modo.setToolTip("")
             return
         self.observador.ver(dono.sinal if dono else None, self.agora())
+        if self.copia_de is not None:
+            self.rotulo_modo.setText("Modo consulta - cópia do banco")
+            self.rotulo_modo.setCursor(Qt.ArrowCursor)
+            self.rotulo_modo.setToolTip("Este banco é uma cópia: veja o aviso amarelo.")
+            return
         texto = f"Modo consulta - {dono.usuario} - {dono.computador}" if dono else "Modo consulta"
         self.rotulo_modo.setText(texto + self.situacao_pedido)
         self.rotulo_modo.setCursor(Qt.PointingHandCursor)
         self.rotulo_modo.setToolTip("Outra pessoa está editando; aqui só se vê. Clique para pedir "
                                     "que ela libere a edição.")
 
+    # --- Cópia do banco ----------------------------------------------------------------------
+
+    def mudar_pasta_oficial(self) -> None:
+        texto, ok = QInputDialog.getText(
+            self, "A pasta oficial mudou para cá?",
+            "Só confirme se o programa foi MOVIDO para esta pasta e todos vão abrir daqui.\n"
+            "Se esta é só uma cópia, cancele: o que for gravado aqui não vai para o oficial.\n\n"
+            "Digite MUDAR para confirmar:")
+        if ok and not self.confirmar_pasta_oficial(texto):
+            QMessageBox.warning(self, "Não mudou", "Nada foi mudado: era preciso digitar MUDAR.")
+
+    def confirmar_pasta_oficial(self, texto: str) -> bool:
+        """Com MUDAR digitado, este lugar vira o oficial e o programa volta ao normal."""
+        if texto.strip().upper() != "MUDAR":
+            return False
+        self.repo.marcar_pasta_oficial(local_do_banco(self.pasta_dados / "calibracao.db"))
+        self.copia_de = None
+        self.aviso_copia.hide()
+        self.repo.modo_consulta = False
+        if self.identidade is not None:
+            self._ligar_trava()
+        else:
+            self.aplicar_modo(None)
+        return True
+
     # --- Pedido de edição ------------------------------------------------------------------
 
     def pedir_edicao(self) -> None:
         """Clique no texto do modo consulta: pede para quem edita liberar."""
-        if not self.repo.modo_consulta or self.identidade is None:
+        if not self.repo.modo_consulta or self.identidade is None or self.copia_de is not None:
             return
         usuario, computador = self.identidade
         try:
