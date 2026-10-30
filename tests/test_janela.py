@@ -239,3 +239,17 @@ def test_plano_na_lixeira_continua_aparecendo(janela):
     assert janela.aba_lixeira.tabela.rowCount() == 1
     janela.aba_lixeira.busca.setText("nada disso")
     assert janela.aba_lixeira.tabela.rowCount() == 0
+
+
+def test_destaque_da_reserva_em_azul_e_da_indicativa_na_cor_da_etiqueta():
+    from calibracao.interface.estilo import destacar, tem_destaque
+
+    assert tem_destaque("Laboratório - Reserva")
+    assert tem_destaque("CT-01 - Orientação indicativa")
+    assert not tem_destaque("Laboratório")
+    assert not tem_destaque("Reservatório")  # só a palavra inteira
+    html = destacar("Laboratório - Reserva")
+    assert "background:#1565c0; color:#ffffff" in html
+    assert "Laboratório - " in html
+    html = destacar("Galpão - Orientação indicativa")
+    assert "background:#ffd54f; color:#c62828" in html

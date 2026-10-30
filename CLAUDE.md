@@ -104,12 +104,14 @@ usuário): o usuário quer fazer **depois, não agora** — apenas lembrar a pen
 vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_responsavel.py`);
 `Abrir_CALIB.bat` e `iniciar_calib.py` (deixam de existir sem Streamlit); `.vscode/`.
 
-## Onde paramos (2026-10-29, fim do dia)
+## Onde paramos (2026-10-30)
 - Fases 0–4 juntadas ao `main` (PRs #1–#5). Versão **`0.4.0`**.
-- **Fase 5 (melhorias) começou** na branch `fase-5-melhorias` — **PR #6 aberto, NÃO juntado**
-  (usuário confere antes). Feito: botão **"Novo plano…"** na ficha (cria e escolhe; SALVAR liga),
-  **"Enviar plano para a Lixeira…"** no painel do plano (plano na Lixeira continua aparecendo como
-  "(na Lixeira)"), **pesquisa por texto na Lixeira**. 220 testes. Ainda sem foto dessas telas.
+- **Fase 5 (melhorias):** PR #6 **juntado** em 2026-10-30, aprovado por foto (botão **"Novo
+  plano…"** na ficha, **"Enviar plano para a Lixeira…"** no painel do plano — plano na Lixeira
+  continua aparecendo como "(na Lixeira)" —, **pesquisa por texto na Lixeira**).
+  Depois: **"Reserva" em azul `#1565c0` com letra branca** (branch `fase-5-reserva-azul`, PR #7),
+  nos mesmos lugares da "Orientação indicativa" (aprovado por foto). 221 testes.
+  Fotos: `dados/fotos/foto_fase5.py` e `foto_reserva.py` (fora do Git).
 - **Comparação com o protótipo (2026-10-29) — perguntar ao usuário (opções clicáveis):**
   1. **Editar calibração já salva** (o protótipo deixava mudar valores e parecer depois); hoje o
      caminho é Lixeira + registrar de novo.
@@ -170,6 +172,8 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   (restaurar refaz). Lista de instrumentos abre em **"Todos menos desativados"**.
 - **Visual "orientação indicativa":** onde aparecer, essas palavras em **letra vermelha `#c62828`
   sobre fundo amarelo `#ffd54f`** (etiqueta física da MG) — exceção consciente à regra de cores.
+- **Visual "Reserva"** (2026-10-30): a palavra "Reserva" (ex.: "Laboratório - Reserva") em **fundo
+  azul `#1565c0` com letra branca**, nos mesmos lugares da "orientação indicativa".
 - **Localização padronizada** (`regras/localizacao.py`): "Laboratório", "Laboratório - Reserva",
   "Laboratório - Orientação indicativa"; qualquer "Orientativo/(indicativa)/(indic.)/Or. Ind." vira
   "<local> - Orientação indicativa". Aplicada ao importar e ao salvar.

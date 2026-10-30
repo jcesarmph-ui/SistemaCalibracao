@@ -64,11 +64,13 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
 """
 
 # Faixas coloridas das células (fundo, letra). "Orientação indicativa" imita a etiqueta física da
-# MG: letra vermelha sobre fundo amarelo (pedido do usuário em 2026-10-29).
+# MG: letra vermelha sobre fundo amarelo (pedido do usuário em 2026-10-29). "Reserva" fica em
+# azul com letra branca (pedido de 2026-10-30).
 FAIXA_VERDE = ("#1b5e20", "#e8f5e9")
 FAIXA_VERMELHA = ("#b71c1c", "#ffebee")
 FAIXA_AMARELA = ("#ffd54f", "#000000")
 FAIXA_INDICATIVA = ("#ffd54f", "#c62828")
+FAIXA_RESERVA = ("#1565c0", "#ffffff")
 FAIXA_NEUTRA = ("#161616", "#9e9e9e")
 
 FAIXA_INFORMATIVA = ("#424242", "#ffffff")
@@ -111,18 +113,19 @@ def estilo() -> str:
     return ESTILO.format(**CORES)
 
 
-_MARCA_INDICATIVA = re.compile("orientação indicativa", re.IGNORECASE)
+# Palavras que ganham a cor de etiqueta onde aparecerem nas tabelas.
+_MARCAS = re.compile(r"orientação indicativa|\breserva\b", re.IGNORECASE)
 
 
-def tem_orientacao_indicativa(texto: str | None) -> bool:
-    return bool(texto and _MARCA_INDICATIVA.search(texto))
+def tem_destaque(texto: str | None) -> bool:
+    return bool(texto and _MARCAS.search(texto))
 
 
-def destacar_indicativa(texto: str) -> str:
-    """HTML em que só as palavras "orientação indicativa" levam a cor da etiqueta física."""
-    fundo, letra = FAIXA_INDICATIVA
-    return _MARCA_INDICATIVA.sub(
-        lambda achado: f'<span style="background:{fundo}; color:{letra}; font-weight:bold;">'
-                       f'&nbsp;{achado.group(0)}&nbsp;</span>',
-        html.escape(texto),
-    )
+def destacar(texto: str) -> str:
+    """HTML em que só as palavras marcadas levam a cor da etiqueta (indicativa ou reserva)."""
+    def pintar(achado: re.Match) -> str:
+        reserva = achado.group(0).lower() == "reserva"
+        fundo, letra = FAIXA_RESERVA if reserva else FAIXA_INDICATIVA
+        return (f'<span style="background:{fundo}; color:{letra}; font-weight:bold;">'
+                f'&nbsp;{achado.group(0)}&nbsp;</span>')
+    return _MARCAS.sub(pintar, html.escape(texto))
