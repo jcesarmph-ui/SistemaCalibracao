@@ -104,6 +104,17 @@ usuário): o usuário quer fazer **depois, não agora** — apenas lembrar a pen
 vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_responsavel.py`);
 `Abrir_CALIB.bat` e `iniciar_calib.py` (deixam de existir sem Streamlit); `.vscode/`.
 
+## ▶ PRÓXIMA SESSÃO — lembrar o usuário logo no início (pedido de 2026-10-30)
+1. **Tarefa combinada:** analisar **cada parte da interface**, uma por vez, para achar correções a
+   fazer (cabeçalho e painéis do topo, aba Instrumentos — lista, filtros, ficha, sub-abas Plano,
+   Calibrações e Histórico —, janelas de registrar/corrigir/ver calibração, gráfico de tendência,
+   aba Cronograma — hoje e por mês —, aba Lixeira, modo consulta/trava, aviso de cópia). Mostrar
+   foto de cada parte e perguntar com opções clicáveis o que mudar.
+2. **Pendente do usuário:** teste do pacote novo (lançador) em 2 PCs na rede — ele ainda **não**
+   fez. Lembrar: apagar a pasta de teste antiga da rede, copiar `dist/TESTE - Calibração` **sem
+   abrir antes**, anotar tempo da 1ª e da 2ª abertura, testar modo consulta/pedido de edição.
+3. Branch `fase-6-exe` enviada ao GitHub, **PR aberto e NÃO juntado** (fase 6 ainda não terminou).
+
 ## Onde paramos (2026-10-30)
 - Fases 0–5 juntadas ao `main` (PRs #1–#11). Versão **`0.5.0`** (fase 5 fechada em 2026-10-30,
   ADR 0003 = lugar oficial do banco). **Fase 6 em andamento** (branch `fase-6-exe`).
