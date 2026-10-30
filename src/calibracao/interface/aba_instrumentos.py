@@ -32,6 +32,7 @@ from calibracao.dados.repositorio import (
     ErroDeValidacao,
     Instrumento,
     MudancaCondicao,
+    Plano,
     Repositorio,
 )
 from calibracao.interface.aba_calibracoes import PainelCalibracoes
@@ -155,6 +156,7 @@ class AbaInstrumentos(QWidget):
 
         self.painel_plano = PainelPlano(repositorio)
         self.painel_plano.alterado.connect(self.alterado)
+        self.painel_plano.plano_descartado.connect(self.recarregar_atual)
         self.tabela_historico = tabela_somente_leitura(
             ["Data", "Condição", "Observação", "Origem"])
         self.subabas = QTabWidget()
@@ -236,8 +238,13 @@ class AbaInstrumentos(QWidget):
             linha, coluna = divmod(indice, 2)
             grade.addWidget(QLabel(rotulo), linha, coluna * 2)
             grade.addWidget(self.campos[nome], linha, coluna * 2 + 1)
+        self.novo_plano = QPushButton("Novo plano…")
+        self.novo_plano.setToolTip("Cria um plano vazio; depois inclua os pontos na sub-aba "
+                                   "Plano de calibração.")
+        self.novo_plano.clicked.connect(self.pedir_nome_do_plano)
         grade.addWidget(QLabel("Plano"), 5, 0)
-        grade.addWidget(self.plano, 5, 1, 1, 3)
+        grade.addWidget(self.plano, 5, 1, 1, 2)
+        grade.addWidget(self.novo_plano, 5, 3)
         grade.addWidget(QLabel("Observações"), 6, 0)
         grade.addWidget(self.observacoes, 6, 1, 1, 3)
         grade.addWidget(self.exige, 7, 1)
@@ -277,15 +284,18 @@ class AbaInstrumentos(QWidget):
         self.situacoes = situacoes
         self.condicoes = self.repo.condicoes_atuais()
         self._instrumentos = self.repo.listar_instrumentos(incluir_desativados=True)
-        self.plano.clear()
-        self.plano.addItem("— sem plano —", None)
-        for plano in self.repo.listar_planos():
-            self.plano.addItem(plano.nome, plano.id)
+        self._recarregar_planos()
         self._recarregar_opcoes(self.filtro_tipo, TODOS_OS_TIPOS,
                                 {i.tipo for i in self._instrumentos})
         self._recarregar_opcoes(self.filtro_local, TODAS_AS_LOCALIZACOES,
                                 {i.localizacao for i in self._instrumentos if i.localizacao})
         self._preencher_lista()
+
+    def _recarregar_planos(self) -> None:
+        self.plano.clear()
+        self.plano.addItem("— sem plano —", None)
+        for plano in self.repo.listar_planos():
+            self.plano.addItem(plano.nome, plano.id)
 
     @staticmethod
     def _recarregar_opcoes(filtro: QComboBox, todos: str, opcoes: set[str]) -> None:
@@ -356,6 +366,10 @@ class AbaInstrumentos(QWidget):
                 campo.setText(numero_em_texto(valor))
             else:
                 campo.setText("" if valor is None else str(valor))
+        if dados.plano_id is not None and self.plano.findData(dados.plano_id) < 0:
+            # plano na Lixeira: continua aparecendo, para não sumir sem ninguém perceber
+            nome = self.repo.obter_plano(dados.plano_id).nome
+            self.plano.addItem(f"{nome} (na Lixeira)", dados.plano_id)
         self.plano.setCurrentIndex(max(self.plano.findData(dados.plano_id), 0))
         self.exige.setChecked(dados.exige_calibracao)
         self.observacoes.setText(dados.observacoes or "")
@@ -399,6 +413,7 @@ class AbaInstrumentos(QWidget):
         for campo in (*self.campos.values(), self.observacoes):
             campo.setReadOnly(not pode)
         self.plano.setEnabled(pode)
+        self.novo_plano.setVisible(pode)
         self.exige.setEnabled(pode)
         self.pode_editar = pode
         self.painel_plano.definir_edicao(pode)
@@ -420,6 +435,26 @@ class AbaInstrumentos(QWidget):
                 or (self.atual is not None and (self.plano.currentData() != dados.plano_id
                                                 or self.exige.isChecked()
                                                 != dados.exige_calibracao)))
+
+    def pedir_nome_do_plano(self) -> None:
+        from PySide6.QtWidgets import QInputDialog
+        codigo = self.campos["codigo"].text().strip()
+        nome, ok = QInputDialog.getText(self, "Novo plano", "Nome do plano:",
+                                        text=f"Plano {codigo}" if codigo else "Plano ")
+        if ok:
+            self.criar_plano(nome)
+
+    def criar_plano(self, nome: str) -> None:
+        """Cria o plano e já o escolhe no campo Plano (falta clicar em SALVAR para ligar)."""
+        try:
+            plano_id = self.repo.incluir_plano(Plano(nome))
+        except ErroDeValidacao as erro:
+            self._aviso("\n".join(f"✖ {m}" for m in erro.mensagens), erro=True)
+            return
+        self._recarregar_planos()
+        self.plano.setCurrentIndex(self.plano.findData(plano_id))
+        self._aviso(f"Plano \"{nome.strip()}\" criado. Clique em SALVAR para ligá-lo a este "
+                    "instrumento e depois inclua os pontos na sub-aba Plano de calibração.")
 
     def recarregar_atual(self) -> None:
         """Redesenha o instrumento aberto (mudou algo pela Lixeira)."""

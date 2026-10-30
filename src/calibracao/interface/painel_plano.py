@@ -68,6 +68,7 @@ def numero_em_texto(valor: float | None) -> str:
 
 class PainelPlano(QWidget):
     alterado = Signal()
+    plano_descartado = Signal()  # o plano inteiro foi para a Lixeira
 
     def __init__(self, repositorio: Repositorio) -> None:
         super().__init__()
@@ -98,6 +99,11 @@ class PainelPlano(QWidget):
         botoes = QHBoxLayout()
         botoes.addWidget(self.adicionar)
         botoes.addWidget(self.remover)
+        self.descartar_plano = QPushButton("Enviar plano para a Lixeira…")
+        self.descartar_plano.setToolTip("Para plano criado por engano. Instrumentos ligados a "
+                                        "ele não podem ser calibrados até restaurar.")
+        self.descartar_plano.clicked.connect(self.enviar_plano_para_lixeira)
+        botoes.addWidget(self.descartar_plano)
         botoes.addStretch()
         botoes.addWidget(self.salvar)
         self.avisos = QLabel(wordWrap=True)
@@ -117,6 +123,15 @@ class PainelPlano(QWidget):
             self._nova_linha(ponto)
         sem_u = sum(1 for p in self._pontos if p.tipo in ("NUMERICO", "LIMITE")
                     and p.incerteza is None)
+        if plano_id is not None and self.repo.na_lixeira(Tipo.PLANO, plano_id):
+            self._pontos = []
+            self.tabela.setRowCount(0)
+            for botao in (self.adicionar, self.remover, self.salvar, self.descartar_plano):
+                botao.setEnabled(False)
+            self.titulo.setText("O plano deste instrumento está na Lixeira: restaure-o pela aba "
+                                "Lixeira ou escolha outro plano nos dados acima.")
+            self._aviso("")
+            return
         if plano_id is None:
             self.titulo.setText("Este instrumento não tem plano: escolha um plano nos dados "
                                 "acima e clique em SALVAR." if self.pode_editar
@@ -126,7 +141,7 @@ class PainelPlano(QWidget):
             self.titulo.setText(f"{nome}: {len(self._pontos)} ponto(s). "
                                 + ("Clique duas vezes numa célula para editar."
                                    if self.pode_editar else "(somente consulta)"))
-        for botao in (self.adicionar, self.remover, self.salvar):
+        for botao in (self.adicionar, self.remover, self.salvar, self.descartar_plano):
             botao.setEnabled(plano_id is not None)
         self._aviso(f"⚠ {sem_u} ponto(s) sem Incerteza (U): preencha antes de registrar a "
                     "calibração." if sem_u else "")
@@ -243,10 +258,32 @@ class PainelPlano(QWidget):
         self.alterado.emit()
         self._aviso("✔ Ponto enviado para a Lixeira (pode ser restaurado de lá).", certo=True)
 
+    def enviar_plano_para_lixeira(self) -> None:
+        from calibracao.interface.aba_instrumentos import JanelaMotivo
+        if self.plano_id is None:
+            return
+        nome = self.repo.obter_plano(self.plano_id).nome
+        janela = JanelaMotivo(
+            f"Enviar {nome} para a Lixeira",
+            "Use para plano criado por engano. Os instrumentos ligados a ele não podem ser "
+            "calibrados até o plano ser restaurado pela aba Lixeira.", parent=self)
+        if janela.exec():
+            self.descartar(janela.motivo.text())
+
+    def descartar(self, motivo: str) -> None:
+        try:
+            self.repo.enviar_para_lixeira(Tipo.PLANO, self.plano_id, motivo,
+                                          datetime.datetime.now())
+        except ErroDeValidacao as erro:
+            self._aviso("\n".join(f"✖ {m}" for m in erro.mensagens), erro=True)
+            return
+        self.alterado.emit()
+        self.plano_descartado.emit()
+
     def definir_edicao(self, pode: bool) -> None:
         """Modo consulta: sem botões e sem dar para digitar nas células."""
         self.pode_editar = pode
-        for botao in (self.adicionar, self.remover, self.salvar):
+        for botao in (self.adicionar, self.remover, self.salvar, self.descartar_plano):
             botao.setVisible(pode)
         self.tabela.setEditTriggers(self._gatilhos_edicao if pode
                                     else QAbstractItemView.NoEditTriggers)
