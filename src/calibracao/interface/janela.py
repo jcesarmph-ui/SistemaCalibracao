@@ -54,6 +54,7 @@ from calibracao.interface.componentes import (
     aplicar_destaques,
     celula,
     formatar_data,
+    instalar_filtro_roda,
     tabela_somente_leitura,
 )
 from calibracao.interface.estilo import (
@@ -128,6 +129,7 @@ class JanelaPrincipal(QMainWindow):
             f"Calibração de Instrumentos — MG Centro de Serviços — versão {__version__}")
         self.setWindowTitle(self.titulo_janela)
         self.setStyleSheet(estilo())
+        instalar_filtro_roda()  # a roda do mouse só rola, nunca muda nada
 
         self.abas = QTabWidget()
         self.aba_instrumentos = AbaInstrumentos(repositorio, self.hoje)
