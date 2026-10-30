@@ -130,6 +130,8 @@ class JanelaPrincipal(QMainWindow):
         self.ultima_atividade = self.agora()
         self.liberou_parado_em: datetime.datetime | None = None
         if identidade is not None:
+            # quem corrige uma calibração fica registrado como "usuário - PC"
+            self.aba_instrumentos.painel_calibracoes.usuario = " - ".join(identidade)
             self.tentar_editar()
             self.relogio.start()
             self.relogio_pedido.start()

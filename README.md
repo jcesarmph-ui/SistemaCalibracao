@@ -469,6 +469,16 @@ sequenceDiagram
     B-->>C: passa para edição
 ```
 
+**Fase 5 — Melhorias e correções** (em andamento), comparando funcionalidade por funcionalidade com
+o protótipo:
+
+| Melhoria | O que faz |
+|---|---|
+| **Plano novo pela tela** | Botão "Novo plano…" na ficha do instrumento: cria o plano e já o escolhe; plano criado por engano vai para a Lixeira e continua aparecendo como "(na Lixeira)" até ser restaurado ou trocado. |
+| **Pesquisa na Lixeira** | Busca por código, descrição ou motivo. |
+| **"Reserva" em azul** | Assim como a "Orientação indicativa" imita a etiqueta física, "Reserva" aparece em azul com letra branca. |
+| **Corrigir calibração salva** | Valores, incerteza (U), parecer e dados do certificado podem ser corrigidos (a data não). O resultado é reavaliado pela "foto" do plano guardada na calibração, a condição do instrumento acompanha o parecer, e **cada correção fica registrada** — quando, quem e o que mudou ("antes → depois") — para auditoria. |
+
 ### 🗺️ Roteiro
 
 - [x] Fase 0 — Fundação (estrutura, versão, testes, decisões de arquitetura)

@@ -112,9 +112,13 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   Depois: **"Reserva" em azul `#1565c0` com letra branca** (branch `fase-5-reserva-azul`, PR #7),
   nos mesmos lugares da "Orientação indicativa" (aprovado por foto). 221 testes.
   Fotos: `dados/fotos/foto_fase5.py` e `foto_reserva.py` (fora do Git).
-- **Comparação com o protótipo (2026-10-29) — perguntar ao usuário (opções clicáveis):**
-  1. **Editar calibração já salva** (o protótipo deixava mudar valores e parecer depois); hoje o
-     caminho é Lixeira + registrar de novo.
+  Depois: **corrigir calibração salva** (branch `fase-5-editar-calibracao`): esquema **v5**
+  (tabela `correcoes_calibracao`), `Repositorio.corrigir_calibracao`/`listar_correcoes`, botão
+  "Corrigir…" (janela de registro em modo correção) e caixa "Correções feitas" em "Ver pontos…".
+  Aprovado por foto. 233 testes. Foto: `dados/fotos/foto_correcao.py`.
+  **Próximo do roteiro:** cronograma de qualquer mês.
+- **Comparação com o protótipo (2026-10-29):**
+  1. ~~Editar calibração já salva~~ feito (2026-10-30).
   2. **Cronograma de qualquer mês** (o protótipo tinha seletor: 12 meses para trás, 24 para frente);
      hoje só este mês e o próximo.
   3. Outras melhorias que o usuário tiver ("por agora, nada" em 2026-10-29).
@@ -172,6 +176,10 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   (restaurar refaz). Lista de instrumentos abre em **"Todos menos desativados"**.
 - **Visual "orientação indicativa":** onde aparecer, essas palavras em **letra vermelha `#c62828`
   sobre fundo amarelo `#ffd54f`** (etiqueta física da MG) — exceção consciente à regra de cores.
+- **Corrigir calibração salva** (2026-10-30): pode corrigir **tudo menos a data** (data errada =
+  Lixeira + registrar de novo); pontos reavaliados pela "foto" guardada; mudar o parecer ajusta a
+  condição (recusado se a condição mudou depois da calibração); **cada correção é registrada sem
+  pedir motivo**: quando, "usuário - PC" e cada mudança "antes → depois".
 - **Visual "Reserva"** (2026-10-30): a palavra "Reserva" (ex.: "Laboratório - Reserva") em **fundo
   azul `#1565c0` com letra branca**, nos mesmos lugares da "orientação indicativa".
 - **Localização padronizada** (`regras/localizacao.py`): "Laboratório", "Laboratório - Reserva",
