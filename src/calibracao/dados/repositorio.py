@@ -373,6 +373,22 @@ class Repositorio:
     def fechar(self) -> None:
         self._conexao.close()
 
+    # ---------------------------------------------------------------- lugar oficial
+
+    def pasta_oficial(self) -> str | None:
+        """Caminho do banco no lugar oficial (ver `calibracao.dados.local_banco`)."""
+        linha = self._conexao.execute(
+            "SELECT valor FROM metadados WHERE chave = 'pasta_oficial'").fetchone()
+        return linha[0] if linha else None
+
+    def marcar_pasta_oficial(self, caminho: str) -> None:
+        """Grava o lugar oficial. Vale até no modo consulta: é justamente a cópia (que só
+        consulta) que pode virar oficial quando a pasta mudou de lugar."""
+        with self._conexao:
+            self._conexao.execute(
+                "INSERT OR REPLACE INTO metadados (chave, valor) VALUES ('pasta_oficial', ?)",
+                (caminho,))
+
     def __enter__(self) -> "Repositorio":
         return self
 
