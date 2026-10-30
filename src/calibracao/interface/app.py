@@ -22,7 +22,10 @@ def pasta_dados_padrao() -> Path:
     if os.environ.get("CALIBRACAO_DADOS"):
         return Path(os.environ["CALIBRACAO_DADOS"])
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent / "dados"
+        pasta_exe = Path(sys.executable).parent
+        if pasta_exe.name == "programa":  # aberto direto da pasta "programa" (sem o lançador)
+            return pasta_exe.parent / "dados"
+        return pasta_exe / "dados"
     if (Path.cwd() / "dados").is_dir():
         return Path.cwd() / "dados"
     return Path(__file__).resolve().parents[3] / "dados"

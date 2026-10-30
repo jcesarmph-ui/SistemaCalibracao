@@ -106,16 +106,23 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
 
 ## Onde paramos (2026-10-30)
 - Fases 0–5 juntadas ao `main` (PRs #1–#11). Versão **`0.5.0`** (fase 5 fechada em 2026-10-30,
-  ADR 0003 = lugar oficial do banco). **Fase 6 em andamento** (branch `fase-6-exe`):
-  `.exe` gerado por `empacotamento/gerar_exe.py` (PyInstaller, **um arquivo só**, sem console,
-  ícone `dados/icone_mg.ico`, sem o importador/openpyxl; ~85 MB; ~2 min para gerar) em `dist/`
-  ("Calibração de Instrumentos.exe"). Testado numa pasta temporária igual à da rede: abre em
-  ~4,7 s neste PC. **Modo foto** para conferir o `.exe`: variável `CALIBRACAO_FOTO=<png>` (abre,
-  fotografa e fecha). **Logo e ícone dentro do `.exe`** (`interface/recursos.py`) e a pasta
-  `dados` (só banco + backup) **oculta** pelo próprio programa: na rede só se vê o `.exe` (pedido
-  de 2026-10-30). Pasta de entrega montada em `dist/entrega` (banco de 28/10 — a DQ05 não mudou —
-  atualizado para v6, conferido igual ao aprovado, sem calibrações/`pasta_oficial`). Faltam: banco de entrega montado da planilha (sem calibrações, sem
-  `pasta_oficial`), teste em 2 PCs na rede (usuário), versão `1.0.0` + tag.
+  ADR 0003 = lugar oficial do banco). **Fase 6 em andamento** (branch `fase-6-exe`).
+  - **Pacote** (`empacotamento/gerar_exe.py`, ~3 min, em `dist/Calibração de Instrumentos/`):
+    **lançador** "Calibração de Instrumentos.exe" (`src/calibracao/lancador.py`, sem PySide6, 25 MB)
+    + `_internal` + `programa/` (PySide6 em pasta, 147 MB, com `versao.txt` = versão + data/hora).
+    Motivo (2026-10-30): um arquivo só abria em 10–15 s pela rede. O lançador copia `programa/` para
+    `%LOCALAPPDATA%\MG Centro de Servicos\Calibracao\<versão>` uma vez por versão (janelinha
+    "Preparando…") e abre de lá (~2 s); banco só na rede (`CALIBRACAO_DADOS`). Pastas `_internal`,
+    `programa`, `dados` ocultas: na rede só se vê o `.exe`. **Atualizar = trocar `programa/`.**
+  - Logo/ícone embutidos; sem pandas, OpenGL por software e traduções do Qt.
+  - **Modo foto** `CALIBRACAO_FOTO=<png>` (abre, fotografa e fecha; o lançador espera).
+  - `dist/entrega` (definitiva) e `dist/TESTE - Calibração`: pacote + banco de 28/10 (a DQ05 não
+    mudou), v6, conferido igual ao aprovado, **sem calibrações e sem `pasta_oficial`**.
+    **Não abrir antes de copiar para a rede** (a 1ª abertura grava o lugar oficial; no 1º teste o
+    usuário abriu em `dist` e a rede virou "cópia" — resolve clicando no aviso e digitando MUDAR).
+  - Achados do teste do usuário, já corrigidos: roda do mouse mudava opção/aba; filtro de
+    localização separava reserva/orientação indicativa.
+  - Faltam: teste em 2 PCs na rede (usuário), versão `1.0.0` + tag, README da entrega.
 - **Fase 5 (melhorias):** PR #6 **juntado** em 2026-10-30, aprovado por foto (botão **"Novo
   plano…"** na ficha, **"Enviar plano para a Lixeira…"** no painel do plano — plano na Lixeira
   continua aparecendo como "(na Lixeira)" —, **pesquisa por texto na Lixeira**).
