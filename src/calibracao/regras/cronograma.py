@@ -12,6 +12,7 @@ Decisões do usuário em 2026-10-29:
 
 import calendar
 import datetime
+from dataclasses import dataclass
 from enum import StrEnum
 
 
@@ -68,3 +69,89 @@ def situacao(ultima: datetime.date | None, proxima: datetime.date | None,
 
 def previsto_no_mes(proxima: datetime.date | None, ano: int, mes: int) -> bool:
     return proxima is not None and (proxima.year, proxima.month) == (ano, mes)
+
+
+# --- Cronograma de qualquer mês (pedido do usuário em 2026-10-30) -------------------------
+# Seletor de 12 meses para trás a 24 para a frente (como o protótipo): também limita a projeção.
+MESES_PARA_TRAS = 12
+MESES_PARA_FRENTE = 24
+
+
+class SituacaoNoMes(StrEnum):
+    FEITA = "Feita"
+    PENDENTE = "Pendente este mês"
+    VENCIDA = "Vencida"
+    PREVISTA = "Prevista"
+
+
+@dataclass(frozen=True)
+class CalibracaoResumo:
+    """O que o cronograma precisa de cada calibração (da mais antiga para a mais recente)."""
+
+    data: datetime.date
+    proxima: datetime.date | None  # a prevista a partir desta calibração
+    custo: float | None = None
+    motivo_atraso: str | None = None
+
+
+@dataclass(frozen=True)
+class PrevistaNoMes:
+    prevista: datetime.date
+    situacao: SituacaoNoMes
+    realizada: datetime.date | None = None
+    # Feita: o custo dela; não feita: o da última calibração com custo (estimativa; sem custo
+    # registrado — ex.: calibração interna — fica None e conta como zero).
+    custo: float | None = None
+    motivo_atraso: str | None = None
+
+
+def meses_do_seletor(hoje: datetime.date) -> list[datetime.date]:
+    """Primeiro dia de cada mês do seletor, do mais antigo ao mais distante."""
+    inicio = hoje.replace(day=1)
+    return [somar_meses(inicio, n) for n in range(-MESES_PARA_TRAS, MESES_PARA_FRENTE + 1)]
+
+
+def previstas_no_mes(calibracoes: list[CalibracaoResumo], periodicidade_meses: int | None,
+                     mes: datetime.date, hoje: datetime.date,
+                     ativo: bool = True) -> list[PrevistaNoMes]:
+    """Calibrações previstas para o mês de `mes` de um instrumento.
+
+    - Prevista de uma calibração que já teve a seguinte registrada → "Feita" (com a data em que foi
+      feita, mesmo que depois do mês: o atraso não é alardeado, só guarda o motivo).
+    - A prevista em aberto (depois da última calibração) → Vencida (mês já terminou), Pendente este
+      mês ou Prevista.
+    - Meses depois dela: projeção repetindo a periodicidade, só de este mês em diante.
+    Instrumento desativado (`ativo=False`) mostra só o que já foi feito.
+    """
+    if not calibracoes:
+        return []
+    este_mes = hoje.replace(day=1)
+    custos = [c.custo for c in calibracoes if c.custo is not None]
+    ultimo_custo = custos[-1] if custos else None
+    resultado = []
+    for anterior, seguinte in zip(calibracoes, calibracoes[1:], strict=False):
+        if mesmo_mes(anterior.proxima, mes):
+            resultado.append(PrevistaNoMes(anterior.proxima, SituacaoNoMes.FEITA, seguinte.data,
+                                           seguinte.custo, seguinte.motivo_atraso))
+    aberta = calibracoes[-1].proxima
+    if not ativo or aberta is None:
+        return resultado
+    if mesmo_mes(aberta, mes):
+        if mes < este_mes:
+            situacao_aberta = SituacaoNoMes.VENCIDA
+        elif mes == este_mes:
+            situacao_aberta = SituacaoNoMes.PENDENTE
+        else:
+            situacao_aberta = SituacaoNoMes.PREVISTA
+        resultado.append(PrevistaNoMes(aberta, situacao_aberta, custo=ultimo_custo))
+    elif periodicidade_meses and mes >= este_mes:
+        limite = somar_meses(este_mes, MESES_PARA_FRENTE + 1)
+        vezes = 1
+        projetada = somar_meses(aberta, periodicidade_meses)
+        while projetada < limite and projetada < somar_meses(mes, 1):
+            if mesmo_mes(projetada, mes):
+                resultado.append(PrevistaNoMes(projetada, SituacaoNoMes.PREVISTA,
+                                               custo=ultimo_custo))
+            vezes += 1
+            projetada = somar_meses(aberta, periodicidade_meses * vezes)
+    return resultado

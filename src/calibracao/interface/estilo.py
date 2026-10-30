@@ -9,7 +9,7 @@ import re
 
 from calibracao.regras.avaliacao import Resultado
 from calibracao.regras.condicao import Condicao, ParecerFinal
-from calibracao.regras.cronograma import Situacao
+from calibracao.regras.cronograma import Situacao, SituacaoNoMes
 
 CORES = {
     "fundo": "#000000", "caixa": "#0a0a0a", "campo": "#161616", "campo_borda": "#3a3a3a",
@@ -83,6 +83,14 @@ CORES_SITUACAO = {
     Situacao.EM_DIA: FAIXA_VERDE,
     Situacao.SEM_CALIBRACAO: FAIXA_AMARELA,
     Situacao.SEM_PERIODICIDADE: FAIXA_AMARELA,
+}
+
+# Feita com atraso não é alardeada: "Feita" é sempre verde (pedido do usuário em 2026-10-30).
+CORES_SITUACAO_NO_MES = {
+    SituacaoNoMes.FEITA: FAIXA_VERDE,
+    SituacaoNoMes.PENDENTE: FAIXA_AMARELA,
+    SituacaoNoMes.VENCIDA: FAIXA_VERMELHA,
+    SituacaoNoMes.PREVISTA: FAIXA_INFORMATIVA,
 }
 
 CORES_RESULTADO = {

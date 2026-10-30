@@ -169,9 +169,42 @@ class JanelaNovaCalibracao(QDialog):
             grade.addWidget(QLabel(rotulo), linha, coluna * 2)
             grade.addWidget(campo, linha, coluna * 2 + 1)
             grade.setColumnStretch(coluna * 2 + 1, 1)
+        # Feita depois do mês previsto: campo opcional para o motivo (sem alarde).
+        self.prevista = self._prevista_antes()
+        self.aviso_atraso = QLabel(objectName="avisos")
+        self.motivo_atraso = QLineEdit(placeholderText="Motivo do atraso (opcional)")
+        if self.corrigindo is None:
+            pendente = self.repo.motivos_atraso_pendentes().get(self.instrumento.id)
+            self.motivo_atraso.setText(pendente or "")
+        grade.addWidget(self.aviso_atraso, 2, 0, 1, 2)
+        grade.addWidget(self.motivo_atraso, 2, 2, 1, 4)
+        self.data.dateChanged.connect(lambda _: self._mostrar_atraso())
+        self._mostrar_atraso()
         caixa = QGroupBox("Dados da calibração")
         caixa.setLayout(grade)
         return caixa
+
+    def _prevista_antes(self) -> datetime.date | None:
+        """A data que estava prevista para esta calibração (a partir da anterior)."""
+        if self.corrigindo is None:
+            return self.repo.prevista_atual(self.instrumento.id)
+        calibracoes = self.repo.listar_calibracoes(self.instrumento.id)
+        ids = [c.id for c in calibracoes]
+        posicao = ids.index(self.corrigindo.id) if self.corrigindo.id in ids else 0
+        return calibracoes[posicao - 1].data_proxima if posicao > 0 else None
+
+    def atrasada(self) -> bool:
+        data = self.data.date().toPython()
+        return self.prevista is not None and (data.year, data.month) > (
+            self.prevista.year, self.prevista.month)
+
+    def _mostrar_atraso(self) -> None:
+        mostrar = self.atrasada() or bool(self.motivo_atraso.text())
+        self.aviso_atraso.setText(
+            f"⚠ Prevista para {formatar_data(self.prevista)}: feita depois do mês previsto."
+            if self.atrasada() else "Motivo do atraso:")
+        self.aviso_atraso.setVisible(mostrar)
+        self.motivo_atraso.setVisible(mostrar)
 
     def _caixa_pontos(self) -> QGroupBox:
         colunas = [
@@ -297,8 +330,10 @@ class JanelaNovaCalibracao(QDialog):
                              (self.responsavel, calibracao.responsavel),
                              (self.custo, numero_em_texto(calibracao.custo)),
                              (self.observacoes, calibracao.observacoes),
-                             (self.motivo, calibracao.motivo_parecer)]:
+                             (self.motivo, calibracao.motivo_parecer),
+                             (self.motivo_atraso, calibracao.motivo_atraso)]:
             campo.setText(valor or "")
+        self._mostrar_atraso()
         self.tabela.blockSignals(True)
         for linha, ponto in enumerate(self.pontos):
             if ponto.resultado == Resultado.NAO_APLICAVEL:
@@ -414,6 +449,7 @@ class JanelaNovaCalibracao(QDialog):
             certificado=self.certificado.text().strip() or None,
             responsavel=self.responsavel.text().strip() or None,
             custo=custo, observacoes=self.observacoes.text().strip() or None,
+            motivo_atraso=self._motivo_atraso(),
         )
         try:
             self.calibracao_id = self.repo.registrar_calibracao(nova, self.hoje)
@@ -421,6 +457,12 @@ class JanelaNovaCalibracao(QDialog):
             self._aviso(erro.mensagens)
             return
         self.accept()
+
+    def _motivo_atraso(self) -> str | None:
+        """Só vale se a calibração ficou atrasada (ou se já tinha um motivo guardado)."""
+        if not self.motivo_atraso.isVisible() and not self.atrasada():
+            return None
+        return self.motivo_atraso.text().strip() or None
 
     def _salvar_correcao(self, medidos: list[PontoMedido], custo: float | None) -> None:
         correcao = CorrecaoCalibracao(
@@ -431,6 +473,7 @@ class JanelaNovaCalibracao(QDialog):
             certificado=self.certificado.text().strip() or None,
             responsavel=self.responsavel.text().strip() or None,
             custo=custo, observacoes=self.observacoes.text().strip() or None,
+            motivo_atraso=self._motivo_atraso(),
         )
         try:
             self.mudancas = self.repo.corrigir_calibracao(
