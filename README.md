@@ -469,7 +469,7 @@ sequenceDiagram
     B-->>C: passa para edição
 ```
 
-**Fase 5 — Melhorias e correções** (em andamento), comparando funcionalidade por funcionalidade com
+**Fase 5 — Melhorias e correções**, comparando funcionalidade por funcionalidade com
 o protótipo:
 
 | Melhoria | O que faz |
@@ -491,7 +491,8 @@ o protótipo:
 - [x] Fase 3 — Banco preparado para uso em rede, com backup automático
 - [x] Fase 4 — Interface PySide6 (condição do instrumento, parecer final, gráfico de tendência,
   lixeira e trava de edição para uso em rede)
-- [ ] Fase 5 — Melhorias e correções
+- [x] Fase 5 — Melhorias e correções (plano novo pela tela, correção de calibração com registro,
+  cronograma de qualquer mês com custo estimado, motivo do atraso, proteção contra cópia)
 - [ ] Fase 6 — Versão `1.0.0` em uso na empresa
 
 ### 🧪 Testes do protótipo

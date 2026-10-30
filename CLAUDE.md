@@ -105,7 +105,8 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
 `Abrir_CALIB.bat` e `iniciar_calib.py` (deixam de existir sem Streamlit); `.vscode/`.
 
 ## Onde paramos (2026-10-30)
-- Fases 0–4 juntadas ao `main` (PRs #1–#5). Versão **`0.4.0`**.
+- Fases 0–5 juntadas ao `main` (PRs #1–#11). Versão **`0.5.0`** (fase 5 fechada em 2026-10-30,
+  ADR 0003 = lugar oficial do banco). **Próximo: fase 6** (`.exe` + entrega `1.0.0`).
 - **Fase 5 (melhorias):** PR #6 **juntado** em 2026-10-30, aprovado por foto (botão **"Novo
   plano…"** na ficha, **"Enviar plano para a Lixeira…"** no painel do plano — plano na Lixeira
   continua aparecendo como "(na Lixeira)" —, **pesquisa por texto na Lixeira**).
@@ -128,7 +129,7 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   `instrumentos.motivo_atraso_pendente`); `regras/cronograma.previstas_no_mes`;
   `Repositorio.cronograma_do_mes`/`informar_motivo_atraso`/`prevista_atual`. Aprovado por foto.
   252 testes. Foto: `dados/fotos/foto_cronograma_mes.py`.
-  **Comparação com o protótipo concluída.** Próximo do roteiro: fechar a fase 5 (versão `0.5.0`).
+  **Comparação com o protótipo concluída.** Fase 5 fechada (`0.5.0`).
 - **Comparação com o protótipo (2026-10-29):**
   1. ~~Editar calibração já salva~~ feito (2026-10-30).
   2. ~~Cronograma de qualquer mês~~ feito (2026-10-30).
