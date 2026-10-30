@@ -34,3 +34,18 @@ def padronizar_localizacao(texto: str | None) -> str | None:
     if indicativa:
         local = f"{local} - {ORIENTACAO_INDICATIVA}" if local else ORIENTACAO_INDICATIVA
     return local
+
+
+_SUFIXO = re.compile(r"\s*-\s*(orientação indicativa|reserva)\s*$", re.IGNORECASE)
+
+
+def local_do_filtro(localizacao: str | None) -> str | None:
+    """O local em si, para o filtro: "CT-01 - Orientação indicativa" e "Laboratório - Reserva"
+    entram em "CT-01" e "Laboratório" (pedido do usuário em 2026-10-30: ser reserva ou orientação
+    indicativa não cria outro local; as etiquetas coloridas da lista mostram qual é qual)."""
+    if not localizacao:
+        return None
+    local = localizacao
+    while _SUFIXO.search(local):
+        local = _SUFIXO.sub("", local)
+    return local or localizacao

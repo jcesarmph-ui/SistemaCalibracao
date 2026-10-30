@@ -104,9 +104,36 @@ usuário): o usuário quer fazer **depois, não agora** — apenas lembrar a pen
 vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_responsavel.py`);
 `Abrir_CALIB.bat` e `iniciar_calib.py` (deixam de existir sem Streamlit); `.vscode/`.
 
+## ▶ PRÓXIMA SESSÃO — lembrar o usuário logo no início (pedido de 2026-10-30)
+1. **Tarefa combinada:** analisar **cada parte da interface**, uma por vez, para achar correções a
+   fazer (cabeçalho e painéis do topo, aba Instrumentos — lista, filtros, ficha, sub-abas Plano,
+   Calibrações e Histórico —, janelas de registrar/corrigir/ver calibração, gráfico de tendência,
+   aba Cronograma — hoje e por mês —, aba Lixeira, modo consulta/trava, aviso de cópia). Mostrar
+   foto de cada parte e perguntar com opções clicáveis o que mudar.
+2. **Pendente do usuário:** teste do pacote novo (lançador) em 2 PCs na rede — ele ainda **não**
+   fez. Lembrar: apagar a pasta de teste antiga da rede, copiar `dist/TESTE - Calibração` **sem
+   abrir antes**, anotar tempo da 1ª e da 2ª abertura, testar modo consulta/pedido de edição.
+3. Branch `fase-6-exe` enviada ao GitHub, **PR aberto e NÃO juntado** (fase 6 ainda não terminou).
+
 ## Onde paramos (2026-10-30)
 - Fases 0–5 juntadas ao `main` (PRs #1–#11). Versão **`0.5.0`** (fase 5 fechada em 2026-10-30,
-  ADR 0003 = lugar oficial do banco). **Próximo: fase 6** (`.exe` + entrega `1.0.0`).
+  ADR 0003 = lugar oficial do banco). **Fase 6 em andamento** (branch `fase-6-exe`).
+  - **Pacote** (`empacotamento/gerar_exe.py`, ~3 min, em `dist/Calibração de Instrumentos/`):
+    **lançador** "Calibração de Instrumentos.exe" (`src/calibracao/lancador.py`, sem PySide6, 25 MB)
+    + `_internal` + `programa/` (PySide6 em pasta, 147 MB, com `versao.txt` = versão + data/hora).
+    Motivo (2026-10-30): um arquivo só abria em 10–15 s pela rede. O lançador copia `programa/` para
+    `%LOCALAPPDATA%\MG Centro de Servicos\Calibracao\<versão>` uma vez por versão (janelinha
+    "Preparando…") e abre de lá (~2 s); banco só na rede (`CALIBRACAO_DADOS`). Pastas `_internal`,
+    `programa`, `dados` ocultas: na rede só se vê o `.exe`. **Atualizar = trocar `programa/`.**
+  - Logo/ícone embutidos; sem pandas, OpenGL por software e traduções do Qt.
+  - **Modo foto** `CALIBRACAO_FOTO=<png>` (abre, fotografa e fecha; o lançador espera).
+  - `dist/entrega` (definitiva) e `dist/TESTE - Calibração`: pacote + banco de 28/10 (a DQ05 não
+    mudou), v6, conferido igual ao aprovado, **sem calibrações e sem `pasta_oficial`**.
+    **Não abrir antes de copiar para a rede** (a 1ª abertura grava o lugar oficial; no 1º teste o
+    usuário abriu em `dist` e a rede virou "cópia" — resolve clicando no aviso e digitando MUDAR).
+  - Achados do teste do usuário, já corrigidos: roda do mouse mudava opção/aba; filtro de
+    localização separava reserva/orientação indicativa.
+  - Faltam: teste em 2 PCs na rede (usuário), versão `1.0.0` + tag, README da entrega.
 - **Fase 5 (melhorias):** PR #6 **juntado** em 2026-10-30, aprovado por foto (botão **"Novo
   plano…"** na ficha, **"Enviar plano para a Lixeira…"** no painel do plano — plano na Lixeira
   continua aparecendo como "(na Lixeira)" —, **pesquisa por texto na Lixeira**).
@@ -204,6 +231,11 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   informado; ele passa para a calibração (corrigível pelo Corrigir).
 - **Textos da tela** (2026-10-30): botões **sem reticências**; título das janelas de calibração só
   com o **código** do instrumento (sem o tipo entre parênteses).
+- **Roda do mouse só rola** (2026-10-30, achado no teste do `.exe`): nunca troca opção de lista,
+  data ou aba (`componentes.FiltroRodaDoMouse`, ligado para o programa inteiro). Vale para todos
+  os programas do usuário.
+- **Filtro de localização = só o local** (2026-10-30): "- Orientação indicativa" e "- Reserva" não
+  criam opção separada (`regras/localizacao.local_do_filtro`; "Laboratório" junta tudo).
 - **Visual "Reserva"** (2026-10-30): a palavra "Reserva" (ex.: "Laboratório - Reserva") em **fundo
   azul `#1565c0` com letra branca**, nos mesmos lugares da "orientação indicativa".
 - **Localização padronizada** (`regras/localizacao.py`): "Laboratório", "Laboratório - Reserva",

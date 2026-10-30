@@ -7,6 +7,8 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QPoint, QPointF, Qt  # noqa: E402
+from PySide6.QtGui import QWheelEvent  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from calibracao.dados.repositorio import (  # noqa: E402
@@ -110,6 +112,14 @@ def test_filtros_de_tipo_e_localizacao(janela):
     aba.filtro_tipo.setCurrentText("Todos os tipos")
     aba.filtro_local.setCurrentText("Expedição")
     assert codigos_da_lista(aba) == ["TRE-901", "TRE-902", "TRE-903", "TRE-904"]
+    # orientação indicativa e reserva não criam outro local no filtro
+    janela.repo.incluir_instrumento(Instrumento(
+        "PAQ-951", "Paquímetro", localizacao="CT-01 - Orientação indicativa"))
+    janela.atualizar()
+    opcoes = [aba.filtro_local.itemText(n) for n in range(aba.filtro_local.count())]
+    assert opcoes == ["Todas as localizações", "CT-01", "Expedição"]
+    aba.filtro_local.setCurrentText("CT-01")
+    assert codigos_da_lista(aba) == ["PAQ-950", "PAQ-951"]
 
 
 def test_mudar_condicao_pela_tela(janela):
@@ -290,3 +300,28 @@ def test_informar_motivo_do_atraso_da_vencida(janela):
     registrar = JanelaNovaCalibracao(janela.repo, instrumento, HOJE)
     assert registrar.atrasada()
     assert registrar.motivo_atraso.text() == "Aguardando orçamento"
+
+
+def rodar_a_roda(widget):
+    evento = QWheelEvent(QPointF(5, 5), QPointF(widget.mapToGlobal(QPoint(5, 5))), QPoint(0, 0),
+                         QPoint(0, -120), Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False)
+    QApplication.sendEvent(widget, evento)
+
+
+def test_roda_do_mouse_nao_muda_opcao_data_nem_aba(janela):
+    janela.show()
+    filtro = janela.filtro_cronograma
+    rodar_a_roda(filtro)
+    assert filtro.currentIndex() == 0
+    mes = janela.mes_cronograma
+    rodar_a_roda(mes)
+    assert mes.currentIndex() == 0
+    abas = janela.abas.tabBar()
+    antes = abas.currentIndex()
+    rodar_a_roda(abas)
+    assert abas.currentIndex() == antes
+    registrar = JanelaNovaCalibracao(
+        janela.repo, janela.repo.listar_instrumentos()[0], HOJE, parent=janela)
+    data = registrar.data.date()
+    rodar_a_roda(registrar.data)
+    assert registrar.data.date() == data

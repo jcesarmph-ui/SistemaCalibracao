@@ -2,14 +2,18 @@
 
 import datetime
 
-from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, QPoint, Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QAbstractSpinBox,
+    QApplication,
+    QComboBox,
     QFrame,
     QGroupBox,
     QHeaderView,
     QLabel,
+    QTabBar,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -17,6 +21,32 @@ from PySide6.QtWidgets import (
 )
 
 from calibracao.interface.estilo import destacar, tem_destaque
+
+
+class FiltroRodaDoMouse(QObject):
+    """A roda do mouse só rola a tela: nunca troca opção, data ou aba (pedido de 2026-10-30).
+
+    Em cima de lista de opções, campo de data/número ou barra de abas, a rolagem vai para quem
+    está por trás (a tabela ou a página), que sobe e desce normalmente.
+    """
+
+    SEM_RODA = (QComboBox, QAbstractSpinBox, QTabBar)
+
+    def eventFilter(self, objeto, evento) -> bool:  # noqa: N802 — nome exigido pelo Qt
+        if evento.type() == QEvent.Wheel and isinstance(objeto, self.SEM_RODA):
+            pai = objeto.parentWidget()
+            if pai is not None:
+                QApplication.sendEvent(pai, evento)
+            return True
+        return False
+
+
+def instalar_filtro_roda() -> None:
+    """Liga o filtro para o programa inteiro (janelas e diálogos), uma vez só."""
+    app = QApplication.instance()
+    if app is not None and not hasattr(app, "_filtro_roda"):
+        app._filtro_roda = FiltroRodaDoMouse(app)
+        app.installEventFilter(app._filtro_roda)
 
 
 def formatar_data(data: datetime.date | None) -> str:

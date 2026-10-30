@@ -7,12 +7,14 @@ import platform
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from calibracao.dados.local_banco import eh_copia, local_do_banco
 from calibracao.dados.repositorio import Repositorio
 from calibracao.interface.janela import JanelaPrincipal
+from calibracao.interface.recursos import ocultar_pasta, recurso
 
 
 def pasta_dados_padrao() -> Path:
@@ -20,7 +22,10 @@ def pasta_dados_padrao() -> Path:
     if os.environ.get("CALIBRACAO_DADOS"):
         return Path(os.environ["CALIBRACAO_DADOS"])
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent / "dados"
+        pasta_exe = Path(sys.executable).parent
+        if pasta_exe.name == "programa":  # aberto direto da pasta "programa" (sem o lançador)
+            return pasta_exe.parent / "dados"
+        return pasta_exe / "dados"
     if (Path.cwd() / "dados").is_dir():
         return Path.cwd() / "dados"
     return Path(__file__).resolve().parents[3] / "dados"
@@ -61,13 +66,23 @@ def main() -> int:
     except Exception as erro:  # noqa: BLE001 — qualquer falha ao abrir vira mensagem na tela
         QMessageBox.critical(None, "Erro ao abrir o banco de dados", str(erro))
         return 1
-    icone = pasta / "icone_mg.png"
+    if getattr(sys, "frozen", False):
+        ocultar_pasta(pasta)  # na rede, só o .exe aparece
+    icone = recurso("icone_mg.png", pasta)
     if icone.is_file():
         app.setWindowIcon(QIcon(str(icone)))
     # Quem está usando (para a trava de edição): usuário do Windows e nome do computador.
     janela = JanelaPrincipal(repositorio, pasta, identidade=(getpass.getuser(), platform.node()),
                              copia_de=oficial)
     janela.showMaximized()
+    # Conferência do .exe gerado: com CALIBRACAO_FOTO=<arquivo.png>, abre, tira a foto da janela
+    # e fecha sozinho (ver empacotamento/gerar_exe.py).
+    foto = os.environ.get("CALIBRACAO_FOTO")
+    if foto:
+        def fotografar_e_sair() -> None:
+            janela.grab().save(foto)
+            janela.close()
+        QTimer.singleShot(3000, fotografar_e_sair)
     try:
         return app.exec()
     finally:

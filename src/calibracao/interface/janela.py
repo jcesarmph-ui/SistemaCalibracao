@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QInputDialog,
     QLabel,
     QMainWindow,
@@ -53,6 +54,7 @@ from calibracao.interface.componentes import (
     aplicar_destaques,
     celula,
     formatar_data,
+    instalar_filtro_roda,
     tabela_somente_leitura,
 )
 from calibracao.interface.estilo import (
@@ -62,6 +64,7 @@ from calibracao.interface.estilo import (
     CORES_SITUACAO_NO_MES,
     estilo,
 )
+from calibracao.interface.recursos import recurso
 from calibracao.regras.cronograma import Situacao, SituacaoNoMes, meses_do_seletor, somar_meses
 from calibracao.regras.trava import INTERVALO_SINAL, TEMPO_PARADO, ObservadorDeSinal
 
@@ -97,6 +100,11 @@ LISTAS_DOS_PAINEIS = {
 }
 
 
+def _localizacao_inteira(tabela) -> None:
+    """Localização (3ª coluna) na largura do texto: "Orientação indicativa" não pode ser cortada."""
+    tabela.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+
+
 def celula_motivo(motivo: str | None):
     """Motivo do atraso; o texto inteiro aparece ao passar o mouse (a coluna corta)."""
     item = celula(motivo or "")
@@ -121,6 +129,7 @@ class JanelaPrincipal(QMainWindow):
             f"Calibração de Instrumentos — MG Centro de Serviços — versão {__version__}")
         self.setWindowTitle(self.titulo_janela)
         self.setStyleSheet(estilo())
+        instalar_filtro_roda()  # a roda do mouse só rola, nunca muda nada
 
         self.abas = QTabWidget()
         self.aba_instrumentos = AbaInstrumentos(repositorio, self.hoje)
@@ -192,7 +201,7 @@ class JanelaPrincipal(QMainWindow):
 
     def _cabecalho(self) -> QGridLayout:
         """Logo à esquerda, título centralizado; à direita, o modo (em cima) e a versão."""
-        arquivo_logo = self.pasta_dados / "logo_mg.png"
+        arquivo_logo = recurso("logo_mg.png", self.pasta_dados)
         if arquivo_logo.is_file():
             logo = QLabel()
             logo.setPixmap(QPixmap(str(arquivo_logo)).scaledToHeight(80, Qt.SmoothTransformation))
@@ -514,6 +523,7 @@ class JanelaPrincipal(QMainWindow):
         tabela = self.tabela_cronograma
         tabela.setColumnCount(len(COLUNAS_MES))
         tabela.setHorizontalHeaderLabels(COLUNAS_MES)
+        _localizacao_inteira(tabela)
         tabela.setRowCount(len(linhas))
         # (instrumento, é vencida em aberto?) de cada linha, para o botão do motivo do atraso
         self._linhas_cronograma = [
@@ -546,6 +556,7 @@ class JanelaPrincipal(QMainWindow):
         tabela = self.tabela_cronograma
         tabela.setColumnCount(len(COLUNAS_HOJE))
         tabela.setHorizontalHeaderLabels(COLUNAS_HOJE)
+        _localizacao_inteira(tabela)
         tabela.setRowCount(len(linhas))
         self._linhas_cronograma = [(linha.instrumento, linha.situacao == Situacao.VENCIDA)
                                    for linha in linhas]
