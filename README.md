@@ -423,7 +423,8 @@ flowchart LR
 
 **Fase 4 — Interface desktop em PySide6.** O programa ganhou a tela nova, com a mesma identidade
 visual dos demais programas internos: tema escuro, layout em faixas, logo, versão na tela e cores
-com significado fixo (verde = certo, vermelho = problema, amarelo = aviso).
+com significado fixo (verde = certo, vermelho = problema, amarelo = aviso). Nas localizações,
+"Orientação indicativa" imita a etiqueta física (vermelho sobre amarelo) e "Reserva" aparece em azul.
 
 | Tela | O que faz |
 |---|---|
