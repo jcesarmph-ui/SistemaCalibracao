@@ -111,7 +111,10 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   ícone `dados/icone_mg.ico`, sem o importador/openpyxl; ~85 MB; ~2 min para gerar) em `dist/`
   ("Calibração de Instrumentos.exe"). Testado numa pasta temporária igual à da rede: abre em
   ~4,7 s neste PC. **Modo foto** para conferir o `.exe`: variável `CALIBRACAO_FOTO=<png>` (abre,
-  fotografa e fecha). Faltam: banco de entrega montado da planilha (sem calibrações, sem
+  fotografa e fecha). **Logo e ícone dentro do `.exe`** (`interface/recursos.py`) e a pasta
+  `dados` (só banco + backup) **oculta** pelo próprio programa: na rede só se vê o `.exe` (pedido
+  de 2026-10-30). Pasta de entrega montada em `dist/entrega` (banco de 28/10 — a DQ05 não mudou —
+  atualizado para v6, conferido igual ao aprovado, sem calibrações/`pasta_oficial`). Faltam: banco de entrega montado da planilha (sem calibrações, sem
   `pasta_oficial`), teste em 2 PCs na rede (usuário), versão `1.0.0` + tag.
 - **Fase 5 (melhorias):** PR #6 **juntado** em 2026-10-30, aprovado por foto (botão **"Novo
   plano…"** na ficha, **"Enviar plano para a Lixeira…"** no painel do plano — plano na Lixeira

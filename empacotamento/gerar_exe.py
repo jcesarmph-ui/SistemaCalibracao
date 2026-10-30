@@ -1,7 +1,8 @@
 """Gera o "Calibração de Instrumentos.exe" (PyInstaller) em dist/.
 
-Um arquivo só, para atualizar seja só trocar o .exe (com o programa fechado por todos). Não leva
-dados: o banco, o logo e o ícone ficam na pasta dados/ ao lado do .exe (ver interface/app.py).
+Um arquivo só, para atualizar seja só trocar o .exe (com o programa fechado por todos). Logo e
+ícone vão dentro dele (interface/recursos.py); o banco e os backups ficam na pasta
+dados/ ao lado do .exe, que o programa marca como oculta.
 O .exe NUNCA vai para o GitHub (dist/ está no .gitignore).
 
 Uso: .venv/Scripts/python empacotamento/gerar_exe.py
@@ -28,6 +29,8 @@ def main() -> int:
         "--onefile",            # um .exe só
         "--windowed",           # sem a janela preta do console
         "--icon", str(ICONE),
+        "--add-data", f"{PROJETO / 'dados' / 'logo_mg.png'};recursos",
+        "--add-data", f"{PROJETO / 'dados' / 'icone_mg.png'};recursos",
         "--paths", str(PROJETO / "src"),
         # Só o que o programa usa: o importador da planilha e as ferramentas de teste ficam fora.
         "--exclude-module", "calibracao.importacao",

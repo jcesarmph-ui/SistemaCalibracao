@@ -63,6 +63,7 @@ from calibracao.interface.estilo import (
     CORES_SITUACAO_NO_MES,
     estilo,
 )
+from calibracao.interface.recursos import recurso
 from calibracao.regras.cronograma import Situacao, SituacaoNoMes, meses_do_seletor, somar_meses
 from calibracao.regras.trava import INTERVALO_SINAL, TEMPO_PARADO, ObservadorDeSinal
 
@@ -198,7 +199,7 @@ class JanelaPrincipal(QMainWindow):
 
     def _cabecalho(self) -> QGridLayout:
         """Logo à esquerda, título centralizado; à direita, o modo (em cima) e a versão."""
-        arquivo_logo = self.pasta_dados / "logo_mg.png"
+        arquivo_logo = recurso("logo_mg.png", self.pasta_dados)
         if arquivo_logo.is_file():
             logo = QLabel()
             logo.setPixmap(QPixmap(str(arquivo_logo)).scaledToHeight(80, Qt.SmoothTransformation))

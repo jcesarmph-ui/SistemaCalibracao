@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from calibracao.dados.local_banco import eh_copia, local_do_banco
 from calibracao.dados.repositorio import Repositorio
 from calibracao.interface.janela import JanelaPrincipal
+from calibracao.interface.recursos import ocultar_pasta, recurso
 
 
 def pasta_dados_padrao() -> Path:
@@ -62,7 +63,9 @@ def main() -> int:
     except Exception as erro:  # noqa: BLE001 — qualquer falha ao abrir vira mensagem na tela
         QMessageBox.critical(None, "Erro ao abrir o banco de dados", str(erro))
         return 1
-    icone = pasta / "icone_mg.png"
+    if getattr(sys, "frozen", False):
+        ocultar_pasta(pasta)  # na rede, só o .exe aparece
+    icone = recurso("icone_mg.png", pasta)
     if icone.is_file():
         app.setWindowIcon(QIcon(str(icone)))
     # Quem está usando (para a trava de edição): usuário do Windows e nome do computador.
