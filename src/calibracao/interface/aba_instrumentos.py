@@ -46,6 +46,7 @@ from calibracao.interface.estilo import CORES_CONDICAO, CORES_SITUACAO
 from calibracao.interface.painel_plano import PainelPlano, numero, numero_em_texto
 from calibracao.regras.condicao import Condicao
 from calibracao.regras.lixeira import Tipo
+from calibracao.regras.localizacao import local_do_filtro
 
 # Filtro "Condição" da lista: condições mostradas em cada opção (pedido do usuário em 2026-10-29).
 # A lista abre na primeira; os desativados só aparecem escolhendo o filtro.
@@ -288,7 +289,8 @@ class AbaInstrumentos(QWidget):
         self._recarregar_opcoes(self.filtro_tipo, TODOS_OS_TIPOS,
                                 {i.tipo for i in self._instrumentos})
         self._recarregar_opcoes(self.filtro_local, TODAS_AS_LOCALIZACOES,
-                                {i.localizacao for i in self._instrumentos if i.localizacao})
+                                {local_do_filtro(i.localizacao) for i in self._instrumentos
+                                 if i.localizacao})
         self._preencher_lista()
 
     def _recarregar_planos(self) -> None:
@@ -319,7 +321,7 @@ class AbaInstrumentos(QWidget):
             i for i in self._instrumentos
             if self._condicao(i.id).condicao in condicoes
             and tipo in (TODOS_OS_TIPOS, i.tipo)
-            and local in (TODAS_AS_LOCALIZACOES, i.localizacao)
+            and local in (TODAS_AS_LOCALIZACOES, local_do_filtro(i.localizacao))
             and (not termo or termo in f"{i.codigo} {i.tipo} {i.localizacao or ''}".lower())
         ]
 

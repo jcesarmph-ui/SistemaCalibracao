@@ -213,6 +213,11 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   informado; ele passa para a calibração (corrigível pelo Corrigir).
 - **Textos da tela** (2026-10-30): botões **sem reticências**; título das janelas de calibração só
   com o **código** do instrumento (sem o tipo entre parênteses).
+- **Roda do mouse só rola** (2026-10-30, achado no teste do `.exe`): nunca troca opção de lista,
+  data ou aba (`componentes.FiltroRodaDoMouse`, ligado para o programa inteiro). Vale para todos
+  os programas do usuário.
+- **Filtro de localização = só o local** (2026-10-30): "- Orientação indicativa" e "- Reserva" não
+  criam opção separada (`regras/localizacao.local_do_filtro`; "Laboratório" junta tudo).
 - **Visual "Reserva"** (2026-10-30): a palavra "Reserva" (ex.: "Laboratório - Reserva") em **fundo
   azul `#1565c0` com letra branca**, nos mesmos lugares da "orientação indicativa".
 - **Localização padronizada** (`regras/localizacao.py`): "Laboratório", "Laboratório - Reserva",

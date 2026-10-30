@@ -112,6 +112,14 @@ def test_filtros_de_tipo_e_localizacao(janela):
     aba.filtro_tipo.setCurrentText("Todos os tipos")
     aba.filtro_local.setCurrentText("Expedição")
     assert codigos_da_lista(aba) == ["TRE-901", "TRE-902", "TRE-903", "TRE-904"]
+    # orientação indicativa e reserva não criam outro local no filtro
+    janela.repo.incluir_instrumento(Instrumento(
+        "PAQ-951", "Paquímetro", localizacao="CT-01 - Orientação indicativa"))
+    janela.atualizar()
+    opcoes = [aba.filtro_local.itemText(n) for n in range(aba.filtro_local.count())]
+    assert opcoes == ["Todas as localizações", "CT-01", "Expedição"]
+    aba.filtro_local.setCurrentText("CT-01")
+    assert codigos_da_lista(aba) == ["PAQ-950", "PAQ-951"]
 
 
 def test_mudar_condicao_pela_tela(janela):
