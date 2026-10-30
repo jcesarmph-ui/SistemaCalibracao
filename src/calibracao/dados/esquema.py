@@ -13,7 +13,7 @@ Versão 4: trava de edição para uso em rede (uma linha só: quem está editand
 import sqlite3
 from pathlib import Path
 
-VERSAO_ESQUEMA = 5
+VERSAO_ESQUEMA = 6
 
 TABELAS = """
 CREATE TABLE IF NOT EXISTS metadados (
@@ -225,6 +225,12 @@ def criar_tabelas(conexao: sqlite3.Connection) -> None:
         if coluna not in _colunas(conexao, "trava_edicao"):
             conexao.execute(f"ALTER TABLE trava_edicao ADD COLUMN {coluna} TEXT")
     conexao.executescript(TABELAS_V5)
+    # Versão 6: motivo de a calibração ter sido feita depois do mês previsto (opcional).
+    if "motivo_atraso" not in _colunas(conexao, "calibracoes"):
+        conexao.execute("ALTER TABLE calibracoes ADD COLUMN motivo_atraso TEXT")
+    # ...e, enquanto ainda não foi feita (vencida), o motivo informado no instrumento.
+    if "motivo_atraso_pendente" not in _colunas(conexao, "instrumentos"):
+        conexao.execute("ALTER TABLE instrumentos ADD COLUMN motivo_atraso_pendente TEXT")
     conexao.execute(
         "INSERT OR REPLACE INTO metadados (chave, valor) VALUES ('versao_esquema', ?)",
         (str(VERSAO_ESQUEMA),),

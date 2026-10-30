@@ -479,6 +479,9 @@ o protótipo:
 | **"Reserva" em azul** | Assim como a "Orientação indicativa" imita a etiqueta física, "Reserva" aparece em azul com letra branca. |
 | **Corrigir calibração salva** | Valores, incerteza (U), parecer e dados do certificado podem ser corrigidos (a data não). O resultado é reavaliado pela "foto" do plano guardada na calibração, a condição do instrumento acompanha o parecer, e **cada correção fica registrada** — quando, quem e o que mudou ("antes → depois") — para auditoria. |
 | **Proteção contra cópia** | A trava de edição só funciona entre quem abre o mesmo arquivo. Por isso o banco guarda o seu lugar oficial: aberto de uma pasta copiada, o programa fica só em consulta e avisa onde está o oficial (a mesma pasta da rede vista por letra de unidade ou por `\servidor` não conta como cópia). E nunca cria um banco vazio sem avisar. |
+| **Cronograma de qualquer mês** | Seletor de 12 meses para trás a 24 para a frente: o que estava previsto, quando foi feito e, nos meses futuros, a **projeção pela periodicidade** de cada instrumento. |
+| **Custo estimado do mês** | Soma do último custo de calibração de cada instrumento previsto — ajuda a planejar o orçamento das calibrações externas. |
+| **Motivo do atraso** | Para a calibração vencida, informa-se por que ainda não foi feita; ao registrá-la, o motivo vai junto. O atraso fica registrado sem alarde — às vezes não é culpa de ninguém. |
 
 ### 🗺️ Roteiro
 

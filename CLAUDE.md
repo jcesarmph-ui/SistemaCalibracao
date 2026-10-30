@@ -123,11 +123,15 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   (fase 6) o banco vai SEM `pasta_oficial`** (apagar a chave se o banco tiver sido aberto aqui pelo
   `app.py`). Também: botões sem "…" e título das janelas só com o código. 240 testes.
   Foto: `dados/fotos/foto_copia.py`.
-  **Próximo do roteiro:** cronograma de qualquer mês.
+  Depois (branch `fase-5-cronograma-mes`): **cronograma de qualquer mês** + **custo estimado** +
+  **motivo do atraso** — esquema **v6** (`calibracoes.motivo_atraso`,
+  `instrumentos.motivo_atraso_pendente`); `regras/cronograma.previstas_no_mes`;
+  `Repositorio.cronograma_do_mes`/`informar_motivo_atraso`/`prevista_atual`. Aprovado por foto.
+  252 testes. Foto: `dados/fotos/foto_cronograma_mes.py`.
+  **Comparação com o protótipo concluída.** Próximo do roteiro: fechar a fase 5 (versão `0.5.0`).
 - **Comparação com o protótipo (2026-10-29):**
   1. ~~Editar calibração já salva~~ feito (2026-10-30).
-  2. **Cronograma de qualquer mês** (o protótipo tinha seletor: 12 meses para trás, 24 para frente);
-     hoje só este mês e o próximo.
+  2. ~~Cronograma de qualquer mês~~ feito (2026-10-30).
   3. Outras melhorias que o usuário tiver ("por agora, nada" em 2026-10-29).
 - Já feito na fase 4 (e aprovado por foto): `interface/janela.py` (cabeçalho, painéis do topo
   clicáveis com lista flutuante, aba Cronograma), `componentes.py` (célula, `aplicar_destaques`,
@@ -187,6 +191,16 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   Lixeira + registrar de novo); pontos reavaliados pela "foto" guardada; mudar o parecer ajusta a
   condição (recusado se a condição mudou depois da calibração); **cada correção é registrada sem
   pedir motivo**: quando, "usuário - PC" e cada mudança "antes → depois".
+- **Cronograma de qualquer mês** (2026-10-30): seletor "Mês" na aba Cronograma ("Hoje — todos os
+  instrumentos" + 12 meses para trás a 24 para frente = **limite da projeção**). No mês: Prevista,
+  Situação (Feita / Pendente este mês / Vencida / Prevista), Feita em, Custo, Motivo do atraso.
+  Meses futuros **projetam a periodicidade**. **Custo estimado do mês** = custo da calibração feita
+  ou, se não feita, o **último custo registrado** do instrumento (sem custo = zero; não dizer de
+  onde veio). **Atraso sem alarde**: "Feita" sempre verde, mesmo feita depois do mês.
+- **Motivo do atraso** (2026-10-30): **opcional**. Vencida ainda não feita: botão "Informar motivo
+  do atraso" no Cronograma (só aparece se houver vencida; some no modo consulta). Ao registrar
+  calibração depois do mês previsto, aparece aviso discreto + campo do motivo, já preenchido com o
+  informado; ele passa para a calibração (corrigível pelo Corrigir).
 - **Textos da tela** (2026-10-30): botões **sem reticências**; título das janelas de calibração só
   com o **código** do instrumento (sem o tipo entre parênteses).
 - **Visual "Reserva"** (2026-10-30): a palavra "Reserva" (ex.: "Laboratório - Reserva") em **fundo

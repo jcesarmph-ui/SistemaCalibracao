@@ -17,6 +17,7 @@ from calibracao.dados.repositorio import (  # noqa: E402
     PontoPlano,
     Repositorio,
 )
+from calibracao.interface.aba_calibracoes import JanelaNovaCalibracao  # noqa: E402
 from calibracao.interface.janela import JanelaPrincipal  # noqa: E402
 from calibracao.regras.avaliacao import Resultado  # noqa: E402
 from calibracao.regras.condicao import Condicao, ParecerFinal  # noqa: E402
@@ -253,3 +254,39 @@ def test_destaque_da_reserva_em_azul_e_da_indicativa_na_cor_da_etiqueta():
     assert "Laboratório - " in html
     html = destacar("Galpão - Orientação indicativa")
     assert "background:#ffd54f; color:#c62828" in html
+
+
+def codigos_do_cronograma(janela):
+    tabela = janela.tabela_cronograma
+    return [tabela.item(linha, 0).text() for linha in range(tabela.rowCount())]
+
+
+def test_cronograma_de_um_mes_futuro_com_custo_estimado(janela):
+    indice = janela.mes_cronograma.findText("OUTUBRO/2027")
+    assert indice > 0
+    janela.mes_cronograma.setCurrentIndex(indice)
+    # TRE-901 prevista out/2026 e projetada para out/2027; filtro "Mostrar" some no mês
+    assert codigos_do_cronograma(janela) == ["TRE-901"]
+    assert janela.filtro_cronograma.isHidden()
+    assert janela.informar_motivo.isHidden()  # nenhuma vencida nesse mês
+    assert "Custo estimado: R$ 0,00" in janela.contagem_cronograma.text()
+    janela.mes_cronograma.setCurrentIndex(0)  # volta para hoje (todos)
+    assert len(codigos_do_cronograma(janela)) == 4
+
+
+def test_informar_motivo_do_atraso_da_vencida(janela):
+    janela.abas.setCurrentIndex(1)
+    janela.filtro_cronograma.setCurrentText("Vencida")
+    assert codigos_do_cronograma(janela) == ["TRE-903"]
+    assert not janela.informar_motivo.isEnabled()  # nada escolhido
+    assert not janela.informar_motivo.isHidden()
+    janela.tabela_cronograma.selectRow(0)
+    assert janela.informar_motivo.isEnabled()
+    instrumento = janela._vencida_escolhida()
+    janela.informar_motivo_atraso(instrumento.id, "Aguardando orçamento")
+    coluna = janela.tabela_cronograma.columnCount() - 1
+    assert janela.tabela_cronograma.item(0, coluna).text() == "Aguardando orçamento"
+    # ao registrar, o motivo já vem preenchido e o aviso de atraso aparece
+    registrar = JanelaNovaCalibracao(janela.repo, instrumento, HOJE)
+    assert registrar.atrasada()
+    assert registrar.motivo_atraso.text() == "Aguardando orçamento"

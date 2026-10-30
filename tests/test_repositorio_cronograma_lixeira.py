@@ -15,7 +15,7 @@ from calibracao.dados.repositorio import (
 )
 from calibracao.regras.avaliacao import Resultado
 from calibracao.regras.condicao import Condicao, ParecerFinal
-from calibracao.regras.cronograma import Situacao
+from calibracao.regras.cronograma import Situacao, SituacaoNoMes
 from calibracao.regras.lixeira import Tipo
 
 HOJE = date(2027, 3, 15)
@@ -158,3 +158,56 @@ def test_instrumento_sem_calibracoes_e_apagado_de_vez(repo):
     repo.enviar_para_lixeira(Tipo.INSTRUMENTO, a, "Cadastrado por engano", AGORA)
     repo.excluir_permanentemente(Tipo.INSTRUMENTO, a, "EXCLUIR")
     assert repo.listar_instrumentos(incluir_desativados=True) == []
+
+
+# ---------------------------------------------------------------- cronograma de qualquer mês
+
+def test_cronograma_de_um_mes_futuro_com_projecao(repo):
+    a = novo_instrumento(repo, "A-ANUAL")
+    calibrar(repo, a, date(2026, 6, 1))           # prevista jun/2027, depois jun/2028
+    b = novo_instrumento(repo, "B-SEMESTRAL", periodicidade=6)
+    calibrar(repo, b, date(2027, 1, 10))          # jul/2027, jan/2028, jul/2028…
+    junho_2028 = [(linha.instrumento.codigo, linha.prevista.situacao)
+                  for linha in repo.cronograma_do_mes(date(2028, 6, 1), HOJE)]
+    assert junho_2028 == [("A-ANUAL", SituacaoNoMes.PREVISTA)]
+    julho_2028 = [linha.instrumento.codigo
+                  for linha in repo.cronograma_do_mes(date(2028, 7, 1), HOJE)]
+    assert julho_2028 == ["B-SEMESTRAL"]
+
+
+def test_cronograma_de_um_mes_passado_mostra_quando_foi_feita(repo):
+    a = novo_instrumento(repo, "A")
+    calibrar(repo, a, date(2025, 1, 10))  # prevista jan/2026…
+    calibrar(repo, a, date(2026, 2, 3))   # …feita em fevereiro
+    [linha] = repo.cronograma_do_mes(date(2026, 1, 1), HOJE)
+    assert (linha.prevista.situacao, linha.prevista.realizada) == (
+        SituacaoNoMes.FEITA, date(2026, 2, 3))
+
+
+def test_motivo_do_atraso_da_vencida_vai_para_a_calibracao(repo):
+    a = novo_instrumento(repo, "A")
+    calibrar(repo, a, date(2026, 2, 1))  # vencida desde fev/2027
+    repo.informar_motivo_atraso(a, "Aguardando orçamento")
+    assert repo.motivos_atraso_pendentes() == {a: "Aguardando orçamento"}
+    [linha] = [x for x in repo.cronograma(HOJE) if x.instrumento.id == a]
+    assert linha.motivo_atraso == "Aguardando orçamento"
+    [mes] = repo.cronograma_do_mes(date(2027, 2, 1), HOJE)
+    assert mes.prevista.motivo_atraso == "Aguardando orçamento"
+    assert repo.prevista_atual(a) == date(2027, 2, 1)
+    # ao registrar, o motivo pendente some do instrumento
+    [ponto] = repo.listar_pontos(repo.obter_instrumento(a).plano_id)
+    repo.registrar_calibracao(NovaCalibracao(
+        a, date(2027, 3, 10), [PontoMedido(ponto.id, escolha=Resultado.APROVADO)],
+        parecer_final=ParecerFinal.APROVADO, motivo_atraso="Aguardando orçamento"), HOJE)
+    assert repo.motivos_atraso_pendentes() == {}
+    assert repo.listar_calibracoes(a)[-1].motivo_atraso == "Aguardando orçamento"
+    [mes] = repo.cronograma_do_mes(date(2027, 2, 1), HOJE)
+    assert (mes.prevista.situacao, mes.prevista.motivo_atraso) == (
+        SituacaoNoMes.FEITA, "Aguardando orçamento")
+
+
+def test_motivo_do_atraso_nao_grava_no_modo_consulta(repo):
+    a = novo_instrumento(repo, "A")
+    repo.modo_consulta = True
+    with pytest.raises(ErroDeValidacao):
+        repo.informar_motivo_atraso(a, "x")

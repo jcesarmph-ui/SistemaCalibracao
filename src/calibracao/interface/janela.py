@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QPushButton,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -35,7 +36,14 @@ from PySide6.QtWidgets import (
 
 from calibracao import __version__
 from calibracao.dados.local_banco import local_do_banco
-from calibracao.dados.repositorio import ErroDeValidacao, LinhaCronograma, Repositorio, Trava
+from calibracao.dados.repositorio import (
+    ErroDeValidacao,
+    LinhaCronograma,
+    LinhaDoMes,
+    Repositorio,
+    Trava,
+)
+from calibracao.interface.aba_calibracoes import dinheiro
 from calibracao.interface.aba_instrumentos import AbaInstrumentos
 from calibracao.interface.aba_lixeira import AbaLixeira
 from calibracao.interface.componentes import (
@@ -51,9 +59,10 @@ from calibracao.interface.estilo import (
     CORES,
     CORES_PARECER,
     CORES_SITUACAO,
+    CORES_SITUACAO_NO_MES,
     estilo,
 )
-from calibracao.regras.cronograma import Situacao, somar_meses
+from calibracao.regras.cronograma import Situacao, SituacaoNoMes, meses_do_seletor, somar_meses
 from calibracao.regras.trava import INTERVALO_SINAL, TEMPO_PARADO, ObservadorDeSinal
 
 TITULO = "CALIBRAÇÃO DE INSTRUMENTOS"
@@ -73,6 +82,11 @@ MESES = ["JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO", "JULHO", "A
          "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"]
 
 FILTROS_CRONOGRAMA = ["Todos", *[s.value for s in Situacao]]
+HOJE_TODOS = "Hoje — todos os instrumentos"
+COLUNAS_HOJE = ["Código", "Tipo", "Localização", "Última calibração", "Próxima calibração",
+                "Situação", "Parecer da última", "Motivo do atraso"]
+COLUNAS_MES = ["Código", "Tipo", "Localização", "Prevista", "Situação", "Feita em", "Custo",
+               "Motivo do atraso"]
 
 # Painéis que abrem a lista flutuante ao clicar (pedido do usuário em 2026-10-29): situações
 # mostradas em cada um.
@@ -81,6 +95,13 @@ LISTAS_DOS_PAINEIS = {
     "mes": (Situacao.PENDENTE_MES, Situacao.FEITA_MES),
     "proximo_mes": (Situacao.PROXIMO_MES,),
 }
+
+
+def celula_motivo(motivo: str | None):
+    """Motivo do atraso; o texto inteiro aparece ao passar o mouse (a coluna corta)."""
+    item = celula(motivo or "")
+    item.setToolTip(motivo or "")
+    return item
 
 
 class JanelaPrincipal(QMainWindow):
@@ -93,6 +114,8 @@ class JanelaPrincipal(QMainWindow):
         self.pasta_dados = pasta_dados
         self.hoje = hoje or datetime.date.today()
         self.valores_indicadores: dict[str, QLabel] = {}
+        self._pode_editar = True
+        self._linhas_cronograma: list = []
 
         self.titulo_janela = (
             f"Calibração de Instrumentos — MG Centro de Serviços — versão {__version__}")
@@ -210,19 +233,35 @@ class JanelaPrincipal(QMainWindow):
         return faixa
 
     def _aba_cronograma(self) -> QWidget:
+        """Hoje (todos os instrumentos, com a situação) ou um mês de 12 para trás a 24 para a
+        frente: o que estava previsto, o que foi feito e o custo estimado."""
+        self.mes_cronograma = QComboBox()
+        self.mes_cronograma.setToolTip("Escolha um mês para ver o que está previsto nele (meses "
+                                       "futuros repetem a periodicidade de cada instrumento).")
+        self.mes_cronograma.addItem(HOJE_TODOS, None)
+        for mes in meses_do_seletor(self.hoje):
+            self.mes_cronograma.addItem(f"{MESES[mes.month - 1]}/{mes.year}", mes)
+        self.mes_cronograma.currentIndexChanged.connect(lambda _: self._preencher_cronograma())
         self.filtro_cronograma = QComboBox()
         self.filtro_cronograma.addItems(FILTROS_CRONOGRAMA)
-        self.filtro_cronograma.currentTextChanged.connect(self._preencher_cronograma)
+        self.filtro_cronograma.currentTextChanged.connect(lambda _: self._preencher_cronograma())
+        self.rotulo_filtro = QLabel("Mostrar:")
+        self.informar_motivo = QPushButton("Informar motivo do atraso")
+        self.informar_motivo.setToolTip("Para calibração vencida: por que ainda não foi feita. "
+                                        "Ao registrar a calibração, o motivo já vem preenchido.")
+        self.informar_motivo.clicked.connect(self.pedir_motivo_atraso)
         topo = QHBoxLayout()
-        topo.addWidget(QLabel("Mostrar:"))
+        topo.addWidget(QLabel("Mês:"))
+        topo.addWidget(self.mes_cronograma)
+        topo.addWidget(self.rotulo_filtro)
         topo.addWidget(self.filtro_cronograma)
+        topo.addWidget(self.informar_motivo)
         topo.addStretch()
         self.contagem_cronograma = QLabel(objectName="dica")
         topo.addWidget(self.contagem_cronograma)
 
-        colunas = ["Código", "Tipo", "Localização", "Última calibração", "Próxima calibração",
-                   "Situação", "Parecer da última"]
-        self.tabela_cronograma = tabela_somente_leitura(colunas)
+        self.tabela_cronograma = tabela_somente_leitura(COLUNAS_HOJE)
+        self.tabela_cronograma.itemSelectionChanged.connect(self._ligar_informar_motivo)
 
         aba = QWidget()
         caixa = QVBoxLayout(aba)
@@ -253,7 +292,7 @@ class JanelaPrincipal(QMainWindow):
         }
         for chave, texto in textos.items():
             self.valores_indicadores[chave].setText(texto)
-        self._preencher_cronograma(self.filtro_cronograma.currentText())
+        self._preencher_cronograma()
         self.aba_instrumentos.atualizar(
             {linha.instrumento.id: linha.situacao for linha in self._cronograma})
         self.aba_lixeira.atualizar()
@@ -277,6 +316,8 @@ class JanelaPrincipal(QMainWindow):
         pode = dono is None and not self.repo.modo_consulta
         for aba in (self.aba_instrumentos, self.aba_lixeira):
             aba.definir_edicao(pode)
+        self._pode_editar = pode
+        self._ligar_informar_motivo()
         self.setWindowTitle(self.titulo_janela if pode
                             else f"{self.titulo_janela} — SOMENTE CONSULTA")
         if pode:
@@ -459,12 +500,55 @@ class JanelaPrincipal(QMainWindow):
             ["Código", "Tipo", "Localização", "Prevista / feita em", "Situação"], itens, self)
         self._lista_aberta.mostrar_abaixo_de(painel)
 
-    def _preencher_cronograma(self, filtro: str) -> None:
+    def _preencher_cronograma(self) -> None:
+        mes = self.mes_cronograma.currentData()
+        self.rotulo_filtro.setVisible(mes is None)
+        self.filtro_cronograma.setVisible(mes is None)
+        if mes is None:
+            self._preencher_hoje(self.filtro_cronograma.currentText())
+        else:
+            self._preencher_mes(self.repo.cronograma_do_mes(mes, self.hoje))
+        self._ligar_informar_motivo()
+
+    def _preencher_mes(self, linhas: list[LinhaDoMes]) -> None:
+        tabela = self.tabela_cronograma
+        tabela.setColumnCount(len(COLUNAS_MES))
+        tabela.setHorizontalHeaderLabels(COLUNAS_MES)
+        tabela.setRowCount(len(linhas))
+        # (instrumento, é vencida em aberto?) de cada linha, para o botão do motivo do atraso
+        self._linhas_cronograma = [
+            (linha.instrumento, linha.prevista.situacao == SituacaoNoMes.VENCIDA)
+            for linha in linhas]
+        for indice, linha in enumerate(linhas):
+            instrumento, prevista = linha.instrumento, linha.prevista
+            valores = [
+                celula(instrumento.codigo),
+                celula(instrumento.tipo),
+                celula(instrumento.localizacao or "—"),
+                celula(formatar_data(prevista.prevista)),
+                celula(prevista.situacao.value, CORES_SITUACAO_NO_MES[prevista.situacao]),
+                celula(formatar_data(prevista.realizada) if prevista.realizada else "—"),
+                celula(dinheiro(prevista.custo)),
+                celula_motivo(prevista.motivo_atraso),
+            ]
+            for coluna, item in enumerate(valores):
+                tabela.setItem(indice, coluna, item)
+        aplicar_destaques(tabela)
+        feitas = sum(1 for linha in linhas if linha.prevista.situacao == SituacaoNoMes.FEITA)
+        custo = sum(linha.prevista.custo or 0.0 for linha in linhas)
+        self.contagem_cronograma.setText(
+            f"{len(linhas)} prevista(s) | {feitas} feita(s) | Custo estimado: {dinheiro(custo)}")
+
+    def _preencher_hoje(self, filtro: str) -> None:
         linhas: list[LinhaCronograma] = [
             linha for linha in self._cronograma if filtro == "Todos" or linha.situacao == filtro
         ]
         tabela = self.tabela_cronograma
+        tabela.setColumnCount(len(COLUNAS_HOJE))
+        tabela.setHorizontalHeaderLabels(COLUNAS_HOJE)
         tabela.setRowCount(len(linhas))
+        self._linhas_cronograma = [(linha.instrumento, linha.situacao == Situacao.VENCIDA)
+                                   for linha in linhas]
         for indice, linha in enumerate(linhas):
             instrumento = linha.instrumento
             parecer = linha.parecer_ultima
@@ -476,8 +560,45 @@ class JanelaPrincipal(QMainWindow):
                 celula(formatar_data(linha.proxima)),
                 celula(linha.situacao.value, CORES_SITUACAO[linha.situacao]),
                 celula(parecer.value, CORES_PARECER[parecer]) if parecer else celula("—"),
+                celula_motivo(linha.motivo_atraso),
             ]
             for coluna, item in enumerate(valores):
                 tabela.setItem(indice, coluna, item)
         aplicar_destaques(tabela)
         self.contagem_cronograma.setText(f"{len(linhas)} instrumento(s)")
+
+    # --- Motivo do atraso (vencidas) ----------------------------------------------------------
+
+    def _vencida_escolhida(self):
+        """O instrumento da linha escolhida, se ela for uma calibração vencida em aberto."""
+        linhas = self.tabela_cronograma.selectionModel().selectedRows()
+        if not linhas:
+            return None
+        instrumento, vencida = self._linhas_cronograma[linhas[0].row()]
+        return instrumento if vencida else None
+
+    def _ligar_informar_motivo(self) -> None:
+        """O botão só aparece quando há vencida na lista (e quem usa pode editar)."""
+        tem_vencida = any(vencida for _, vencida in self._linhas_cronograma)
+        self.informar_motivo.setVisible(self._pode_editar and tem_vencida)
+        self.informar_motivo.setEnabled(self._vencida_escolhida() is not None)
+
+    def pedir_motivo_atraso(self) -> None:
+        instrumento = self._vencida_escolhida()
+        if instrumento is None:
+            return
+        atual = self.repo.motivos_atraso_pendentes().get(instrumento.id, "")
+        motivo, ok = QInputDialog.getText(
+            self, "Motivo do atraso",
+            f"Por que a calibração de {instrumento.codigo} ainda não foi feita?\n"
+            "(deixe vazio para apagar)", text=atual)
+        if ok:
+            self.informar_motivo_atraso(instrumento.id, motivo)
+
+    def informar_motivo_atraso(self, instrumento_id: int, motivo: str) -> None:
+        try:
+            self.repo.informar_motivo_atraso(instrumento_id, motivo)
+        except ErroDeValidacao as erro:
+            QMessageBox.warning(self, "Não foi salvo", "\n".join(erro.mensagens))
+            return
+        self.atualizar()

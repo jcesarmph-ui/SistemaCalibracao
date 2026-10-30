@@ -5,7 +5,11 @@ from datetime import date
 import pytest
 
 from calibracao.regras.cronograma import (
+    CalibracaoResumo,
     Situacao,
+    SituacaoNoMes,
+    meses_do_seletor,
+    previstas_no_mes,
     previsto_no_mes,
     proxima_calibracao,
     situacao,
@@ -85,3 +89,60 @@ def test_previsto_no_mes():
     assert not previsto_no_mes(date(2027, 4, 1), 2027, 3)
     assert not previsto_no_mes(date(2028, 3, 1), 2027, 3)
     assert not previsto_no_mes(None, 2027, 3)
+
+
+# --- Cronograma de qualquer mês ------------------------------------------------------------------
+
+def _c(data, proxima, custo=None, motivo=None):
+    return CalibracaoResumo(data, proxima, custo, motivo)
+
+
+def test_seletor_vai_de_12_meses_atras_a_24_para_frente():
+    meses = meses_do_seletor(date(2026, 10, 30))
+    assert (meses[0], meses[-1], len(meses)) == (date(2025, 10, 1), date(2028, 10, 1), 37)
+
+
+def test_mes_passado_feita_mesmo_com_atraso_guarda_o_motivo():
+    historico = [_c(date(2025, 9, 10), date(2026, 9, 10), 100.0),
+                 _c(date(2026, 10, 5), date(2027, 10, 5), 120.0, "Laboratório sem agenda")]
+    [setembro] = previstas_no_mes(historico, 12, date(2026, 9, 1), date(2026, 10, 30))
+    assert setembro.situacao == SituacaoNoMes.FEITA
+    assert (setembro.realizada, setembro.custo, setembro.motivo_atraso) == (
+        date(2026, 10, 5), 120.0, "Laboratório sem agenda")
+
+
+def test_prevista_em_aberto_vencida_pendente_ou_prevista():
+    hoje = date(2026, 10, 30)
+    for proxima, esperado in [(date(2026, 9, 10), SituacaoNoMes.VENCIDA),
+                              (date(2026, 10, 10), SituacaoNoMes.PENDENTE),
+                              (date(2027, 2, 10), SituacaoNoMes.PREVISTA)]:
+        historico = [_c(date(2025, 1, 1), proxima, 80.0)]
+        mes = proxima.replace(day=1)
+        [linha] = previstas_no_mes(historico, 12, mes, hoje)
+        assert (linha.situacao, linha.custo) == (esperado, 80.0)
+
+
+def test_projeta_a_periodicidade_ate_24_meses():
+    hoje = date(2026, 10, 30)
+    historico = [_c(date(2026, 4, 15), date(2026, 10, 15), 50.0)]  # semestral
+    assert [p.prevista for p in previstas_no_mes(historico, 6, date(2027, 4, 1), hoje)] == [
+        date(2027, 4, 15)]
+    [linha] = previstas_no_mes(historico, 6, date(2028, 10, 1), hoje)
+    assert (linha.situacao, linha.custo) == (SituacaoNoMes.PREVISTA, 50.0)
+    assert previstas_no_mes(historico, 6, date(2028, 11, 1), hoje) == []  # passou do limite
+    assert previstas_no_mes(historico, 6, date(2027, 1, 1), hoje) == []   # mês sem previsão
+
+
+def test_custo_estimado_usa_o_ultimo_custo_registrado():
+    historico = [_c(date(2025, 3, 1), date(2026, 3, 1), 90.0),
+                 _c(date(2026, 3, 2), date(2027, 3, 2))]  # a última não teve custo
+    [linha] = previstas_no_mes(historico, 12, date(2027, 3, 1), date(2026, 10, 30))
+    assert linha.custo == 90.0
+    interno = [_c(date(2026, 3, 2), date(2027, 3, 2))]
+    assert previstas_no_mes(interno, 12, date(2027, 3, 1), date(2026, 10, 30))[0].custo is None
+
+
+def test_desativado_mostra_so_o_que_foi_feito():
+    historico = [_c(date(2025, 3, 1), date(2026, 3, 1))]
+    assert previstas_no_mes(historico, 12, date(2026, 3, 1), date(2026, 10, 30),
+                            ativo=False) == []

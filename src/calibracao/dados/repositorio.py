@@ -5,6 +5,7 @@ A tela fala só com esta classe; se um dia o SQLite for trocado, só este arquiv
 de `calibracao.regras` — aqui só se guarda e se busca.
 """
 
+import dataclasses
 import datetime
 import functools
 import sqlite3
@@ -28,7 +29,15 @@ from calibracao.regras.condicao import (
     erros_mudanca_condicao,
     pareceres_permitidos,
 )
-from calibracao.regras.cronograma import Situacao, proxima_calibracao, situacao
+from calibracao.regras.cronograma import (
+    CalibracaoResumo,
+    PrevistaNoMes,
+    Situacao,
+    SituacaoNoMes,
+    previstas_no_mes,
+    proxima_calibracao,
+    situacao,
+)
 from calibracao.regras.lixeira import Tipo, bloqueio_exclusao_permanente, bloqueio_restaurar
 from calibracao.regras.localizacao import padronizar_localizacao
 from calibracao.regras.trava import sinal_antigo
@@ -167,6 +176,8 @@ class NovaCalibracao:
     responsavel: str | None = None
     custo: float | None = None
     observacoes: str | None = None
+    # Feita depois do mês previsto: por quê (opcional; às vezes não é culpa de ninguém).
+    motivo_atraso: str | None = None
 
 
 @dataclass
@@ -183,6 +194,7 @@ class Calibracao:
     parecer_final: ParecerFinal | None
     motivo_parecer: str | None
     custo: float | None
+    motivo_atraso: str | None = None
 
 
 @dataclass
@@ -226,6 +238,7 @@ class CorrecaoCalibracao:
     responsavel: str | None = None
     custo: float | None = None
     observacoes: str | None = None
+    motivo_atraso: str | None = None
 
 
 @dataclass
@@ -270,6 +283,15 @@ class LinhaCronograma:
     situacao: Situacao
     condicao: Condicao
     parecer_ultima: ParecerFinal | None
+    motivo_atraso: str | None = None  # vencida: por que ainda não foi feita
+
+
+@dataclass
+class LinhaDoMes:
+    """Uma calibração prevista no mês escolhido do cronograma."""
+
+    instrumento: Instrumento
+    prevista: PrevistaNoMes
 
 
 @dataclass
@@ -311,7 +333,8 @@ def _data(texto: str | None) -> datetime.date | None:
 # aparece no registro da correção.
 _CAMPOS_CORRIGIVEIS = {"laboratorio": "Laboratório", "certificado": "Certificado",
                        "responsavel": "Responsável", "custo": "Custo (R$)",
-                       "observacoes": "Observações", "motivo_parecer": "Motivo do parecer"}
+                       "observacoes": "Observações", "motivo_parecer": "Motivo do parecer",
+                       "motivo_atraso": "Motivo do atraso"}
 
 
 def _limpo(valor):
@@ -779,14 +802,18 @@ class Repositorio:
             calibracao_id = self._conexao.execute(
                 """INSERT INTO calibracoes (instrumento_id, data_calibracao, periodicidade_meses,
                        data_proxima, laboratorio, certificado, responsavel, resultado,
-                       parecer_final, motivo_parecer, custo_calibracao, observacoes)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                       parecer_final, motivo_parecer, custo_calibracao, observacoes,
+                       motivo_atraso)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (instrumento.id, nova.data_calibracao.isoformat(),
                  instrumento.periodicidade_meses, proxima.isoformat() if proxima else None,
                  nova.laboratorio, nova.certificado, nova.responsavel, str(geral),
                  str(nova.parecer_final), (nova.motivo_parecer or "").strip() or None,
-                 nova.custo, nova.observacoes),
+                 nova.custo, nova.observacoes, (nova.motivo_atraso or "").strip() or None),
             ).lastrowid
+            self._conexao.execute(
+                "UPDATE instrumentos SET motivo_atraso_pendente = NULL WHERE id = ?",
+                (instrumento.id,))
             # O parecer só entra no histórico de condição quando muda a condição.
             if nova_condicao != atual.condicao:
                 self._inserir_condicao(instrumento.id, nova_condicao, nova.data_calibracao,
@@ -811,7 +838,7 @@ class Repositorio:
             _data(linha["data_proxima"]), Resultado(linha["resultado"]), linha["laboratorio"],
             linha["certificado"], linha["responsavel"], linha["observacoes"],
             ParecerFinal(linha["parecer_final"]) if linha["parecer_final"] else None,
-            linha["motivo_parecer"], linha["custo_calibracao"],
+            linha["motivo_parecer"], linha["custo_calibracao"], linha["motivo_atraso"],
         )
 
     def contar_calibracoes(self) -> int:
@@ -921,10 +948,10 @@ class Repositorio:
             self._conexao.execute(
                 """UPDATE calibracoes SET resultado = ?, parecer_final = ?, motivo_parecer = ?,
                        laboratorio = ?, certificado = ?, responsavel = ?, custo_calibracao = ?,
-                       observacoes = ? WHERE id = ?""",
+                       observacoes = ?, motivo_atraso = ? WHERE id = ?""",
                 (str(geral), str(correcao.parecer_final), novos["motivo_parecer"],
                  novos["laboratorio"], novos["certificado"], novos["responsavel"],
-                 novos["custo"], novos["observacoes"], calibracao_id),
+                 novos["custo"], novos["observacoes"], novos["motivo_atraso"], calibracao_id),
             )
             for registrado, medido, avaliacao in avaliacoes:
                 self._conexao.execute(
@@ -1004,6 +1031,7 @@ class Repositorio:
         """
         linhas = []
         condicoes = self.condicoes_atuais()
+        motivos = self.motivos_atraso_pendentes()
         for instrumento in self.listar_instrumentos():
             if not instrumento.exige_calibracao:
                 continue
@@ -1022,8 +1050,62 @@ class Repositorio:
                 condicoes[instrumento.id].condicao if instrumento.id in condicoes
                 else Condicao.EM_USO,
                 ultima.parecer_final if ultima else None,
+                motivos.get(instrumento.id),
             ))
         return linhas
+
+    def cronograma_do_mes(self, mes: datetime.date, hoje: datetime.date) -> list[LinhaDoMes]:
+        """Calibrações previstas no mês de `mes` (passado, este ou futuro, com projeção).
+
+        Desativados entram só com o que já foi feito. A vencida em aberto mostra o motivo do
+        atraso informado no Cronograma.
+        """
+        condicoes = self.condicoes_atuais()
+        motivos = self.motivos_atraso_pendentes()
+        linhas = []
+        for instrumento in self.listar_instrumentos(incluir_desativados=True):
+            if not instrumento.exige_calibracao:
+                continue
+            resumo = [CalibracaoResumo(
+                c.data_calibracao,
+                c.data_proxima or proxima_calibracao(c.data_calibracao,
+                                                     instrumento.periodicidade_meses),
+                c.custo, c.motivo_atraso) for c in self.listar_calibracoes(instrumento.id)]
+            condicao = condicoes.get(instrumento.id)
+            ativo = condicao is None or condicao.condicao != Condicao.DESATIVADO
+            for prevista in previstas_no_mes(resumo, instrumento.periodicidade_meses, mes, hoje,
+                                             ativo):
+                if prevista.situacao == SituacaoNoMes.VENCIDA:
+                    prevista = dataclasses.replace(prevista,
+                                                   motivo_atraso=motivos.get(instrumento.id))
+                linhas.append(LinhaDoMes(instrumento, prevista))
+        return sorted(linhas, key=lambda linha: (linha.prevista.prevista,
+                                                 linha.instrumento.codigo))
+
+    def prevista_atual(self, instrumento_id: int) -> datetime.date | None:
+        """Data prevista para a próxima calibração (a partir da última registrada)."""
+        calibracoes = self.listar_calibracoes(instrumento_id)
+        if not calibracoes:
+            return None
+        ultima = calibracoes[-1]
+        return ultima.data_proxima or proxima_calibracao(
+            ultima.data_calibracao, self.obter_instrumento(instrumento_id).periodicidade_meses)
+
+    def motivos_atraso_pendentes(self) -> dict[int, str]:
+        """Motivo informado para cada instrumento vencido que ainda não foi calibrado."""
+        linhas = self._conexao.execute(
+            "SELECT id, motivo_atraso_pendente FROM instrumentos "
+            "WHERE motivo_atraso_pendente IS NOT NULL")
+        return {linha[0]: linha[1] for linha in linhas}
+
+    @_escrita
+    def informar_motivo_atraso(self, instrumento_id: int, motivo: str | None) -> None:
+        """Por que a calibração vencida ainda não foi feita (vazio apaga). Ao registrar a
+        calibração, ele vira o "Motivo do atraso" dela e sai daqui."""
+        with self._conexao:
+            self._conexao.execute(
+                "UPDATE instrumentos SET motivo_atraso_pendente = ? WHERE id = ?",
+                ((motivo or "").strip() or None, instrumento_id))
 
     # ---------------------------------------------------------------- lixeira
 
