@@ -99,7 +99,7 @@ class PainelPlano(QWidget):
         botoes = QHBoxLayout()
         botoes.addWidget(self.adicionar)
         botoes.addWidget(self.remover)
-        self.descartar_plano = QPushButton("Enviar plano para a Lixeira…")
+        self.descartar_plano = QPushButton("Enviar plano para a Lixeira")
         self.descartar_plano.setToolTip("Para plano criado por engano. Instrumentos ligados a "
                                         "ele não podem ser calibrados até restaurar.")
         self.descartar_plano.clicked.connect(self.enviar_plano_para_lixeira)

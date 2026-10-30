@@ -474,10 +474,11 @@ o protótipo:
 
 | Melhoria | O que faz |
 |---|---|
-| **Plano novo pela tela** | Botão "Novo plano…" na ficha do instrumento: cria o plano e já o escolhe; plano criado por engano vai para a Lixeira e continua aparecendo como "(na Lixeira)" até ser restaurado ou trocado. |
+| **Plano novo pela tela** | Botão "Novo plano" na ficha do instrumento: cria o plano e já o escolhe; plano criado por engano vai para a Lixeira e continua aparecendo como "(na Lixeira)" até ser restaurado ou trocado. |
 | **Pesquisa na Lixeira** | Busca por código, descrição ou motivo. |
 | **"Reserva" em azul** | Assim como a "Orientação indicativa" imita a etiqueta física, "Reserva" aparece em azul com letra branca. |
 | **Corrigir calibração salva** | Valores, incerteza (U), parecer e dados do certificado podem ser corrigidos (a data não). O resultado é reavaliado pela "foto" do plano guardada na calibração, a condição do instrumento acompanha o parecer, e **cada correção fica registrada** — quando, quem e o que mudou ("antes → depois") — para auditoria. |
+| **Proteção contra cópia** | A trava de edição só funciona entre quem abre o mesmo arquivo. Por isso o banco guarda o seu lugar oficial: aberto de uma pasta copiada, o programa fica só em consulta e avisa onde está o oficial (a mesma pasta da rede vista por letra de unidade ou por `\servidor` não conta como cópia). E nunca cria um banco vazio sem avisar. |
 
 ### 🗺️ Roteiro
 

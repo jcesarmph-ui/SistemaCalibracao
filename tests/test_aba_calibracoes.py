@@ -214,7 +214,7 @@ def test_corrigir_pela_tela_vem_preenchido_e_registra_a_correcao(app, repo, paqu
     [registro] = repo.listar_correcoes(calibracao_id)
     assert registro.usuario == "maria.silva - PC-LAB"
     assert len(registro.mudancas) == 2
-    # "Ver pontos…" mostra a correção
+    # "Ver pontos" mostra a correção
     ver = JanelaVerCalibracao(repo, paquimetro, corrigida)
     assert ver.tabela_correcoes.rowCount() == 2
 

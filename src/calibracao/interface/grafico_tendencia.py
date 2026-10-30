@@ -56,7 +56,7 @@ class JanelaTendencia(QDialog):
         for serie in series:
             self.ponto.addItem(f"{serie.nome} ({len(serie.medicoes)} calibração(ões))")
         self.ponto.currentIndexChanged.connect(self.desenhar)
-        self.exportar = QPushButton("Salvar imagem (PNG)…")
+        self.exportar = QPushButton("Salvar imagem (PNG)")
         self.exportar.clicked.connect(self._escolher_arquivo)
         self.exportar.setEnabled(bool(series))
         fechar = QPushButton("Fechar")
