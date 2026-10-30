@@ -185,3 +185,49 @@ def test_grafico_sem_dados(app):
     from calibracao.interface.grafico_tendencia import JanelaTendencia
     janela = JanelaTendencia([], "PAQ-900")
     assert not janela.exportar.isEnabled()
+
+
+def test_corrigir_pela_tela_vem_preenchido_e_registra_a_correcao(app, repo, paquimetro):
+    calibracao_id = registrar(repo, paquimetro, date(2026, 10, 20))
+    painel = PainelCalibracoes(repo, HOJE)
+    painel.usuario = "maria.silva - PC-LAB"
+    painel.mostrar(paquimetro)
+    assert painel.corrigir.isEnabled()
+    [salva] = repo.listar_calibracoes(paquimetro.id)
+    janela = JanelaNovaCalibracao(repo, paquimetro, HOJE, corrigir=salva,
+                                  usuario=painel.usuario)
+    # vem como foi salva, com a data travada
+    assert not janela.data.isEnabled()
+    assert janela.data.date().toPython() == date(2026, 10, 20)
+    assert janela.tabela.item(0, J.MEDIDO).text() == "30,01"
+    assert janela.tabela.cellWidget(2, J.MEDIDO).currentText() == "Aprovado"
+    assert janela.parecer.currentData() == ParecerFinal.APROVADO
+    assert janela.salvar.text() == "SALVAR CORREÇÃO"
+    # corrige o certificado e um valor
+    janela.certificado.setText("CERT-77")
+    janela.tabela.item(1, J.MEDIDO).setText("60,03")
+    janela.salvar_calibracao()
+    assert janela.result(), janela.avisos.text()
+    corrigida = repo.obter_calibracao(calibracao_id)
+    assert corrigida.certificado == "CERT-77"
+    assert repo.pontos_da_calibracao(calibracao_id)[1].valor == 60.03
+    [registro] = repo.listar_correcoes(calibracao_id)
+    assert registro.usuario == "maria.silva - PC-LAB"
+    assert len(registro.mudancas) == 2
+    # "Ver pontos…" mostra a correção
+    ver = JanelaVerCalibracao(repo, paquimetro, corrigida)
+    assert ver.tabela_correcoes.rowCount() == 2
+
+
+def test_corrigir_sem_mudar_nada_avisa(app, repo, paquimetro):
+    registrar(repo, paquimetro, date(2026, 10, 20))
+    [salva] = repo.listar_calibracoes(paquimetro.id)
+    janela = JanelaNovaCalibracao(repo, paquimetro, HOJE, corrigir=salva, usuario="x")
+    janela.salvar_calibracao()
+    assert "Nada foi alterado" in janela.avisos.text()
+
+
+def test_modo_consulta_esconde_corrigir(app, repo, paquimetro):
+    painel = PainelCalibracoes(repo, HOJE)
+    painel.definir_edicao(False)
+    assert painel.corrigir.isHidden()

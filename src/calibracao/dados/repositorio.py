@@ -207,6 +207,34 @@ class PontoRegistrado:
     valor_medido: float | None
     resultado: Resultado
     observacao: str | None
+    id: int | None = None  # linha de pontos_calibracao (usado para corrigir)
+
+
+@dataclass
+class CorrecaoCalibracao:
+    """O que pode ser corrigido numa calibração já salva — tudo, menos a data.
+
+    `pontos` traz um PontoMedido por ponto registrado, indexado pelo `PontoRegistrado.id`
+    (o `ponto_plano_id` do PontoMedido é ignorado aqui).
+    """
+
+    pontos: dict[int, PontoMedido]
+    parecer_final: ParecerFinal | None
+    motivo_parecer: str | None = None
+    laboratorio: str | None = None
+    certificado: str | None = None
+    responsavel: str | None = None
+    custo: float | None = None
+    observacoes: str | None = None
+
+
+@dataclass
+class RegistroCorrecao:
+    """Uma correção feita numa calibração salva: quando, quem e o que mudou (antes → depois)."""
+
+    quando: datetime.datetime
+    usuario: str
+    mudancas: list[str]
 
 
 @dataclass
@@ -263,7 +291,7 @@ ESCOLHAS_QUALITATIVAS = (Resultado.APROVADO, Resultado.REPROVADO)
 
 _CAMPOS_INSTRUMENTO = [c.name for c in fields(Instrumento) if c.name != "id"]
 _CAMPOS_PONTO = [c.name for c in fields(PontoPlano) if c.name != "id"]
-_CAMPOS_REGISTRADO = [c.name for c in fields(PontoRegistrado)]
+_CAMPOS_REGISTRADO = [c.name for c in fields(PontoRegistrado) if c.name != "id"]
 
 # Mudanças de condição que valem: as manuais e as de calibrações fora da Lixeira.
 _CONDICOES_VALIDAS = """
@@ -277,6 +305,41 @@ _CONDICAO_ATUAL = f"""COALESCE((SELECT v.condicao FROM ({_CONDICOES_VALIDAS}) v
 
 def _data(texto: str | None) -> datetime.date | None:
     return datetime.date.fromisoformat(texto) if texto else None
+
+
+# Campos da calibração que podem ser corrigidos (além dos pontos e do parecer), com o nome que
+# aparece no registro da correção.
+_CAMPOS_CORRIGIVEIS = {"laboratorio": "Laboratório", "certificado": "Certificado",
+                       "responsavel": "Responsável", "custo": "Custo (R$)",
+                       "observacoes": "Observações", "motivo_parecer": "Motivo do parecer"}
+
+
+def _limpo(valor):
+    """Texto sem espaços nas pontas e vazio vira None; outros valores ficam como estão."""
+    if isinstance(valor, str):
+        return valor.strip() or None
+    return valor
+
+
+def _texto(valor) -> str:
+    """Valor como aparece no registro da correção (número com vírgula, vazio como "—")."""
+    if valor is None:
+        return "—"
+    if isinstance(valor, float):
+        return f"{valor:.10g}".replace(".", ",")
+    return str(valor)
+
+
+def _ponto_da_foto(registrado: PontoRegistrado) -> PontoPlano:
+    """O ponto como estava no plano quando a calibração foi registrada (para reavaliar)."""
+    return PontoPlano(
+        plano_id=0, tipo=registrado.tipo, descricao=registrado.descricao,
+        valor_nominal=registrado.valor_nominal,
+        tolerancia_inferior=registrado.tolerancia_inferior,
+        tolerancia_superior=registrado.tolerancia_superior,
+        valor_minimo=registrado.valor_minimo, valor_maximo=registrado.valor_maximo,
+        classe_exigida=registrado.classe_exigida, criterio=registrado.criterio,
+    )
 
 
 def _mudanca(linha: sqlite3.Row) -> MudancaCondicao:
@@ -758,9 +821,130 @@ class Repositorio:
         )
         return [
             PontoRegistrado(**{c: linha[c] for c in _CAMPOS_REGISTRADO}
-                            | {"resultado": Resultado(linha["resultado"])})
+                            | {"resultado": Resultado(linha["resultado"]), "id": linha["id"]})
             for linha in linhas
         ]
+
+    def obter_calibracao(self, calibracao_id: int) -> Calibracao:
+        linha = self._conexao.execute(
+            "SELECT * FROM calibracoes WHERE id = ?", (calibracao_id,)).fetchone()
+        return self._calibracao(linha)
+
+    @_escrita
+    def corrigir_calibracao(self, calibracao_id: int, correcao: CorrecaoCalibracao,
+                            usuario: str, agora: datetime.datetime) -> list[str]:
+        """Corrige uma calibração salva (tudo menos a data) e guarda o registro da correção.
+
+        Mesma validação do registro, mas os pontos são avaliados pela "foto" guardada na
+        calibração, não pelo plano atual. Mudar o parecer ajusta a condição do instrumento, desde
+        que ela não tenha mudado depois desta calibração. Devolve as mudanças ("antes → depois").
+        """
+        if self.na_lixeira(Tipo.CALIBRACAO, calibracao_id):
+            raise ErroDeValidacao(["Calibração na Lixeira: restaure-a antes de corrigir."])
+        antiga = self.obter_calibracao(calibracao_id)
+        erros = []
+        if correcao.custo is not None and correcao.custo < 0:
+            erros.append("O custo da calibração não pode ser negativo.")
+        registrados = self.pontos_da_calibracao(calibracao_id)
+        if set(correcao.pontos) != {r.id for r in registrados}:
+            raise ErroDeValidacao(
+                [*erros, "Os pontos informados não correspondem aos desta calibração."])
+        avaliacoes = []
+        for registrado in registrados:
+            medido = correcao.pontos[registrado.id]
+            avaliacao = self.avaliar_ponto(_ponto_da_foto(registrado), medido)
+            if avaliacao.resultado in (Resultado.NAO_INFORMADO, Resultado.NAO_AVALIADO):
+                motivo = avaliacao.motivo or "não preenchido"
+                erros.append(f"Ponto {registrado.ordem} ({registrado.descricao}): {motivo}.")
+            avaliacoes.append((registrado, medido, avaliacao))
+        if erros:
+            raise ErroDeValidacao(erros)
+        geral = resultado_geral([a.resultado for _, _, a in avaliacoes])
+        if correcao.parecer_final is None:
+            raise ErroDeValidacao(["Escolha o parecer final da calibração."])
+        if correcao.parecer_final not in pareceres_permitidos(geral):
+            raise ErroDeValidacao(
+                ['Calibração reprovada pelos pontos não pode ter parecer final "Aprovado".'])
+
+        novos = {campo: _limpo(getattr(correcao, campo)) for campo in _CAMPOS_CORRIGIVEIS}
+        mudancas = [f"{nome}: {_texto(_limpo(getattr(antiga, campo)))} → {_texto(novos[campo])}"
+                    for campo, nome in _CAMPOS_CORRIGIVEIS.items()
+                    if _limpo(getattr(antiga, campo)) != novos[campo]]
+        if antiga.parecer_final != correcao.parecer_final:
+            mudancas.append(f"Parecer final: {_texto(antiga.parecer_final)} → "
+                            f"{correcao.parecer_final}")
+        for registrado, medido, avaliacao in avaliacoes:
+            partes = [f"{nome} {_texto(antes)} → {_texto(depois)}" for nome, antes, depois in (
+                ("valor", registrado.valor, medido.valor),
+                ("U", registrado.incerteza, medido.incerteza),
+                ("padrão", registrado.valor_padrao, medido.valor_padrao),
+                ("medido", registrado.valor_medido, medido.valor_medido),
+                ("resultado", registrado.resultado, avaliacao.resultado),
+                ("observação", _limpo(registrado.observacao), _limpo(medido.observacao)),
+            ) if antes != depois]
+            if partes:
+                mudancas.append(f"Ponto {registrado.ordem} ({registrado.descricao}): "
+                                + "; ".join(partes))
+        if geral != antiga.resultado:
+            mudancas.append(f"Resultado: {antiga.resultado} → {geral}")
+        if not mudancas:
+            raise ErroDeValidacao(["Nada foi alterado."])
+
+        mudou_parecer = antiga.parecer_final != correcao.parecer_final
+        outras = [m for m in self.historico_condicao(antiga.instrumento_id)
+                  if m.calibracao_id != calibracao_id]
+        if mudou_parecer:
+            depois = [m for m in outras if m.data and m.data > antiga.data_calibracao]
+            if depois:
+                raise ErroDeValidacao([
+                    "A condição do instrumento mudou depois desta calibração "
+                    f"({depois[-1].data:%d/%m/%Y}): o parecer final não pode mais ser mudado."])
+        anteriores = [m for m in outras if m.data is None or m.data <= antiga.data_calibracao]
+        condicao_antes = anteriores[-1].condicao if anteriores else Condicao.EM_USO
+        with self._conexao:
+            self._conexao.execute(
+                """UPDATE calibracoes SET resultado = ?, parecer_final = ?, motivo_parecer = ?,
+                       laboratorio = ?, certificado = ?, responsavel = ?, custo_calibracao = ?,
+                       observacoes = ? WHERE id = ?""",
+                (str(geral), str(correcao.parecer_final), novos["motivo_parecer"],
+                 novos["laboratorio"], novos["certificado"], novos["responsavel"],
+                 novos["custo"], novos["observacoes"], calibracao_id),
+            )
+            for registrado, medido, avaliacao in avaliacoes:
+                self._conexao.execute(
+                    """UPDATE pontos_calibracao SET valor = ?, incerteza = ?, valor_padrao = ?,
+                           valor_medido = ?, resultado = ?, observacao = ? WHERE id = ?""",
+                    (medido.valor, medido.incerteza, medido.valor_padrao, medido.valor_medido,
+                     str(avaliacao.resultado), _limpo(medido.observacao), registrado.id),
+                )
+            if mudou_parecer:
+                self._conexao.execute("DELETE FROM condicoes WHERE calibracao_id = ?",
+                                      (calibracao_id,))
+                nova_condicao = CONDICAO_DO_PARECER[correcao.parecer_final]
+                if nova_condicao != condicao_antes:
+                    self._inserir_condicao(antiga.instrumento_id, nova_condicao,
+                                           antiga.data_calibracao, novos["motivo_parecer"],
+                                           calibracao_id)
+            else:
+                self._conexao.execute("UPDATE condicoes SET motivo = ? WHERE calibracao_id = ?",
+                                      (novos["motivo_parecer"], calibracao_id))
+            self._conexao.execute(
+                "INSERT INTO correcoes_calibracao (calibracao_id, quando, usuario, mudancas) "
+                "VALUES (?, ?, ?, ?)",
+                (calibracao_id, agora.isoformat(timespec="seconds"), usuario,
+                 "\n".join(mudancas)),
+            )
+        return mudancas
+
+    def listar_correcoes(self, calibracao_id: int) -> list[RegistroCorrecao]:
+        """Correções feitas nesta calibração, da mais antiga para a mais recente."""
+        linhas = self._conexao.execute(
+            "SELECT * FROM correcoes_calibracao WHERE calibracao_id = ? ORDER BY quando, id",
+            (calibracao_id,),
+        )
+        return [RegistroCorrecao(datetime.datetime.fromisoformat(linha["quando"]),
+                                 linha["usuario"], linha["mudancas"].split("\n"))
+                for linha in linhas]
 
     def tendencia(self, instrumento_id: int) -> list[SerieTendencia]:
         """Pontos numéricos medidos nas calibrações fora da Lixeira, um grupo por ponto do plano.

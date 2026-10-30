@@ -1,4 +1,4 @@
-"""Estrutura do banco: criação do zero e atualização de bancos antigos (versões 1 e 2)."""
+"""Estrutura do banco: criação do zero e atualização de bancos antigos (versões 1 a 4)."""
 
 import pytest
 
@@ -8,9 +8,10 @@ from calibracao.dados.esquema import TABELAS, VERSAO_ESQUEMA, conectar, criar_ta
 def test_banco_novo_na_versao_atual(tmp_path):
     conexao = conectar(tmp_path / "novo.db")
     criar_tabelas(conexao)
-    assert versao(conexao) == VERSAO_ESQUEMA == 4
+    assert versao(conexao) == VERSAO_ESQUEMA == 5
     tabelas = {linha[0] for linha in conexao.execute("SELECT name FROM sqlite_master")}
-    assert {"calibracoes", "pontos_calibracao", "condicoes", "trava_edicao"} <= tabelas
+    assert {"calibracoes", "pontos_calibracao", "condicoes", "trava_edicao",
+            "correcoes_calibracao"} <= tabelas
     assert "desativacoes" not in tabelas
 
 
@@ -30,7 +31,7 @@ def test_atualiza_banco_da_versao_1_sem_perder_dados(tmp_path):
     criar_tabelas(conexao)
     criar_tabelas(conexao)  # rodar de novo não estraga nada
 
-    assert versao(conexao) == 4
+    assert versao(conexao) == 5
     linha = conexao.execute("SELECT codigo, exige_calibracao FROM instrumentos").fetchone()
     assert tuple(linha) == ("PAQ-999", 1)  # todos continuam exigindo calibração
 

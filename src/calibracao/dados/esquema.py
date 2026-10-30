@@ -13,7 +13,7 @@ Versão 4: trava de edição para uso em rede (uma linha só: quem está editand
 import sqlite3
 from pathlib import Path
 
-VERSAO_ESQUEMA = 4
+VERSAO_ESQUEMA = 5
 
 TABELAS = """
 CREATE TABLE IF NOT EXISTS metadados (
@@ -160,6 +160,19 @@ CREATE TABLE IF NOT EXISTS trava_edicao (
 );
 """
 
+# Versão 5. Cada correção de uma calibração já salva: quando, quem (usuário do Windows) e o que
+# mudou, uma linha "antes → depois" por campo (pedido do usuário em 2026-10-30).
+TABELAS_V5 = """
+CREATE TABLE IF NOT EXISTS correcoes_calibracao (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    calibracao_id INTEGER NOT NULL REFERENCES calibracoes(id) ON DELETE CASCADE,
+    quando TEXT NOT NULL,
+    usuario TEXT NOT NULL,
+    mudancas TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_correcoes_calibracao ON correcoes_calibracao(calibracao_id);
+"""
+
 # Colunas acrescentadas na versão 3: (tabela, coluna, tipo).
 COLUNAS_V3 = [
     ("instrumentos", "custo_compra", "REAL"),
@@ -211,6 +224,7 @@ def criar_tabelas(conexao: sqlite3.Connection) -> None:
     for coluna in ("pedido_usuario", "pedido_computador", "pedido_em"):
         if coluna not in _colunas(conexao, "trava_edicao"):
             conexao.execute(f"ALTER TABLE trava_edicao ADD COLUMN {coluna} TEXT")
+    conexao.executescript(TABELAS_V5)
     conexao.execute(
         "INSERT OR REPLACE INTO metadados (chave, valor) VALUES ('versao_esquema', ?)",
         (str(VERSAO_ESQUEMA),),
