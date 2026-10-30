@@ -7,6 +7,7 @@ import platform
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -68,6 +69,14 @@ def main() -> int:
     janela = JanelaPrincipal(repositorio, pasta, identidade=(getpass.getuser(), platform.node()),
                              copia_de=oficial)
     janela.showMaximized()
+    # Conferência do .exe gerado: com CALIBRACAO_FOTO=<arquivo.png>, abre, tira a foto da janela
+    # e fecha sozinho (ver empacotamento/gerar_exe.py).
+    foto = os.environ.get("CALIBRACAO_FOTO")
+    if foto:
+        def fotografar_e_sair() -> None:
+            janela.grab().save(foto)
+            janela.close()
+        QTimer.singleShot(3000, fotografar_e_sair)
     try:
         return app.exec()
     finally:

@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QInputDialog,
     QLabel,
     QMainWindow,
@@ -95,6 +96,11 @@ LISTAS_DOS_PAINEIS = {
     "mes": (Situacao.PENDENTE_MES, Situacao.FEITA_MES),
     "proximo_mes": (Situacao.PROXIMO_MES,),
 }
+
+
+def _localizacao_inteira(tabela) -> None:
+    """Localização (3ª coluna) na largura do texto: "Orientação indicativa" não pode ser cortada."""
+    tabela.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
 
 
 def celula_motivo(motivo: str | None):
@@ -514,6 +520,7 @@ class JanelaPrincipal(QMainWindow):
         tabela = self.tabela_cronograma
         tabela.setColumnCount(len(COLUNAS_MES))
         tabela.setHorizontalHeaderLabels(COLUNAS_MES)
+        _localizacao_inteira(tabela)
         tabela.setRowCount(len(linhas))
         # (instrumento, é vencida em aberto?) de cada linha, para o botão do motivo do atraso
         self._linhas_cronograma = [
@@ -546,6 +553,7 @@ class JanelaPrincipal(QMainWindow):
         tabela = self.tabela_cronograma
         tabela.setColumnCount(len(COLUNAS_HOJE))
         tabela.setHorizontalHeaderLabels(COLUNAS_HOJE)
+        _localizacao_inteira(tabela)
         tabela.setRowCount(len(linhas))
         self._linhas_cronograma = [(linha.instrumento, linha.situacao == Situacao.VENCIDA)
                                    for linha in linhas]

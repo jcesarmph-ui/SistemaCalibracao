@@ -106,7 +106,13 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
 
 ## Onde paramos (2026-10-30)
 - Fases 0–5 juntadas ao `main` (PRs #1–#11). Versão **`0.5.0`** (fase 5 fechada em 2026-10-30,
-  ADR 0003 = lugar oficial do banco). **Próximo: fase 6** (`.exe` + entrega `1.0.0`).
+  ADR 0003 = lugar oficial do banco). **Fase 6 em andamento** (branch `fase-6-exe`):
+  `.exe` gerado por `empacotamento/gerar_exe.py` (PyInstaller, **um arquivo só**, sem console,
+  ícone `dados/icone_mg.ico`, sem o importador/openpyxl; ~85 MB; ~2 min para gerar) em `dist/`
+  ("Calibração de Instrumentos.exe"). Testado numa pasta temporária igual à da rede: abre em
+  ~4,7 s neste PC. **Modo foto** para conferir o `.exe`: variável `CALIBRACAO_FOTO=<png>` (abre,
+  fotografa e fecha). Faltam: banco de entrega montado da planilha (sem calibrações, sem
+  `pasta_oficial`), teste em 2 PCs na rede (usuário), versão `1.0.0` + tag.
 - **Fase 5 (melhorias):** PR #6 **juntado** em 2026-10-30, aprovado por foto (botão **"Novo
   plano…"** na ficha, **"Enviar plano para a Lixeira…"** no painel do plano — plano na Lixeira
   continua aparecendo como "(na Lixeira)" —, **pesquisa por texto na Lixeira**).
