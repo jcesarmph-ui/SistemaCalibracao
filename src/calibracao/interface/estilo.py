@@ -7,6 +7,7 @@ amarelo em avisos; verde no que está certo.
 import html
 import re
 
+from calibracao.interface.marca_check import caminho_do_check
 from calibracao.regras.avaliacao import Resultado
 from calibracao.regras.condicao import Condicao, ParecerFinal
 from calibracao.regras.cronograma import Situacao, SituacaoNoMes
@@ -50,10 +51,9 @@ QHeaderView::section {{ background: {campo}; color: {titulo}; font-weight: bold;
 QTableCornerButton::section {{ background: {campo}; border: none; }}
 QTableView::indicator {{ width: 18px; height: 18px; border: 1px solid {borda}; border-radius: 3px;
                          background: {campo}; }}
-QTableView::indicator:checked {{ background: {borda}; }}
 QCheckBox::indicator {{ width: 18px; height: 18px; border: 1px solid {borda}; border-radius: 3px;
                        background: {campo}; }}
-QCheckBox::indicator:checked {{ background: {borda}; }}
+QTableView::indicator:checked, QCheckBox::indicator:checked {{ image: url({check}); }}
 QCheckBox::indicator:disabled {{ border: 1px solid {campo_borda}; }}
 QScrollBar:vertical {{ background: {caixa}; width: 14px; }}
 QScrollBar::handle:vertical {{ background: {campo_borda}; border-radius: 6px; min-height: 30px; }}
@@ -124,7 +124,8 @@ CORES_CONDICAO = {
 
 
 def estilo() -> str:
-    return ESTILO.format(**CORES)
+    # Caixinha marcada = contorno branco com ✓ dentro (pedido de 2026-11-03).
+    return ESTILO.format(**CORES, check=caminho_do_check())
 
 
 # Palavras que ganham a cor de etiqueta onde aparecerem nas tabelas.
