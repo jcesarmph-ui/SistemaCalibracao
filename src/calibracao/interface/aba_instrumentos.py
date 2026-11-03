@@ -382,6 +382,7 @@ class AbaInstrumentos(QWidget):
                 campo.setText(numero_em_texto(valor))
             else:
                 campo.setText("" if valor is None else str(valor))
+            campo.setCursorPosition(0)  # texto longo mostra o começo, não o fim
         if dados.plano_id is not None and self.plano.findData(dados.plano_id) < 0:
             # plano na Lixeira: continua aparecendo, para não sumir sem ninguém perceber
             nome = self.repo.obter_plano(dados.plano_id).nome
@@ -440,6 +441,7 @@ class AbaInstrumentos(QWidget):
     def _reserva_clicada(self, marcada: bool) -> None:
         campo = self.campos["localizacao"]
         campo.setText(com_reserva(campo.text(), marcada) or "")
+        campo.setCursorPosition(0)
 
     def _localizacao_mudou(self, texto: str) -> None:
         self.reserva.setChecked(eh_reserva(texto))
