@@ -412,6 +412,21 @@ class Repositorio:
                 "INSERT OR REPLACE INTO metadados (chave, valor) VALUES ('pasta_oficial', ?)",
                 (caminho,))
 
+    # ---------------------------------------------------------------- banco de teste
+
+    def banco_de_teste(self) -> bool:
+        """True se este banco é o do programa de TESTE (pedido de 2026-11-03): lá o usuário mexe
+        em tudo para achar melhorias; a marca fica no próprio banco, então o mesmo programa mostra
+        "TESTE" sozinho. O banco da entrega nunca tem essa marca."""
+        linha = self._conexao.execute(
+            "SELECT valor FROM metadados WHERE chave = 'banco_de_teste'").fetchone()
+        return linha is not None and linha[0] == "sim"
+
+    def marcar_banco_de_teste(self) -> None:
+        with self._conexao:
+            self._conexao.execute(
+                "INSERT OR REPLACE INTO metadados (chave, valor) VALUES ('banco_de_teste', 'sim')")
+
     def __enter__(self) -> "Repositorio":
         return self
 

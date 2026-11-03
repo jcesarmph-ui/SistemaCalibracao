@@ -125,8 +125,10 @@ class JanelaPrincipal(QMainWindow):
         self._pode_editar = True
         self._linhas_cronograma: list = []
 
+        self.de_teste = repositorio.banco_de_teste()
         self.titulo_janela = (
-            f"Calibração de Instrumentos — MG Centro de Serviços — versão {__version__}")
+            f"Calibração de Instrumentos — MG Centro de Serviços — versão {__version__}"
+            + (" — TESTE" if self.de_teste else ""))
         self.setWindowTitle(self.titulo_janela)
         self.setStyleSheet(estilo())
         instalar_filtro_roda()  # a roda do mouse só rola, nunca muda nada
@@ -143,6 +145,14 @@ class JanelaPrincipal(QMainWindow):
 
         tela = QVBoxLayout()
         tela.addLayout(self._cabecalho())
+        # Programa de TESTE: faixa amarela fina, para nunca confundir com o oficial.
+        self.faixa_teste = QLabel(
+            "VERSÃO DE TESTE — os dados daqui não valem: pode incluir, mudar e excluir à vontade",
+            objectName="faixa_teste", alignment=Qt.AlignCenter)
+        self.faixa_teste.setStyleSheet(f"background: {CORES['aviso']}; color: #000000; "
+                                       "padding: 4px; font-weight: bold;")
+        self.faixa_teste.setVisible(self.de_teste)
+        tela.addWidget(self.faixa_teste)
         self.aviso_copia = RotuloClicavel(objectName="aviso_copia", wordWrap=True)
         self.aviso_copia.setStyleSheet(f"background: {CORES['aviso']}; color: #000000; "
                                        "padding: 6px; font-weight: bold;")
@@ -209,7 +219,8 @@ class JanelaPrincipal(QMainWindow):
             logo = QLabel("MG Centro de Serviços")
         grade = QGridLayout()
         grade.addWidget(logo, 0, 0, Qt.AlignLeft)
-        grade.addWidget(QLabel(TITULO, objectName="titulo"), 0, 1)
+        titulo = f"{TITULO} — TESTE" if self.de_teste else TITULO
+        grade.addWidget(QLabel(titulo, objectName="titulo"), 0, 1)
         grade.addWidget(QLabel(f"versão {__version__}", objectName="dica"), 0, 2,
                         Qt.AlignRight | Qt.AlignBottom)
         # "Modo edição" ou "Modo consulta - usuário - PC": pequeno, branco, discreto.

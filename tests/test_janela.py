@@ -325,3 +325,27 @@ def test_roda_do_mouse_nao_muda_opcao_data_nem_aba(janela):
     data = registrar.data.date()
     rodar_a_roda(registrar.data)
     assert registrar.data.date() == data
+
+
+def test_programa_oficial_nao_mostra_teste(janela):
+    assert not janela.repo.banco_de_teste()
+    assert janela.faixa_teste.isHidden()
+    assert "TESTE" not in janela.windowTitle()
+
+
+def test_banco_de_teste_mostra_titulo_e_faixa(app, tmp_path):
+    """Programa de TESTE (pedido de 2026-11-03): a marca vem do banco."""
+    repo = Repositorio.abrir(tmp_path / "calibracao.db", HOJE)
+    repo.marcar_banco_de_teste()
+    assert repo.banco_de_teste()
+    tela = JanelaPrincipal(repo, tmp_path, HOJE)
+    try:
+        assert not tela.faixa_teste.isHidden()
+        assert "VERSÃO DE TESTE" in tela.faixa_teste.text()
+        assert tela.windowTitle().endswith("— TESTE")
+        titulos = [r.text() for r in tela.findChildren(type(tela.faixa_teste))
+                   if r.objectName() == "titulo"]
+        assert titulos == ["CALIBRAÇÃO DE INSTRUMENTOS — TESTE"]
+    finally:
+        tela.close()
+        repo.fechar()
