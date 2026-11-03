@@ -48,7 +48,7 @@ QTabBar::tab:selected {{ background: {caixa}; border: 1px solid {borda}; border-
                          font-weight: bold; color: {titulo}; }}
 QTableWidget {{ background: {caixa}; gridline-color: {campo_borda}; border: none;
                 selection-background-color: {selecao}; selection-color: #ffffff; }}
-QTableView::item:hover {{ background: {mouse_tabela}; }}
+QTableView[clicavel="true"]::item:hover {{ background: {mouse_tabela}; }}
 QTableView::item:selected, QTableView::item:selected:!active {{
     background: {selecao}; color: #ffffff;
     border-top: 2px solid #ffffff; border-bottom: 2px solid #ffffff; }}

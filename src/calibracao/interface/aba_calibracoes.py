@@ -621,6 +621,7 @@ class PainelCalibracoes(QWidget):
 
         self.titulo = QLabel(objectName="dica")
         self.tabela = tabela_somente_leitura(self.COLUNAS)
+        self.tabela.setProperty("clicavel", True)  # clicar na linha abre a calibração
         self.tabela.setSelectionMode(QAbstractItemView.SingleSelection)
         self.tabela.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.tabela.horizontalHeader().setStretchLastSection(True)

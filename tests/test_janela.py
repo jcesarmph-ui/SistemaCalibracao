@@ -465,12 +465,33 @@ def test_aba_calibrar_tem_nova_calibracao(janela):
         "Plano de calibração", "Histórico de condição"]
 
 
-def test_codigo_da_lista_tem_cara_de_botao(janela):
-    """Item 9 do teste (2026-11-03): código azul sublinhado, com dica de clique."""
-    item = janela.aba_instrumentos.tabela.item(0, 0)
-    assert item.foreground().color().name() == "#64b5f6"
-    assert item.font().underline()
+def test_so_o_codigo_da_lista_e_clicavel(janela):
+    """Pedido de 2026-11-03: o código é como um botão; as outras colunas não respondem."""
+    from PySide6.QtCore import QEvent, QPointF
+    from PySide6.QtGui import QMouseEvent
+
+    aba = janela.aba_instrumentos
+    tabela = aba.tabela
+    item = tabela.item(0, 0)
+    assert not item.font().underline()
     assert "Clique para abrir" in item.toolTip()
+
+    def clicar(coluna):
+        retangulo = tabela.visualItemRect(tabela.item(0, coluna))
+        ponto = QPointF(retangulo.center())
+        for tipo in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease):
+            evento = QMouseEvent(tipo, ponto, ponto, Qt.LeftButton, Qt.LeftButton,
+                                 Qt.NoModifier)
+            QApplication.sendEvent(tabela.viewport(), evento)
+
+    clicar(1)  # Localização: nada acontece
+    assert aba.atual is None
+    clicar(0)  # Código: abre o instrumento
+    assert aba.atual is not None and aba.atual.codigo == item.text()
+    aba.lista._mouse_sobre(tabela.model().index(1, 0))  # mouse sobre o código: clareia
+    assert tabela.item(1, 0).background().color().name() == "#2e2e2e"
+    aba.lista._mouse_sobre(tabela.model().index(1, 2))  # sobre outra coluna: apaga
+    assert tabela.item(1, 0).background().style() == Qt.NoBrush
 
 
 def test_ver_plano_e_editar_plano_em_janelas(janela, plano_da_trena):

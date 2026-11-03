@@ -1,10 +1,12 @@
 """Lista de instrumentos com filtros e busca — a mesma nas abas Instrumentos e Calibrar.
 
-Escolher uma linha avisa a aba (`escolhido`), que mostra os dados daquele instrumento.
+Só o código é clicável (pedido do usuário em 2026-11-03): ele funciona como um botão — clareia
+com o mouse por cima e, clicado, avisa a aba (`escolhido`), que mostra os dados do instrumento.
+As outras colunas só mostram: não clareiam e não respondem ao clique.
 """
 
-from PySide6.QtCore import QModelIndex, Qt, Signal
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtCore import QEvent, QModelIndex, Qt, Signal
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -19,7 +21,7 @@ from PySide6.QtWidgets import (
 
 from calibracao.dados.repositorio import Instrumento, MudancaCondicao
 from calibracao.interface.componentes import aplicar_destaques, celula, formatar_data
-from calibracao.interface.estilo import CORES_CONDICAO, CORES_SITUACAO
+from calibracao.interface.estilo import CORES, CORES_CONDICAO, CORES_SITUACAO
 from calibracao.regras.condicao import Condicao
 from calibracao.regras.localizacao import eh_indicativa, local_do_filtro
 
@@ -36,7 +38,6 @@ FILTROS_CONDICAO = {
 SO_INDICATIVA = "Orientação indicativa"
 TODOS_OS_TIPOS = "Todos os tipos"
 TODAS_AS_LOCALIZACOES = "Todas as localizações"
-COR_LINK = "#64b5f6"  # azul claro dos links (padrão do usuário)
 DICA_CODIGO = "Clique para abrir os dados deste instrumento."
 
 
@@ -72,9 +73,11 @@ class ListaInstrumentos(QGroupBox):
         cabecalho.setSectionResizeMode(QHeaderView.ResizeToContents)
         cabecalho.setSectionResizeMode(1, QHeaderView.Stretch)  # quem se ajusta é a localização
         self.tabela.itemSelectionChanged.connect(self._selecionou)
-        # O código tem cara de botão (pedido de 2026-11-03): azul sublinhado e mãozinha.
+        # Só o código é clicável: clareia com o mouse (como um botão) e tem a mãozinha.
         self.tabela.setMouseTracking(True)
         self.tabela.entered.connect(self._mouse_sobre)
+        self.tabela.viewport().installEventFilter(self)
+        self._clareado = None  # célula de código que está clareada pelo mouse
         self.contagem = QLabel(objectName="dica")
 
         filtros = QHBoxLayout()
@@ -126,6 +129,7 @@ class ListaInstrumentos(QGroupBox):
         ]
 
     def preencher(self) -> None:
+        self._clareado = None
         visiveis = self.visiveis()
         self.tabela.blockSignals(True)
         self.tabela.setRowCount(len(visiveis))
@@ -143,10 +147,6 @@ class ListaInstrumentos(QGroupBox):
                      celula(formatar_data(condicao.data)), item_situacao]
             itens[0].setData(Qt.UserRole, instrumento.id)
             itens[0].setToolTip(f"{instrumento.tipo} — {DICA_CODIGO}")
-            itens[0].setForeground(QColor(COR_LINK))
-            fonte = QFont(itens[0].font())
-            fonte.setUnderline(True)
-            itens[0].setFont(fonte)
             for coluna, item in enumerate(itens):
                 self.tabela.setItem(linha, coluna, item)
             if instrumento.id == self.atual_id:
@@ -156,9 +156,35 @@ class ListaInstrumentos(QGroupBox):
         self.contagem.setText(f"{len(visiveis)} de {len(self.instrumentos)} instrumento(s)")
 
     def _mouse_sobre(self, indice: QModelIndex) -> None:
-        """Mãozinha sobre o código (é por ele que se abre o instrumento)."""
-        cursor = Qt.PointingHandCursor if indice.column() == 0 else Qt.ArrowCursor
-        self.tabela.viewport().setCursor(cursor)
+        """Sobre o código: clareia e mostra a mãozinha (é por ele que se abre o instrumento)."""
+        self._apagar_clareado()
+        if indice.column() == 0:
+            item = self.tabela.item(indice.row(), 0)
+            item.setBackground(QColor(CORES["mouse"]))
+            self._clareado = item
+            self.tabela.viewport().setCursor(Qt.PointingHandCursor)
+        else:
+            self.tabela.viewport().setCursor(Qt.ArrowCursor)
+
+    def _apagar_clareado(self) -> None:
+        if self._clareado is not None:
+            try:
+                self._clareado.setBackground(QBrush())
+            except RuntimeError:  # a lista foi refeita e a célula já não existe
+                pass
+            self._clareado = None
+
+    def eventFilter(self, objeto, evento) -> bool:  # noqa: N802 — nome exigido pelo Qt
+        """Clique fora do código não faz nada; o mouse saindo da lista apaga o clareado."""
+        tipo = evento.type()
+        if tipo == QEvent.Leave:
+            self._apagar_clareado()
+        elif tipo in (QEvent.MouseButtonPress, QEvent.MouseButtonDblClick,
+                      QEvent.MouseButtonRelease):
+            indice = self.tabela.indexAt(evento.position().toPoint())
+            if indice.isValid() and indice.column() != 0:
+                return True
+        return super().eventFilter(objeto, evento)
 
     def marcar(self, instrumento_id: int | None) -> None:
         """Guarda qual está aberto (a linha continua selecionada ao recarregar)."""
