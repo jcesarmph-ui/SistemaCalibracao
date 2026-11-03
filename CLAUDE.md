@@ -109,15 +109,14 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
 
 ## ▶ PRÓXIMA SESSÃO — lembrar o usuário logo no início (atualizado em 2026-11-03)
 1. **Escrever SÓ em português** (o usuário ficou bravo com frases em inglês em 2026-11-03).
-2. **Correções do teste em andamento:** lista em `docs/correcoes_do_teste.md` (itens marcados
-   `[x]` = feitos). **Faltam os itens 6, 7 e 8** (trava: botão de pedir edição no canto; sinal
-   verde/vermelho para quem pediu; no modo consulta atualizar a cada 10 s + botão "Atualizar" —
-   só aparece quando outro PC está editando). Depois: gerar o pacote de teste
-   (`empacotamento/gerar_exe.py` + `empacotamento/montar_teste.py`), pois o item 4 (Shift + roda)
-   ainda não foi para o pacote.
-3. Branch atual `fase-6-caixa-reserva` (PR #13, base `fase-6-exe`, não juntado). Banco da entrega
-   remontado da DQ05 em 2026-11-03 (esquema v9). Pendente do usuário: testar em 2 PCs na rede
-   (`dist/TESTE - Calibração`, copiar sem abrir antes).
+2. **Correções do teste: todos os itens 1–16 feitos** (`docs/correcoes_do_teste.md`). Itens 6–8
+   (2026-11-03): botões "Pedir edição" e "Atualizar" no canto (só no modo consulta), resposta em
+   verde/vermelho, consulta relê a cada 10 s. Pacote de teste **gerado de novo em 2026-11-03**
+   (`dist/TESTE - Calibração`, já com Shift + roda e itens 6–8). Pendente do usuário: testar em
+   2 PCs na rede (copiar sem abrir antes) e trazer novas correções.
+3. Branches: `fase-6-trava-botoes` (PR #14, base `fase-6-caixa-reserva`) sobre
+   `fase-6-caixa-reserva` (PR #13, base `fase-6-exe`); nenhum juntado. Banco da entrega remontado
+   da DQ05 em 2026-11-03 (esquema v9).
 4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,
    com opções numeradas ("responda 1 ou 2").
 
