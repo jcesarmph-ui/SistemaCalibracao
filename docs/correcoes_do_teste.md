@@ -16,7 +16,7 @@ e aprovada antes de seguir. Marcar `[x]` quando aprovado.
       calibração", "Gráfico de tendência" e "Restaurar").
 - [x] 2. (botões, abas, filtros, caixinhas, células, painéis do topo e o texto do canto clareiam; desligado não muda) **Passar o mouse sobre o que é clicável**: aumentar o brilho ou mudar a opacidade (não
       só contorno, para não poluir). O que não é clicável não muda.
-- [ ] 3. **Aviso de "Salvo" / "Mudança feita"** toda vez que salvar ou aplicar uma mudança.
+- [x] 3. ("✔ Salvo" verde na linha das abas, 3,5 s, em toda gravação; a tela passou a se atualizar em 0,16 s em vez de 3,3 s) **Aviso de "Salvo" / "Mudança feita"** toda vez que salvar ou aplicar uma mudança.
 - [ ] 4. **Scroll horizontal com Shift + roda do mouse** onde ele for necessário.
 - [x] 5. **Caixinhas (Reserva, Orientação indicativa, Precisa de calibração) invisíveis** no fundo
       preto: precisam de contorno branco.

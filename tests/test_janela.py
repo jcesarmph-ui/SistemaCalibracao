@@ -543,3 +543,20 @@ def test_maozinha_no_que_e_clicavel(janela):
     QApplication.processEvents()
     assert edicao.findChild(QCheckBox).cursor().shape() == Qt.PointingHandCursor
     edicao.reject()
+
+
+def test_aviso_salvo_a_cada_gravacao(janela):
+    """Item 3 do teste (2026-11-03): "✔ Salvo" aparece ao gravar e some sozinho."""
+    assert janela.aviso_salvo.isHidden()
+    aba = janela.aba_instrumentos
+    escolher(aba, "TRE-901")
+    edicao = aba.criar_janela_edicao(aba.atual)
+    edicao.campos["faixa"].setText("0-5 m")
+    edicao.salvar_instrumento()
+    assert not janela.aviso_salvo.isHidden()
+    assert janela.aviso_salvo.text() == "✔ Salvo"
+    QApplication.processEvents()  # a tela terminou de se atualizar: começa a contar
+    assert janela.relogio_salvo.isActive()
+    janela.relogio_salvo.timeout.emit()  # passou o tempo
+    assert janela.aviso_salvo.isHidden()
+

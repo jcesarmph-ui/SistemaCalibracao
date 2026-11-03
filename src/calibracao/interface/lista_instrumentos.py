@@ -20,7 +20,12 @@ from PySide6.QtWidgets import (
 )
 
 from calibracao.dados.repositorio import Instrumento, MudancaCondicao
-from calibracao.interface.componentes import aplicar_destaques, celula, formatar_data
+from calibracao.interface.componentes import (
+    aplicar_destaques,
+    celula,
+    formatar_data,
+    preenchendo,
+)
 from calibracao.interface.estilo import CORES, CORES_CONDICAO, CORES_SITUACAO
 from calibracao.regras.condicao import Condicao
 from calibracao.regras.localizacao import eh_indicativa, local_do_filtro
@@ -131,27 +136,28 @@ class ListaInstrumentos(QGroupBox):
     def preencher(self) -> None:
         self._clareado = None
         visiveis = self.visiveis()
-        self.tabela.blockSignals(True)
-        self.tabela.setRowCount(len(visiveis))
-        for linha, instrumento in enumerate(visiveis):
-            condicao = self.condicao(instrumento.id)
-            situacao = self.situacoes.get(instrumento.id)
-            if situacao:
-                item_situacao = celula(situacao.value, CORES_SITUACAO[situacao])
-            elif condicao.condicao == Condicao.DESATIVADO:
-                item_situacao = celula("Fora do cronograma")
-            else:
-                item_situacao = celula("Não precisa de calibração")
-            itens = [celula(instrumento.codigo), celula(instrumento.localizacao or "—"),
-                     celula(condicao.condicao.value, CORES_CONDICAO[condicao.condicao]),
-                     celula(formatar_data(condicao.data)), item_situacao]
-            itens[0].setData(Qt.UserRole, instrumento.id)
-            itens[0].setToolTip(f"{instrumento.tipo} — {DICA_CODIGO}")
-            for coluna, item in enumerate(itens):
-                self.tabela.setItem(linha, coluna, item)
-            if instrumento.id == self.atual_id:
-                self.tabela.selectRow(linha)
-        aplicar_destaques(self.tabela)
+        with preenchendo(self.tabela):  # rápido: ajusta as colunas uma vez só
+            self.tabela.blockSignals(True)
+            self.tabela.setRowCount(len(visiveis))
+            for linha, instrumento in enumerate(visiveis):
+                condicao = self.condicao(instrumento.id)
+                situacao = self.situacoes.get(instrumento.id)
+                if situacao:
+                    item_situacao = celula(situacao.value, CORES_SITUACAO[situacao])
+                elif condicao.condicao == Condicao.DESATIVADO:
+                    item_situacao = celula("Fora do cronograma")
+                else:
+                    item_situacao = celula("Não precisa de calibração")
+                itens = [celula(instrumento.codigo), celula(instrumento.localizacao or "—"),
+                         celula(condicao.condicao.value, CORES_CONDICAO[condicao.condicao]),
+                         celula(formatar_data(condicao.data)), item_situacao]
+                itens[0].setData(Qt.UserRole, instrumento.id)
+                itens[0].setToolTip(f"{instrumento.tipo} — {DICA_CODIGO}")
+                for coluna, item in enumerate(itens):
+                    self.tabela.setItem(linha, coluna, item)
+                if instrumento.id == self.atual_id:
+                    self.tabela.selectRow(linha)
+            aplicar_destaques(self.tabela)
         self.tabela.blockSignals(False)
         self.contagem.setText(f"{len(visiveis)} de {len(self.instrumentos)} instrumento(s)")
 

@@ -57,6 +57,7 @@ from calibracao.interface.componentes import (
     celula,
     formatar_data,
     instalar_filtro_roda,
+    preenchendo,
     tabela_somente_leitura,
 )
 from calibracao.interface.estilo import (
@@ -179,6 +180,17 @@ class JanelaPrincipal(QMainWindow):
         self.setCentralWidget(rolagem)
 
         self.atualizar()
+
+        # "✔ Salvo" por cima, no alto, a cada gravação que deu certo (item 3 do teste,
+        # 2026-11-03); some sozinho.
+        self.aviso_salvo = QLabel("✔ Salvo", self, objectName="aviso_salvo")
+        self.aviso_salvo.setStyleSheet(f"background: {CORES['dentro']}; color: #ffffff; "
+                                       "font-size: 16pt; font-weight: bold; padding: 8px 40px; "
+                                       f"border: 2px solid {CORES['certo']}; border-radius: 6px;")
+        self.aviso_salvo.hide()
+        self.relogio_salvo = QTimer(self, singleShot=True, interval=3500)
+        self.relogio_salvo.timeout.connect(self.aviso_salvo.hide)
+        self.repo.ao_gravar = self.mostrar_salvo
 
         # Trava de edição (só quando a janela sabe quem está usando: no programa de verdade).
         self.identidade = identidade
@@ -331,6 +343,19 @@ class JanelaPrincipal(QMainWindow):
         self.aba_lixeira.atualizar()
 
     # --- Trava de edição ---------------------------------------------------------------------
+
+    def mostrar_salvo(self) -> None:
+        self.aviso_salvo.adjustSize()
+        # Na linha das abas, à direita (espaço vazio: não cobre nada).
+        barra = self.abas.tabBar()
+        canto = barra.mapTo(self, barra.rect().topLeft())
+        self.aviso_salvo.move(self.width() - self.aviso_salvo.width() - 24,
+                              canto.y() + (barra.height() - self.aviso_salvo.height()) // 2)
+        self.aviso_salvo.show()
+        self.aviso_salvo.raise_()
+        self.relogio_salvo.stop()
+        # Conta os 3,5 s só depois que a tela terminar de se atualizar (a gravação vem antes).
+        QTimer.singleShot(0, self.relogio_salvo.start)
 
     @staticmethod
     def agora() -> datetime.datetime:
@@ -554,26 +579,27 @@ class JanelaPrincipal(QMainWindow):
         tabela.setColumnCount(len(COLUNAS_MES))
         tabela.setHorizontalHeaderLabels(COLUNAS_MES)
         _localizacao_inteira(tabela)
-        tabela.setRowCount(len(linhas))
-        # (instrumento, é vencida em aberto?) de cada linha, para o botão do motivo do atraso
-        self._linhas_cronograma = [
-            (linha.instrumento, linha.prevista.situacao == SituacaoNoMes.VENCIDA)
-            for linha in linhas]
-        for indice, linha in enumerate(linhas):
-            instrumento, prevista = linha.instrumento, linha.prevista
-            valores = [
-                celula(instrumento.codigo),
-                celula(instrumento.tipo),
-                celula(instrumento.localizacao or "—"),
-                celula(formatar_data(prevista.prevista)),
-                celula(prevista.situacao.value, CORES_SITUACAO_NO_MES[prevista.situacao]),
-                celula(formatar_data(prevista.realizada) if prevista.realizada else "—"),
-                celula(dinheiro(prevista.custo)),
-                celula_motivo(prevista.motivo_atraso),
-            ]
-            for coluna, item in enumerate(valores):
-                tabela.setItem(indice, coluna, item)
-        aplicar_destaques(tabela)
+        with preenchendo(tabela):  # rápido: ajusta as colunas uma vez só
+            tabela.setRowCount(len(linhas))
+            # (instrumento, é vencida em aberto?) de cada linha, para o botão do motivo do atraso
+            self._linhas_cronograma = [
+                (linha.instrumento, linha.prevista.situacao == SituacaoNoMes.VENCIDA)
+                for linha in linhas]
+            for indice, linha in enumerate(linhas):
+                instrumento, prevista = linha.instrumento, linha.prevista
+                valores = [
+                    celula(instrumento.codigo),
+                    celula(instrumento.tipo),
+                    celula(instrumento.localizacao or "—"),
+                    celula(formatar_data(prevista.prevista)),
+                    celula(prevista.situacao.value, CORES_SITUACAO_NO_MES[prevista.situacao]),
+                    celula(formatar_data(prevista.realizada) if prevista.realizada else "—"),
+                    celula(dinheiro(prevista.custo)),
+                    celula_motivo(prevista.motivo_atraso),
+                ]
+                for coluna, item in enumerate(valores):
+                    tabela.setItem(indice, coluna, item)
+            aplicar_destaques(tabela)
         feitas = sum(1 for linha in linhas if linha.prevista.situacao == SituacaoNoMes.FEITA)
         custo = sum(linha.prevista.custo or 0.0 for linha in linhas)
         self.contagem_cronograma.setText(
@@ -587,25 +613,26 @@ class JanelaPrincipal(QMainWindow):
         tabela.setColumnCount(len(COLUNAS_HOJE))
         tabela.setHorizontalHeaderLabels(COLUNAS_HOJE)
         _localizacao_inteira(tabela)
-        tabela.setRowCount(len(linhas))
-        self._linhas_cronograma = [(linha.instrumento, linha.situacao == Situacao.VENCIDA)
-                                   for linha in linhas]
-        for indice, linha in enumerate(linhas):
-            instrumento = linha.instrumento
-            parecer = linha.parecer_ultima
-            valores = [
-                celula(instrumento.codigo),
-                celula(instrumento.tipo),
-                celula(instrumento.localizacao or "—"),
-                celula(formatar_data(linha.ultima)),
-                celula(formatar_data(linha.proxima)),
-                celula(linha.situacao.value, CORES_SITUACAO[linha.situacao]),
-                celula(parecer.value, CORES_PARECER[parecer]) if parecer else celula("—"),
-                celula_motivo(linha.motivo_atraso),
-            ]
-            for coluna, item in enumerate(valores):
-                tabela.setItem(indice, coluna, item)
-        aplicar_destaques(tabela)
+        with preenchendo(tabela):  # rápido: ajusta as colunas uma vez só
+            tabela.setRowCount(len(linhas))
+            self._linhas_cronograma = [(linha.instrumento, linha.situacao == Situacao.VENCIDA)
+                                       for linha in linhas]
+            for indice, linha in enumerate(linhas):
+                instrumento = linha.instrumento
+                parecer = linha.parecer_ultima
+                valores = [
+                    celula(instrumento.codigo),
+                    celula(instrumento.tipo),
+                    celula(instrumento.localizacao or "—"),
+                    celula(formatar_data(linha.ultima)),
+                    celula(formatar_data(linha.proxima)),
+                    celula(linha.situacao.value, CORES_SITUACAO[linha.situacao]),
+                    celula(parecer.value, CORES_PARECER[parecer]) if parecer else celula("—"),
+                    celula_motivo(linha.motivo_atraso),
+                ]
+                for coluna, item in enumerate(valores):
+                    tabela.setItem(indice, coluna, item)
+            aplicar_destaques(tabela)
         self.contagem_cronograma.setText(f"{len(linhas)} instrumento(s)")
 
     # --- Motivo do atraso (vencidas) ----------------------------------------------------------

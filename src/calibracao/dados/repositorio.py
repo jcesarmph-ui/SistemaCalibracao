@@ -58,18 +58,26 @@ class ErroDeValidacao(Exception):
 
 
 def _escrita(metodo):
-    """Toda gravação: recusada no modo consulta; banco ocupado vira aviso na tela."""
+    """Toda gravação: recusada no modo consulta; banco ocupado vira aviso na tela. Quando dá
+    certo, avisa `ao_gravar` (a janela mostra "✔ Salvo" — pedido de 2026-11-03), uma vez só
+    mesmo que uma gravação chame outra."""
 
     @functools.wraps(metodo)
     def envolto(self, *args, **kwargs):
         if self.modo_consulta:
             raise ErroDeValidacao([MENSAGEM_CONSULTA])
+        self._gravacoes_abertas += 1
         try:
-            return metodo(self, *args, **kwargs)
+            resultado = metodo(self, *args, **kwargs)
         except sqlite3.OperationalError as erro:
             if "locked" in str(erro) or "busy" in str(erro):
                 raise ErroDeValidacao([MENSAGEM_OCUPADO]) from erro
             raise
+        finally:
+            self._gravacoes_abertas -= 1
+        if self._gravacoes_abertas == 0 and self.ao_gravar is not None:
+            self.ao_gravar()
+        return resultado
 
     return envolto
 
@@ -418,6 +426,8 @@ class Repositorio:
         self.token = uuid.uuid4().hex  # identifica esta janela aberta na trava de edição
         # Sem trava (testes, fotos), pode editar; a janela liga o modo consulta se precisar.
         self.modo_consulta = False
+        self.ao_gravar = None  # chamado depois de cada gravação que deu certo
+        self._gravacoes_abertas = 0
 
     @classmethod
     def abrir(cls, caminho: Path, hoje: datetime.date | None = None) -> "Repositorio":

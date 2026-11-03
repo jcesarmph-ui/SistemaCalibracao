@@ -1,5 +1,6 @@
 """Peças de tela usadas em mais de uma aba."""
 
+import contextlib
 import datetime
 
 from PySide6.QtCore import QEvent, QObject, QPoint, Qt, Signal
@@ -192,3 +193,20 @@ def altura_do_conteudo(tabela: QTableWidget, linhas_minimas: int = 3) -> None:
     if tabela.horizontalScrollBar().isVisible():
         altura += tabela.horizontalScrollBar().height()
     tabela.setMaximumHeight(altura)
+
+
+@contextlib.contextmanager
+def preenchendo(tabela: QTableWidget):
+    """Preencher muitas linhas de uma vez: a tabela não se redesenha nem recalcula a largura das
+    colunas a cada célula, só uma vez no fim (era o que deixava a tela lenta depois de salvar,
+    achado em 2026-11-03)."""
+    cabecalho = tabela.horizontalHeader()
+    modos = [cabecalho.sectionResizeMode(n) for n in range(tabela.columnCount())]
+    tabela.setUpdatesEnabled(False)
+    cabecalho.setSectionResizeMode(QHeaderView.Interactive)
+    try:
+        yield
+    finally:
+        for coluna, modo in enumerate(modos):
+            cabecalho.setSectionResizeMode(coluna, modo)
+        tabela.setUpdatesEnabled(True)

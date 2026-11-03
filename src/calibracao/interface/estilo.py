@@ -18,7 +18,7 @@ CORES = {
     "botao_mouse": "#e53935",
     # Passar o mouse no que é clicável clareia (pedido de 2026-11-03, item 2 do teste).
     "mouse": "#2e2e2e", "mouse_tabela": "#1e1e1e", "mouse_painel": "#161616",
-    "certo": "#43a047", "aviso": "#ffd54f", "erro": "#ef5350",
+    "certo": "#43a047", "aviso": "#ffd54f", "erro": "#ef5350", "dentro": "#1b5e20",
 }
 
 ESTILO = """
