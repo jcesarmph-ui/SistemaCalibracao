@@ -226,6 +226,15 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
 - **Caixa "Reserva"** (2026-11-03): põe/tira " - Reserva" na localização, qualquer local; digitar à
   mão também marca. Reserva + indicativa = "<local> - Reserva - Orientação indicativa"; **na tela**
   aparece "Reserva" (azul) + "**IND.**" (vermelho no amarelo), texto inteiro na dica do mouse.
+- **Incerteza (U) na importação** (2026-11-03, corrigido): vale a calibração mais recente com
+  algo onde vai a U; **sem data** de calibração, vale a da direita (as trenas tinham 0,2 sem data).
+  **"-" ou "N/A" = U não se aplica** (ponto avaliado só pelo valor; marca `incerteza_nao_aplica` no
+  plano e na "foto", esquema **v9**; sem a marca, U ausente segue "não avaliado"). **Na trena**,
+  "-"/"N/A" = passou a ser **orientação indicativa** (ganha a marca; numéricos ficam com a última U
+  em número). **Trena com orientação indicativa calibra só os pontos qualitativos** (os numéricos
+  nem aparecem; só trenas — `regras.condicao.so_qualitativos`). Banco da entrega remontado da DQ05
+  em 2026-11-03 (o anterior ficou em `dados/entrega_antes_incertezas_2026-11-03.db`). Tudo
+  continua editável depois pela tela de edição.
 - **Programa de TESTE** (2026-11-03): mesmo programa + cópia do banco da entrega marcada
   (`metadados.banco_de_teste`) → título "— TESTE" e faixa amarela. `empacotamento/montar_teste.py`
   monta `dist/TESTE - Calibração` ("TESTE - Calibração de Instrumentos.exe") e confere por SHA-256

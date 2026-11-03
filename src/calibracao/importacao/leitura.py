@@ -20,7 +20,7 @@ from calibracao.importacao.interpretacao import (
     normalizar,
     texto_exibido,
 )
-from calibracao.regras.localizacao import padronizar_localizacao
+from calibracao.regras.localizacao import com_marcas, padronizar_localizacao
 
 ABA_CRONOGRAMA = "Cronograma de Calibração"
 PRIMEIRA_LINHA_CRONOGRAMA = 8
@@ -52,6 +52,8 @@ class PontoLido:
     criterio: str | None = None  # texto da coluna "Tolerância" como aparece na planilha
     incerteza: float | None = None
     incerteza_data: datetime.date | None = None  # só para o relatório de conferência
+    incerteza_nao_aplica: bool = False  # "-" ou "N/A" onde vai a U
+    incerteza_numerica: float | None = None  # a última U em número (ignorando "-" e "N/A")
 
 
 @dataclass
@@ -127,20 +129,72 @@ def ler_cronograma(planilha) -> tuple[list[tuple[str, str | None, str | None]], 
     return ativos, excluidos
 
 
-def _incerteza_mais_recente(grade, linha: int) -> tuple[float | None, datetime.date | None]:
-    mais_recente = (None, None)
+# Escrito onde vai a incerteza quando ela não se aplica ao ponto (pedido do usuário em 2026-11-03).
+SEM_INCERTEZA = {"-", "–", "—", "N/A", "NA", "N.A."}
+
+
+def _incerteza_mais_recente(grade, linha: int
+                            ) -> tuple[float | None, datetime.date | None, bool]:
+    """(U, data, U não se aplica) da calibração mais recente que tem algo onde vai a U.
+
+    Vale a de data mais recente; se nenhuma calibração com U tiver data (achado nas trenas em
+    2026-11-03), vale a última da direita — os blocos são preenchidos da esquerda para a direita.
+    """
+    com_data, sem_data = [], []
     for bloco in range(MAXIMO_BLOCOS):
         coluna = COL_PRIMEIRO_BLOCO + bloco * LARGURA_BLOCO + DESLOCAMENTO_INCERTEZA
+        celula = grade.get((linha, coluna))
+        if celula is None or isinstance(celula.value, bool):
+            continue
+        if isinstance(celula.value, int | float):
+            achado = (float(celula.value), False)
+        elif str(celula.value).strip().upper() in SEM_INCERTEZA:
+            achado = (None, True)
+        else:
+            continue
         data = grade.get((LINHA_DATA_CALIBRACAO, coluna))
-        valor = grade.get((linha, coluna))
-        if data is None or not isinstance(data.value, datetime.datetime) or valor is None:
+        if data is not None and isinstance(data.value, datetime.datetime):
+            com_data.append((data.value.date(), bloco, achado))
+        else:
+            sem_data.append((None, bloco, achado))
+    if com_data:
+        dia, _, (valor, nao_aplica) = max(com_data, key=lambda x: (x[0], x[1]))
+        return valor, dia, nao_aplica
+    if sem_data:
+        _, _, (valor, nao_aplica) = sem_data[-1]
+        return valor, None, nao_aplica
+    return None, None, False
+
+
+def _ultima_numerica(grade, linha: int) -> float | None:
+    """A U em número mais recente (por data; sem data, a da direita), ignorando "-" e "N/A"."""
+    achados = []
+    for bloco in range(MAXIMO_BLOCOS):
+        coluna = COL_PRIMEIRO_BLOCO + bloco * LARGURA_BLOCO + DESLOCAMENTO_INCERTEZA
+        celula = grade.get((linha, coluna))
+        if celula is None or isinstance(celula.value, bool) or not isinstance(
+                celula.value, int | float):
             continue
-        if isinstance(valor.value, bool) or not isinstance(valor.value, int | float):
-            continue
-        dia = data.value.date()
-        if mais_recente[1] is None or dia >= mais_recente[1]:
-            mais_recente = (float(valor.value), dia)
-    return mais_recente
+        data = grade.get((LINHA_DATA_CALIBRACAO, coluna))
+        dia = data.value.date() if data is not None and isinstance(
+            data.value, datetime.datetime) else datetime.date.min
+        achados.append((dia, bloco, float(celula.value)))
+    return max(achados)[2] if achados else None
+
+
+def _ajustar_trena(instrumento: "InstrumentoLido") -> None:
+    """Na trena, "-" ou "N/A" onde ia a U quer dizer que ela passou a ser orientação indicativa
+    (explicado pelo usuário em 2026-11-03): ganha a marca na localização e cada ponto numérico
+    fica com a última U em número (para quando voltar ao uso normal)."""
+    if normalizar(instrumento.tipo) != "TRENA":
+        return
+    virou_indicativa = False
+    for ponto in instrumento.pontos:
+        if ponto.incerteza_nao_aplica:
+            virou_indicativa = True
+            ponto.incerteza, ponto.incerteza_nao_aplica = ponto.incerteza_numerica, False
+    if virou_indicativa:
+        instrumento.localizacao = com_marcas(instrumento.localizacao, indicativa=True)
 
 
 def ler_pontos(grade) -> list[PontoLido]:
@@ -192,7 +246,9 @@ def ler_pontos(grade) -> list[PontoLido]:
                 ponto.valor_nominal = (
                     float(celula_ponto.value) if numerico else nominal_do_texto(descricao)
                 )
-        ponto.incerteza, ponto.incerteza_data = _incerteza_mais_recente(grade, linha)
+        ponto.incerteza, ponto.incerteza_data, ponto.incerteza_nao_aplica = (
+            _incerteza_mais_recente(grade, linha))
+        ponto.incerteza_numerica = _ultima_numerica(grade, linha)
         pontos.append(ponto)
     return pontos
 
@@ -250,6 +306,7 @@ def ler_planilha(caminho: Path) -> ResultadoLeitura:
                     pontos=ler_pontos(grade),
                 )
             )
+            _ajustar_trena(instrumentos[-1])
         return ResultadoLeitura(instrumentos, excluidos, avisos)
     finally:
         planilha.close()

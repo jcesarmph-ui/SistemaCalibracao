@@ -41,14 +41,16 @@ def gravar_banco(
                             """INSERT INTO pontos_plano (
                                 plano_id, ordem, ordem_original, secao, tipo, descricao,
                                 valor_nominal, unidade, tolerancia_inferior, tolerancia_superior,
-                                valor_minimo, valor_maximo, classe_exigida, criterio, incerteza
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                valor_minimo, valor_maximo, classe_exigida, criterio, incerteza,
+                                incerteza_nao_aplica
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                             (
                                 plano_id, ordem, ponto.ordem_original, ponto.secao, ponto.tipo,
                                 ponto.descricao, ponto.valor_nominal, ponto.unidade,
                                 ponto.tolerancia_inferior, ponto.tolerancia_superior,
                                 ponto.valor_minimo, ponto.valor_maximo, ponto.classe_exigida,
                                 ponto.criterio, ponto.incerteza,
+                                int(ponto.incerteza_nao_aplica),
                             ),
                         )
                 conexao.execute(

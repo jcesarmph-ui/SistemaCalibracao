@@ -49,7 +49,7 @@ from calibracao.interface.componentes import (
 from calibracao.interface.estilo import CORES, CORES_PARECER, CORES_RESULTADO
 from calibracao.interface.painel_plano import numero, numero_em_texto
 from calibracao.regras.avaliacao import Resultado, resultado_geral
-from calibracao.regras.condicao import pareceres_permitidos
+from calibracao.regras.condicao import pareceres_permitidos, so_qualitativos
 from calibracao.regras.lixeira import Tipo
 
 DICA_U = ("Incerteza expandida de medição (U), do certificado: quanto o resultado pode variar "
@@ -129,7 +129,7 @@ class JanelaNovaCalibracao(QDialog):
         self.mudancas: list[str] = []
         self.pontos: list[PontoPlano] | list[PontoRegistrado] = (
             repositorio.pontos_da_calibracao(corrigir.id) if corrigir
-            else repositorio.listar_pontos(instrumento.plano_id))
+            else repositorio.pontos_para_calibrar(instrumento))
         acao = "Corrigir" if corrigir else "Registrar"
         self.setWindowTitle(f"{acao} calibração — {instrumento.codigo}")
         _maximizar(self)
@@ -140,6 +140,11 @@ class JanelaNovaCalibracao(QDialog):
         titulo = QLabel(texto, objectName="titulo", alignment=Qt.AlignCenter)
         coluna = QVBoxLayout(self)
         coluna.addWidget(titulo)
+        if not corrigir and so_qualitativos(instrumento.tipo, instrumento.localizacao):
+            coluna.addWidget(QLabel(
+                "Trena com orientação indicativa: só os pontos qualitativos entram na "
+                "calibração (os numéricos não são medidos).", objectName="dica",
+                alignment=Qt.AlignCenter))
         coluna.addWidget(self._caixa_dados())
         coluna.addWidget(self._caixa_pontos(), 1)
         coluna.addWidget(self._caixa_parecer())

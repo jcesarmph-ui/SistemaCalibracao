@@ -122,8 +122,10 @@ def test_pontos_do_paquimetro(planilha_ficticia):
     assert (zero.secao, zero.tipo, zero.valor_nominal) == ("Face Externa", "NUMERICO", 0)
     assert (zero.tolerancia_inferior, zero.tolerancia_superior) == (-0.05, 0.05)
     assert (zero.incerteza, zero.incerteza_data) == (0.02, datetime.date(2024, 1, 10))
-    # na calibração mais recente o ponto 150 ficou com "-": vale a última incerteza numérica
-    assert (pontos[1].incerteza, pontos[1].incerteza_data) == (0.01, datetime.date(2023, 1, 10))
+    # na calibração mais recente o ponto 150 ficou com "-": incerteza não se aplica (pedido de
+    # 2026-11-03); a última U em número fica guardada só para as trenas
+    assert (pontos[1].incerteza, pontos[1].incerteza_nao_aplica) == (None, True)
+    assert pontos[1].incerteza_numerica == 0.01
     assert (pontos[2].tipo, pontos[2].criterio) == ("CRITERIO", "Executa função")
     escala = pontos[3]
     assert (escala.tipo, escala.incerteza) == ("VERIFICACAO", None)
@@ -178,3 +180,34 @@ def test_comando_completo_mantem_planilha_intacta(planilha_ficticia, tmp_path, c
     abas = openpyxl.load_workbook(conferencia).sheetnames
     assert abas == ["Instrumentos", "Pontos", "Fora do programa", "Avisos"]
     assert main([str(planilha_ficticia), "--banco", str(banco)]) == 1  # já existe
+
+
+def test_trenas_u_sem_data_e_traco_vira_orientacao_indicativa(tmp_path):
+    """Achados de 2026-11-03: trenas com a U sem data de calibração; "-" na trena = passou a ser
+    orientação indicativa (fica com a última U em número)."""
+    planilha = openpyxl.Workbook()
+    cronograma = planilha.active
+    cronograma.title = "Cronograma de Calibração"
+    for numero, (codigo, local) in enumerate([("FIC-010", "Sala C"), ("FIC-011", "Sala D")],
+                                             start=8):
+        cronograma.cell(numero, 1, codigo)
+        cronograma.cell(numero, 3, "Trena")
+        cronograma.cell(numero, 6, local)
+    virou = planilha.create_sheet("Trena FIC-010")
+    _cabecalho(virou, "Trena", "FIC-010")
+    _pontos(virou, [(1, 300, "± 0,5")])
+    virou["U8"], virou["AK8"] = datetime.datetime(2024, 1, 10), datetime.datetime(2025, 1, 10)
+    virou["U11"], virou["AK11"] = 0.2, "N/A"
+    sem_data = planilha.create_sheet("Trena FIC-011")
+    _cabecalho(sem_data, "Trena", "FIC-011")
+    _pontos(sem_data, [(1, 300, "± 0,5")])
+    sem_data["U11"] = 0.2  # sem a data da calibração na linha 8
+    caminho = tmp_path / "trenas.xlsx"
+    planilha.save(caminho)
+
+    trenas = _por_codigo(ler_planilha(caminho))
+    assert trenas["FIC-010"].localizacao == "Sala C - Orientação indicativa"
+    assert (trenas["FIC-010"].pontos[0].incerteza,
+            trenas["FIC-010"].pontos[0].incerteza_nao_aplica) == (0.2, False)
+    assert trenas["FIC-011"].localizacao == "Sala D"
+    assert trenas["FIC-011"].pontos[0].incerteza == 0.2

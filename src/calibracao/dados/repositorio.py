@@ -24,10 +24,12 @@ from calibracao.regras.avaliacao import (
 )
 from calibracao.regras.condicao import (
     CONDICAO_DO_PARECER,
+    TIPOS_QUALITATIVOS,
     Condicao,
     ParecerFinal,
     erros_mudanca_condicao,
     pareceres_permitidos,
+    so_qualitativos,
 )
 from calibracao.regras.cronograma import (
     CalibracaoResumo,
@@ -154,6 +156,8 @@ class PontoPlano:
     classe_exigida: str | None = None
     criterio: str | None = None
     incerteza: float | None = None
+    # "U não se aplica": avaliado só pelo valor (na DQ05 vem "-" ou "N/A" onde vai a U)
+    incerteza_nao_aplica: bool = False
     id: int | None = None
 
 
@@ -232,6 +236,7 @@ class PontoRegistrado:
     valor_medido: float | None
     resultado: Resultado
     observacao: str | None
+    incerteza_nao_aplica: bool = False
     id: int | None = None  # linha de pontos_calibracao (usado para corrigir)
 
 
@@ -381,6 +386,7 @@ def _ponto_da_foto(registrado: PontoRegistrado) -> PontoPlano:
         tolerancia_superior=registrado.tolerancia_superior,
         valor_minimo=registrado.valor_minimo, valor_maximo=registrado.valor_maximo,
         classe_exigida=registrado.classe_exigida, criterio=registrado.criterio,
+        incerteza_nao_aplica=bool(registrado.incerteza_nao_aplica),
     )
 
 
@@ -779,7 +785,17 @@ class Repositorio:
             "ORDER BY ordem, id",
             (plano_id,),
         )
-        return [PontoPlano(**{c: linha[c] for c in [*_CAMPOS_PONTO, "id"]}) for linha in linhas]
+        return [PontoPlano(**{c: linha[c] for c in [*_CAMPOS_PONTO, "id"]}
+                           | {"incerteza_nao_aplica": bool(linha["incerteza_nao_aplica"])})
+                for linha in linhas]
+
+    def pontos_para_calibrar(self, instrumento: Instrumento) -> list[PontoPlano]:
+        """Pontos que entram na calibração: todos do plano, ou só os qualitativos na trena com
+        orientação indicativa (ver `regras.condicao.so_qualitativos`)."""
+        pontos = self.listar_pontos(instrumento.plano_id) if instrumento.plano_id else []
+        if so_qualitativos(instrumento.tipo, instrumento.localizacao):
+            return [p for p in pontos if p.tipo in TIPOS_QUALITATIVOS]
+        return pontos
 
     @staticmethod
     def _validar_ponto(ponto: PontoPlano) -> None:
@@ -843,10 +859,12 @@ class Repositorio:
                 medido.valor, nominal=ponto.valor_nominal,
                 tolerancia_inferior=ponto.tolerancia_inferior,
                 tolerancia_superior=ponto.tolerancia_superior, incerteza=medido.incerteza,
+                sem_incerteza=bool(ponto.incerteza_nao_aplica),
             )
         if ponto.tipo == "LIMITE":
             return avaliar_limite(medido.valor, minimo=ponto.valor_minimo,
-                                  maximo=ponto.valor_maximo, incerteza=medido.incerteza)
+                                  maximo=ponto.valor_maximo, incerteza=medido.incerteza,
+                                  sem_incerteza=bool(ponto.incerteza_nao_aplica))
         if medido.escolha in ESCOLHAS_QUALITATIVAS:
             return Avaliacao(medido.escolha)
         return Avaliacao(Resultado.NAO_INFORMADO)
@@ -868,7 +886,7 @@ class Repositorio:
             erros.append("O custo da calibração não pode ser negativo.")
         if instrumento.plano_id is None:
             raise ErroDeValidacao([*erros, "Instrumento sem plano de calibração."])
-        pontos = self.listar_pontos(instrumento.plano_id)
+        pontos = self.pontos_para_calibrar(instrumento)
         medidos = {m.ponto_plano_id: m for m in nova.pontos}
         if set(medidos) != {p.id for p in pontos}:
             erros.append("Os pontos informados não correspondem ao plano atual do instrumento.")
@@ -966,7 +984,8 @@ class Repositorio:
         )
         return [
             PontoRegistrado(**{c: linha[c] for c in _CAMPOS_REGISTRADO}
-                            | {"resultado": Resultado(linha["resultado"]), "id": linha["id"]})
+                            | {"resultado": Resultado(linha["resultado"]), "id": linha["id"],
+                               "incerteza_nao_aplica": bool(linha["incerteza_nao_aplica"])})
             for linha in linhas
         ]
 

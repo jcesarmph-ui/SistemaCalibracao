@@ -13,6 +13,8 @@ Versão 7: orientação indicativa deixa de ser condição (pedido de 2026-11-03
 localização, com histórico próprio (`marcas_indicativa`).
 Versão 8: data prevista da 1ª calibração no programa, digitada na ficha olhando a DQ05 (pedido de
 2026-11-03): o programa não guarda as calibrações antigas da planilha, só essa data.
+Versão 9: ponto com "U não se aplica" (na DQ05, "-" ou "N/A" onde vai a incerteza), no plano e na
+"foto" guardada com cada calibração.
 """
 
 import sqlite3
@@ -20,7 +22,7 @@ from pathlib import Path
 
 from calibracao.regras.localizacao import com_marcas
 
-VERSAO_ESQUEMA = 8
+VERSAO_ESQUEMA = 9
 
 TABELAS = """
 CREATE TABLE IF NOT EXISTS metadados (
@@ -257,6 +259,10 @@ def criar_tabelas(conexao: sqlite3.Connection) -> None:
     conexao.executescript(TABELAS_V7)
     if "primeira_prevista" not in _colunas(conexao, "instrumentos"):
         conexao.execute("ALTER TABLE instrumentos ADD COLUMN primeira_prevista TEXT")
+    for tabela in ("pontos_plano", "pontos_calibracao"):
+        if "incerteza_nao_aplica" not in _colunas(conexao, tabela):
+            conexao.execute(f"ALTER TABLE {tabela} ADD COLUMN incerteza_nao_aplica "
+                            "INTEGER NOT NULL DEFAULT 0")
     _migrar_condicao_indicativa(conexao)
     conexao.execute(
         "INSERT OR REPLACE INTO metadados (chave, valor) VALUES ('versao_esquema', ?)",

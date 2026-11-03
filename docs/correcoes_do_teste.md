@@ -57,8 +57,16 @@ e aprovada antes de seguir. Marcar `[x]` quando aprovado.
       depois do item 1).
 
 ### Dados
-- [ ] 16. **Incertezas (U) faltando** nos planos — "não era pra isso acontecer". Investigar se o
-      importador deixou de ler a U que está na planilha.
+- [x] 16. **Incertezas (U) faltando** nos planos — corrigido em 2026-11-03:
+      - 90 pontos (18 trenas) ganharam a U: a planilha tinha 0,2, mas sem a data da calibração;
+      - "-" ou "N/A" onde vai a U = **incerteza não se aplica** (avaliado só pelo valor): Planeza e
+        Paralelismo de MIC-001/005/010, ESC-005, LAF-017;
+      - **na trena**, "-" ou "N/A" = passou a ser **orientação indicativa**: TRE-167, 182, 200 e 201
+        ganharam a marca; os numéricos ficam com a última U em número;
+      - trena com orientação indicativa é calibrada **só nos pontos qualitativos**;
+      - continuam sem U, fiel à planilha (nada escrito): ESC-006, MA-09/11/12, MIC-007/009/011/
+        013/014 (Planeza e Paralelismo), MIC-015, PAQ-013, TRE-113.
+      Banco da entrega remontado da DQ05 (cópia do anterior em `dados/`).
 
 ### Decisões já tomadas
 - Ordem: 1 → 13/14 → 15 → 9/10/11 → 12 → 2 a 5 → 6 a 8 (16 logo depois do 1).

@@ -111,3 +111,19 @@ def test_resultado_geral(resultados, esperado):
 def test_so_salva_sem_pendencia():
     assert pode_salvar([A, NA, R])
     assert not pode_salvar([A, Resultado.NAO_INFORMADO])
+
+
+def test_incerteza_nao_se_aplica_avalia_so_pelo_valor():
+    """"-" ou "N/A" na DQ05 (pedido de 2026-11-03): sem U, mas avaliado."""
+
+
+    assert avaliar_limite(0.64, minimo=None, maximo=2.0, incerteza=None,
+                          sem_incerteza=True).resultado == Resultado.APROVADO
+    assert avaliar_limite(2.1, minimo=None, maximo=2.0, incerteza=None,
+                          sem_incerteza=True).resultado == Resultado.REPROVADO
+    assert avaliar_numerico(1.04, nominal=1.0, tolerancia_inferior=-0.05,
+                            tolerancia_superior=0.05, incerteza=None,
+                            sem_incerteza=True).resultado == Resultado.APROVADO
+    # sem a marca, U ausente continua "não avaliado" (nunca vira zero)
+    assert avaliar_limite(0.64, minimo=None, maximo=2.0,
+                          incerteza=None).resultado == Resultado.NAO_AVALIADO

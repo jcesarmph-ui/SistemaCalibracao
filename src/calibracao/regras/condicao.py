@@ -11,9 +11,14 @@ o instrumento Em uso e põe a marca.
 """
 
 import datetime
+import unicodedata
 from enum import StrEnum
 
 from calibracao.regras.avaliacao import Resultado
+from calibracao.regras.localizacao import eh_indicativa
+
+# Pontos qualitativos: o resultado é escolhido (Aprovado/Reprovado), sem valor medido.
+TIPOS_QUALITATIVOS = ("VERIFICACAO", "CRITERIO")
 
 
 class Condicao(StrEnum):
@@ -52,3 +57,10 @@ def erros_mudanca_condicao(data: datetime.date | None, hoje: datetime.date) -> l
     if data > hoje:
         return ["A data não pode ser no futuro."]
     return []
+
+
+def so_qualitativos(tipo_instrumento: str | None, localizacao: str | None) -> bool:
+    """Trena com orientação indicativa é calibrada só nos pontos qualitativos: os numéricos nem
+    aparecem (pedido do usuário em 2026-11-03; vale só para trenas)."""
+    tipo = unicodedata.normalize("NFKD", tipo_instrumento or "").encode("ascii", "ignore")
+    return tipo.decode().strip().upper() == "TRENA" and eh_indicativa(localizacao)
