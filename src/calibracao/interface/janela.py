@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -164,7 +165,12 @@ class JanelaPrincipal(QMainWindow):
         tela.addWidget(self.abas, 1)
         central = QWidget(objectName="central")
         central.setLayout(tela)
-        self.setCentralWidget(central)
+        # Proteção (achado no teste de 2026-11-03): se a tela não comporta tudo, aparece a barra
+        # de rolagem dentro da janela, em vez de a parte de baixo ficar sob a barra do Windows.
+        rolagem = QScrollArea(objectName="rolagem_central", widgetResizable=True)
+        rolagem.setFrameShape(QScrollArea.NoFrame)
+        rolagem.setWidget(central)
+        self.setCentralWidget(rolagem)
 
         self.atualizar()
 
