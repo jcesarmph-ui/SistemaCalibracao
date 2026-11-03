@@ -15,7 +15,10 @@ from calibracao.regras.cronograma import Situacao, SituacaoNoMes
 CORES = {
     "fundo": "#000000", "caixa": "#0a0a0a", "campo": "#161616", "campo_borda": "#3a3a3a",
     "borda": "#e0e0e0", "titulo": "#ffffff", "selecao": "#424242", "botao": "#c62828",
-    "botao_mouse": "#e53935", "certo": "#43a047", "aviso": "#ffd54f", "erro": "#ef5350",
+    "botao_mouse": "#e53935",
+    # Passar o mouse no que é clicável clareia (pedido de 2026-11-03, item 2 do teste).
+    "mouse": "#2e2e2e", "mouse_tabela": "#1e1e1e", "mouse_painel": "#161616",
+    "certo": "#43a047", "aviso": "#ffd54f", "erro": "#ef5350",
 }
 
 ESTILO = """
@@ -30,18 +33,22 @@ QGroupBox QLabel {{ font-weight: normal; }}
 QLineEdit, QComboBox, QDateEdit {{ background: {campo}; border: 1px solid {campo_borda};
     border-radius: 4px; padding: 6px; color: #ffffff; selection-background-color: {selecao}; }}
 QLineEdit:focus, QComboBox:focus {{ border: 1px solid {borda}; }}
+QComboBox:hover:enabled {{ background: {mouse}; }}
 QComboBox QAbstractItemView {{ background: {campo}; selection-background-color: {selecao}; }}
 QPushButton {{ background: {campo}; border: 1px solid {borda}; border-radius: 6px; padding: 10px; }}
-QPushButton:hover {{ background: {caixa}; }}
+QPushButton:hover:enabled {{ background: {mouse}; color: #ffffff; }}
+QPushButton:disabled {{ color: #6e6e6e; border: 1px solid {campo_borda}; }}
 QToolTip {{ background: {campo}; color: #f0f0f0; border: 1px solid {borda}; }}
 QTabWidget::pane {{ border: 1px solid {borda}; border-radius: 6px; background: {caixa};
                     top: -1px; }}
 QTabBar::tab {{ background: {campo}; border: 1px solid {campo_borda}; padding: 8px 22px;
                 margin-right: 4px; border-top-left-radius: 6px; border-top-right-radius: 6px; }}
+QTabBar::tab:hover:!selected {{ background: {mouse}; color: #ffffff; }}
 QTabBar::tab:selected {{ background: {caixa}; border: 1px solid {borda}; border-bottom: none;
                          font-weight: bold; color: {titulo}; }}
 QTableWidget {{ background: {caixa}; gridline-color: {campo_borda}; border: none;
                 selection-background-color: {selecao}; selection-color: #ffffff; }}
+QTableView::item:hover {{ background: {mouse_tabela}; }}
 QTableView::item:selected, QTableView::item:selected:!active {{
     background: {selecao}; color: #ffffff;
     border-top: 2px solid #ffffff; border-bottom: 2px solid #ffffff; }}
@@ -54,6 +61,7 @@ QTableView::indicator {{ width: 18px; height: 18px; border: 1px solid {borda}; b
 QCheckBox::indicator {{ width: 18px; height: 18px; border: 1px solid {borda}; border-radius: 3px;
                        background: {campo}; }}
 QTableView::indicator:checked, QCheckBox::indicator:checked {{ image: url({check}); }}
+QCheckBox::indicator:hover:enabled, QTableView::indicator:hover {{ background: {mouse}; }}
 QCheckBox::indicator:disabled {{ border: 1px solid {campo_borda}; }}
 QScrollBar:vertical {{ background: {caixa}; width: 14px; }}
 QScrollBar::handle:vertical {{ background: {campo_borda}; border-radius: 6px; min-height: 30px; }}
@@ -67,7 +75,9 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
 #dica {{ color: #9e9e9e; font-style: italic; }}
 #avisos {{ color: {aviso}; }}
 #erro {{ color: {erro}; }}
-#modo {{ color: #ffffff; font-size: 10pt; }}
+#modo {{ color: #ffffff; font-size: 10pt; padding: 1px 4px; }}
+RotuloClicavel#modo:hover {{ background: {mouse}; border-radius: 3px; }}
+PainelClicavel:hover {{ background: {mouse_painel}; }}
 """
 
 # Faixas coloridas das células (fundo, letra). "Orientação indicativa" imita a etiqueta física da

@@ -14,7 +14,7 @@ e aprovada antes de seguir. Marcar `[x]` quando aprovado.
 ### Tela em geral
 - [x] 1. (proteção feita: rolagem dentro da janela; a rolagem some com os itens 10/12) A parte de baixo do programa fica **coberta pela barra do Windows** (escondia "Registrar
       calibração", "Gráfico de tendência" e "Restaurar").
-- [ ] 2. **Passar o mouse sobre o que é clicável**: aumentar o brilho ou mudar a opacidade (não
+- [x] 2. (botões, abas, filtros, caixinhas, células, painéis do topo e o texto do canto clareiam; desligado não muda) **Passar o mouse sobre o que é clicável**: aumentar o brilho ou mudar a opacidade (não
       só contorno, para não poluir). O que não é clicável não muda.
 - [ ] 3. **Aviso de "Salvo" / "Mudança feita"** toda vez que salvar ou aplicar uma mudança.
 - [ ] 4. **Scroll horizontal com Shift + roda do mouse** onde ele for necessário.
