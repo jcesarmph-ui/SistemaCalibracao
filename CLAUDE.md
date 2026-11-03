@@ -114,7 +114,8 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    (`dist/TESTE - Calibração`, já com Shift + roda e itens 6–8). Pendente do usuário: testar em
    2 PCs na rede (copiar sem abrir antes) e trazer novas correções.
    **Item 17 anotado, não feito** (gráfico de tendência com todos os pontos juntos como
-   principal): o usuário está juntando mais melhorias antes; fazer quando ele pedir.
+   principal) e **item 18 anotado, não feito** (seletor de mês começa na implantação; atual e
+   próximos em cima, passados embaixo). O usuário está juntando mais melhorias antes.
 3. Branches: `fase-6-trava-botoes` (PR #14, base `fase-6-caixa-reserva`) sobre
    `fase-6-caixa-reserva` (PR #13, base `fase-6-exe`); nenhum juntado. Banco da entrega remontado
    da DQ05 em 2026-11-03 (esquema v9).

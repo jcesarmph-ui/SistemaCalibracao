@@ -79,6 +79,15 @@ e aprovada antes de seguir. Marcar `[x]` quando aprovado.
       - **Não pode ficar bagunçado** nem um ponto cobrindo o outro: é para entender de relance
         (ex.: afastar um pouco para o lado os pontos da mesma data, U mais fina, legenda clara).
 
+### Cronograma
+- [ ] 18. (pedido de 2026-11-03, ainda não feito) **Seletor "Mês" sem meses antes da
+      implantação** (hoje aparecem meses de 2025, 12 para trás). O primeiro mês da lista é o mês em
+      que o programa começa a ser usado; os meses que forem passando ficam como registro.
+      **Ordem da lista**: em cima "Hoje — todos os instrumentos", o **mês atual** e os
+      **próximos**; os **meses que já passaram** ficam **mais para baixo** na lista.
+      - A confirmar com o usuário: "mês da implantação" = mês em que o banco é aberto pela 1ª vez
+        no lugar oficial da rede (o programa guarda essa data sozinho).
+
 ### Decisões já tomadas
 - Ordem: 1 → 13/14 → 15 → 9/10/11 → 12 → 2 a 5 → 6 a 8 (16 logo depois do 1).
 - Item 8: atualizar sozinho a cada **10 s** + botão **"Atualizar"** no modo consulta.
