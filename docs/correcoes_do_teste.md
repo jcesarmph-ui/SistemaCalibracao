@@ -68,6 +68,17 @@ e aprovada antes de seguir. Marcar `[x]` quando aprovado.
         013/014 (Planeza e Paralelismo), MIC-015, PAQ-013, TRE-113.
       Banco da entrega remontado da DQ05 (cópia do anterior em `dados/`).
 
+### Gráfico de tendência
+- [ ] 17. (pedido de 2026-11-03, ainda não feito) **Gráfico com todos os pontos juntos**, um de
+      cada cor, como **opção principal**: é o primeiro a aparecer ao abrir; os gráficos de um ponto
+      por vez continuam na mesma lista, para quem quiser ver um por um.
+      - Tolerâncias iguais em todos os pontos → eixo em **erro** (mesma unidade), com as linhas de
+        tolerância comuns; tolerâncias diferentes → eixo em **% da tolerância usada** (limite
+        ±100%). O programa escolhe sozinho e diz no título qual está usando.
+      - Pontos qualitativos ficam de fora (não têm número).
+      - **Não pode ficar bagunçado** nem um ponto cobrindo o outro: é para entender de relance
+        (ex.: afastar um pouco para o lado os pontos da mesma data, U mais fina, legenda clara).
+
 ### Decisões já tomadas
 - Ordem: 1 → 13/14 → 15 → 9/10/11 → 12 → 2 a 5 → 6 a 8 (16 logo depois do 1).
 - Item 8: atualizar sozinho a cada **10 s** + botão **"Atualizar"** no modo consulta.
