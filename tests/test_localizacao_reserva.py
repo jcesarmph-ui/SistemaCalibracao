@@ -40,3 +40,16 @@ def test_reserva_com_indicativa_sobrevive_a_padronizacao():
 def test_codigo_do_local_com_traco_nao_se_perde():
     assert com_reserva("CT-01 - Reserva", False) == "CT-01"
     assert com_reserva("GL-02", True) == "GL-02 - Reserva"
+
+
+def test_ind_so_quando_reserva_e_indicativa_juntas():
+    from calibracao.interface.estilo import abreviar_indicativa, destacar
+
+    juntas = "Laboratório - Reserva - Orientação indicativa"
+    assert abreviar_indicativa(juntas)
+    html = destacar(juntas)
+    assert "IND." in html and "Orientação indicativa" not in html and "Reserva" in html
+    # sozinha, continua por extenso
+    assert not abreviar_indicativa("Laboratório - Orientação indicativa")
+    assert "Orientação indicativa" in destacar("Laboratório - Orientação indicativa")
+    assert not abreviar_indicativa("Laboratório - Reserva")

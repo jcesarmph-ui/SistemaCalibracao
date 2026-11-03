@@ -129,11 +129,21 @@ def tem_destaque(texto: str | None) -> bool:
     return bool(texto and _MARCAS.search(texto))
 
 
+def abreviar_indicativa(texto: str | None) -> bool:
+    """Reserva e orientação indicativa juntas não cabem na coluna: na tela, "Orientação
+    indicativa" vira "IND." (pedido de 2026-11-03; o banco guarda por extenso)."""
+    marcas = {m.lower() for m in _MARCAS.findall(texto or "")}
+    return marcas == {"reserva", "orientação indicativa"}
+
+
 def destacar(texto: str) -> str:
     """HTML em que só as palavras marcadas levam a cor da etiqueta (indicativa ou reserva)."""
+    curto = abreviar_indicativa(texto)
+
     def pintar(achado: re.Match) -> str:
         reserva = achado.group(0).lower() == "reserva"
         fundo, letra = FAIXA_RESERVA if reserva else FAIXA_INDICATIVA
+        palavra = "IND." if curto and not reserva else achado.group(0)
         return (f'<span style="background:{fundo}; color:{letra}; font-weight:bold;">'
-                f'&nbsp;{achado.group(0)}&nbsp;</span>')
+                f'&nbsp;{palavra}&nbsp;</span>')
     return _MARCAS.sub(pintar, html.escape(texto))

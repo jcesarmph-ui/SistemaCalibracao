@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from calibracao.interface.estilo import destacar, tem_destaque
+from calibracao.interface.estilo import abreviar_indicativa, destacar, tem_destaque
 
 
 class FiltroRodaDoMouse(QObject):
@@ -82,6 +82,10 @@ def aplicar_destaques(tabela: QTableWidget) -> None:
             rotulo.setAlignment(Qt.AlignVCenter | (Qt.AlignHCenter if item.textAlignment()
                                                    & Qt.AlignHCenter else Qt.AlignLeft))
             rotulo.setContentsMargins(3, 0, 3, 0)
+            if abreviar_indicativa(item.text()):
+                # "IND.": o texto inteiro ao passar o mouse; a coluna se ajusta ao curto
+                rotulo.setToolTip(item.text())
+                item.setSizeHint(rotulo.sizeHint())
             tabela.setCellWidget(linha, coluna, rotulo)
 
 
