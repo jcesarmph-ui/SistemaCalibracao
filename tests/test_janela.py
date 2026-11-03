@@ -85,18 +85,36 @@ def test_cronograma_filtra_sem_calibracao(janela):
 
 def test_cadastrar_instrumento_pela_tela(janela):
     aba = janela.aba_instrumentos
-    aba.novo_instrumento()
-    aba.campos["codigo"].setText("PAQ-950")
-    aba.campos["tipo"].setText("Paquímetro")
-    aba.campos["periodicidade_meses"].setText("12")
-    aba.campos["custo_compra"].setText("R$ 350,50")
-    aba.campos["responsavel"].setText("Fulano")
-    aba.salvar_instrumento()
+    edicao = aba.criar_janela_edicao(None)  # botão "Novo instrumento"
+    assert edicao.windowTitle() == "Novo instrumento"
+    edicao.campos["codigo"].setText("PAQ-950")
+    edicao.campos["tipo"].setText("Paquímetro")
+    edicao.campos["periodicidade_meses"].setText("12")
+    edicao.campos["custo_compra"].setText("R$ 350,50")
+    edicao.campos["responsavel"].setText("Fulano")
+    edicao.salvar_instrumento()
+    assert edicao.result()  # salvou e fechou
     assert "salvo" in aba.avisos.text()
     assert texto(janela.valores_indicadores["instrumentos"]) == "5"
     salvo = next(i for i in janela.repo.listar_instrumentos() if i.codigo == "PAQ-950")
     assert (salvo.custo_compra, salvo.responsavel) == (350.5, "Fulano")
-    assert aba.campos["custo_compra"].text() == "350,5"
+    assert aba.valores["custo_compra"].text() == "<b>R$ 350,5</b>"
+
+
+def test_ficha_e_so_apresentacao_e_editar_abre_a_janela(janela):
+    """Item 10 do teste (2026-11-03): a ficha não tem campos; EDITAR abre a janela."""
+    aba = janela.aba_instrumentos
+    escolher(aba, "TRE-901")
+    assert aba.valores["codigo"].text() == "<b>TRE-901</b>"
+    assert "EDITAR" in aba.titulo_dados.text()
+    edicao = aba.criar_janela_edicao(aba.atual)
+    assert edicao.windowTitle() == "Editar instrumento — TRE-901"
+    assert edicao.campos["codigo"].text() == "TRE-901"
+    edicao.campos["faixa"].setText("0-5 m")
+    assert aba.tem_alteracao()  # digitado e não salvo
+    edicao.reject()             # Cancelar: nada muda
+    assert not aba.tem_alteracao()
+    assert janela.repo.obter_instrumento(aba.atual.id).faixa is None
 
 
 def codigos_da_lista(aba):
@@ -127,7 +145,7 @@ def test_mudar_condicao_pela_tela(janela):
     escolher(aba, "TRE-901")
     aba.aplicar_condicao(Condicao.DESATIVADO, date(2026, 10, 20), "Fita rompida")
     assert "Desativado" in aba.avisos.text()
-    assert "Desativado" in aba.condicao_atual.text()
+    assert "Desativado" in aba.valores["condicao"].text()
     assert aba.tabela_historico.item(0, 2).text() == "Fita rompida"
     # sai do cronograma e dos indicadores, mas continua na lista (filtro Desativados)
     assert texto(janela.valores_indicadores["instrumentos"]) == "3"
@@ -147,17 +165,17 @@ def test_mudar_condicao_recusa_data_futura(janela):
 
 
 def test_erro_de_digitacao_aparece_em_vermelho(janela):
-    aba = janela.aba_instrumentos
-    aba.novo_instrumento()
-    aba.campos["codigo"].setText("TRE-901")  # já existe
-    aba.campos["tipo"].setText("Trena")
-    aba.campos["periodicidade_meses"].setText("doze")
-    aba.salvar_instrumento()
-    assert "número inteiro" in aba.avisos.text()
-    aba.campos["periodicidade_meses"].setText("12")
-    aba.salvar_instrumento()
-    assert "Já existe" in aba.avisos.text()
-    assert "#ef5350" in aba.avisos.styleSheet()
+    edicao = janela.aba_instrumentos.criar_janela_edicao(None)
+    edicao.campos["codigo"].setText("TRE-901")  # já existe
+    edicao.campos["tipo"].setText("Trena")
+    edicao.campos["periodicidade_meses"].setText("doze")
+    edicao.salvar_instrumento()
+    assert "número inteiro" in edicao.avisos.text()
+    edicao.campos["periodicidade_meses"].setText("12")
+    edicao.salvar_instrumento()
+    assert "Já existe" in edicao.avisos.text()
+    assert "#ef5350" in edicao.avisos.styleSheet()
+    assert not edicao.result()  # com erro, a janela continua aberta
 
 
 def escolher(aba, codigo):
@@ -228,14 +246,13 @@ def test_salvar_plano_mantem_o_numero_original_da_planilha(janela):
 
 
 def test_criar_plano_novo_pela_tela(janela):
-    aba = janela.aba_instrumentos
-    aba.novo_instrumento()
-    aba.campos["codigo"].setText("PAQ-951")
-    aba.campos["tipo"].setText("Paquímetro")
-    aba.criar_plano("Plano PAQ-951")
-    assert "SALVAR" in aba.avisos.text()
-    assert aba.plano.currentText() == "Plano PAQ-951"
-    aba.salvar_instrumento()
+    edicao = janela.aba_instrumentos.criar_janela_edicao(None)
+    edicao.campos["codigo"].setText("PAQ-951")
+    edicao.campos["tipo"].setText("Paquímetro")
+    edicao.criar_plano("Plano PAQ-951")
+    assert "SALVAR" in edicao.avisos.text()
+    assert edicao.plano.currentText() == "Plano PAQ-951"
+    edicao.salvar_instrumento()
     salvo = next(i for i in janela.repo.listar_instrumentos() if i.codigo == "PAQ-951")
     assert janela.repo.obter_plano(salvo.plano_id).nome == "Plano PAQ-951"
 
@@ -244,7 +261,8 @@ def test_plano_na_lixeira_continua_aparecendo(janela):
     aba = janela.aba_instrumentos
     escolher(aba, "TRE-901")
     aba.painel_plano.descartar("Criado por engano")
-    assert "(na Lixeira)" in aba.plano.currentText()
+    assert "(na Lixeira)" in aba.valores["plano"].text()
+    assert "(na Lixeira)" in aba.criar_janela_edicao(aba.atual).plano.currentText()
     assert "está na Lixeira" in aba.painel_plano.titulo.text()
     janela.aba_lixeira.busca.setText("engano")
     assert janela.aba_lixeira.tabela.rowCount() == 1
@@ -352,68 +370,78 @@ def test_banco_de_teste_mostra_titulo_e_faixa(app, tmp_path):
 
 
 def test_caixa_reserva_poe_e_tira_da_localizacao(janela):
-    """Pedido de 2026-11-03: caixa "Reserva" ao lado da localização."""
+    """Pedido de 2026-11-03: caixa "Reserva" na janela de edição."""
     aba = janela.aba_instrumentos
     escolher(aba, "TRE-901")
-    campo = aba.campos["localizacao"]
-    assert not aba.reserva.isChecked()
-    aba.reserva.click()
+    edicao = aba.criar_janela_edicao(aba.atual)
+    campo = edicao.campos["localizacao"]
+    assert not edicao.reserva.isChecked()
+    edicao.reserva.click()
     assert campo.text() == "Expedição - Reserva"
-    aba.salvar_instrumento()
+    edicao.salvar_instrumento()
     assert janela.repo.obter_instrumento(aba.atual.id).localizacao == "Expedição - Reserva"
-    aba.reserva.click()
+    edicao = aba.criar_janela_edicao(aba.atual)
+    campo = edicao.campos["localizacao"]
+    assert edicao.reserva.isChecked()
+    edicao.reserva.click()
     assert campo.text() == "Expedição"
     # digitar à mão também marca a caixa
     campo.setText("Expedição - Reserva")
-    assert aba.reserva.isChecked()
+    assert edicao.reserva.isChecked()
     campo.setText("Expedição")
-    assert not aba.reserva.isChecked()
+    assert not edicao.reserva.isChecked()
 
 
-def test_caixa_reserva_travada_no_modo_consulta(janela):
+def test_modo_consulta_esconde_editar(janela):
     aba = janela.aba_instrumentos
+    escolher(aba, "TRE-901")
     aba.definir_edicao(False)
-    assert not aba.reserva.isEnabled()
+    assert aba.editar.isHidden() and aba.novo.isHidden()
+    assert aba.titulo_dados.text() == "Consultando TRE-901"
     aba.definir_edicao(True)
-    assert aba.reserva.isEnabled()
+    assert not aba.editar.isHidden()
 
 
 def test_caixa_orientacao_indicativa_entra_no_historico(janela):
     """Orientação indicativa é marca a mais: segue "Em uso" (pedido de 2026-11-03)."""
     aba = janela.aba_instrumentos
     escolher(aba, "TRE-901")
-    aba.indicativa.click()
-    assert aba.campos["localizacao"].text() == "Expedição - Orientação indicativa"
-    aba.reserva.click()
-    assert aba.campos["localizacao"].text() == "Expedição - Reserva - Orientação indicativa"
-    aba.salvar_instrumento()
-    assert "Em uso" in aba.condicao_atual.text()
+    edicao = aba.criar_janela_edicao(aba.atual)
+    edicao.indicativa.click()
+    assert edicao.campos["localizacao"].text() == "Expedição - Orientação indicativa"
+    edicao.reserva.click()
+    assert edicao.campos["localizacao"].text() == "Expedição - Reserva - Orientação indicativa"
+    edicao.salvar_instrumento()
+    assert aba.valores["condicao"].text().startswith("<b>Em uso")
     assert aba.tabela_historico.item(0, 1).text() == "Orientação indicativa"
     assert aba.tabela_historico.item(0, 3).text() == "Ficha do instrumento"
     aba.filtro_condicao.setCurrentText("Orientação indicativa")
     assert codigos_da_lista(aba) == ["TRE-901"]
     aba.filtro_condicao.setCurrentText("Todos menos desativados")
     escolher(aba, "TRE-901")
-    aba.indicativa.click()
-    aba.salvar_instrumento()
-    assert aba.campos["localizacao"].text() == "Expedição - Reserva"
+    edicao = aba.criar_janela_edicao(aba.atual)
+    edicao.indicativa.click()
+    edicao.salvar_instrumento()
+    assert janela.repo.obter_instrumento(aba.atual.id).localizacao == "Expedição - Reserva"
     assert aba.tabela_historico.item(0, 1).text() == "Deixou de ser orientação indicativa"
 
 
 def test_ficha_primeira_calibracao_prevista(janela):
     aba = janela.aba_instrumentos
     escolher(aba, "TRE-904")  # sem calibração no programa
-    assert not aba.primeira.isReadOnly()
-    aba.primeira.setText("31/02/2027")
-    aba.salvar_instrumento()
-    assert "dd/mm/aaaa" in aba.avisos.text()
-    aba.primeira.setText("20/11/2026")
-    aba.salvar_instrumento()
+    edicao = aba.criar_janela_edicao(aba.atual)
+    assert not edicao.primeira.isReadOnly()
+    edicao.primeira.setText("31/02/2027")
+    edicao.salvar_instrumento()
+    assert "dd/mm/aaaa" in edicao.avisos.text()
+    edicao.primeira.setText("20/11/2026")
+    edicao.salvar_instrumento()
     assert janela.repo.obter_instrumento(aba.atual.id).primeira_prevista == date(2026, 11, 20)
+    assert aba.valores["primeira_prevista"].text() == "<b>20/11/2026</b>"
     assert "2 pendentes" not in texto(janela.valores_indicadores["mes"])
     assert texto(janela.valores_indicadores["proximo_mes"]) == "2"  # TRE-902 e TRE-904
     escolher(aba, "TRE-901")  # já calibrado: a data fica só para consulta
-    assert aba.primeira.isReadOnly()
+    assert aba.criar_janela_edicao(aba.atual).primeira.isReadOnly()
 
 
 def test_aba_calibrar_tem_nova_calibracao(janela):

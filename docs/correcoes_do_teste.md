@@ -18,7 +18,7 @@ e aprovada antes de seguir. Marcar `[x]` quando aprovado.
       só contorno, para não poluir). O que não é clicável não muda.
 - [ ] 3. **Aviso de "Salvo" / "Mudança feita"** toda vez que salvar ou aplicar uma mudança.
 - [ ] 4. **Scroll horizontal com Shift + roda do mouse** onde ele for necessário.
-- [ ] 5. **Caixinhas (Reserva, Orientação indicativa, Precisa de calibração) invisíveis** no fundo
+- [x] 5. **Caixinhas (Reserva, Orientação indicativa, Precisa de calibração) invisíveis** no fundo
       preto: precisam de contorno branco.
 
 ### Trava de edição (dois PCs)
@@ -30,9 +30,9 @@ e aprovada antes de seguir. Marcar `[x]` quando aprovado.
 ### Aba Instrumentos
 - [x] 9. (código em azul sublinhado com mãozinha e dica; linha aberta em cinza com linhas brancas) Na lista, deixar claro que o **código é um botão** que abre os dados, e **destacar o
       instrumento aberto** (contorno ou cor), para não ter que comparar a lista com a ficha.
-- [ ] 10. **Ficha só de apresentação**; para editar, botão **EDITAR** que abre a ficha numa janela no
+- [x] 10. **Ficha só de apresentação**; para editar, botão **EDITAR** que abre a ficha numa janela no
       meio da tela (como o aviso de pedido de edição), deixando claro que ali se edita.
-- [ ] 11. Campos da ficha **estreitos demais**: o texto aparece cortado (só a metade de cima).
+- [x] 11. (a ficha virou texto; a janela de edição é larga) Campos da ficha **estreitos demais**: o texto aparece cortado (só a metade de cima).
 
 ### Plano de calibração
 - [ ] 12. Não deu para editar o plano ("clicar duas vezes" não ficou claro) e o painel é **estreito,

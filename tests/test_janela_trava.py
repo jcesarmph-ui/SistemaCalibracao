@@ -47,15 +47,14 @@ def test_quem_abre_depois_so_consulta(duas_janelas):
     assert b.rotulo_modo.text() == "Modo consulta - ana - PC-1"
     assert "SOMENTE CONSULTA" in b.windowTitle()
     aba = b.aba_instrumentos
-    for botao in (aba.novo, aba.salvar, aba.mudar_condicao, aba.lixeira,
+    for botao in (aba.novo, aba.editar, aba.mudar_condicao, aba.lixeira,
                   aba.painel_plano.salvar, b.aba_calibrar.painel_calibracoes.registrar,
                   b.aba_lixeira.restaurar):
         assert not visivel(botao)
-    assert aba.campos["codigo"].isReadOnly()
     aba.tabela.selectRow(0)
     assert aba.titulo_dados.text() == "Consultando TRE-901"
     assert visivel(b.aba_calibrar.painel_calibracoes.grafico)  # consultar continua liberado
-    assert visivel(a.aba_instrumentos.salvar)
+    assert visivel(a.aba_instrumentos.editar)
 
 
 def test_consulta_ve_o_que_o_outro_salvou(duas_janelas):
@@ -71,8 +70,7 @@ def test_quando_o_outro_fecha_passa_sozinho_para_edicao(duas_janelas):
     a.close()
     b.a_cada_sinal()
     assert b.rotulo_modo.text() == "Modo edição"
-    assert visivel(b.aba_instrumentos.salvar)
-    assert not b.aba_instrumentos.campos["codigo"].isReadOnly()
+    assert visivel(b.aba_instrumentos.editar)
 
 
 def test_quando_o_outro_para_de_responder_assume(duas_janelas):
@@ -86,7 +84,7 @@ def test_quando_o_outro_para_de_responder_assume(duas_janelas):
     assert b.rotulo_modo.text() == "Modo edição"
     a.a_cada_sinal()                       # A volta: percebe que perdeu e vira consulta
     assert a.rotulo_modo.text() == "Modo consulta - beto - PC-2"
-    assert not visivel(a.aba_instrumentos.salvar)
+    assert not visivel(a.aba_instrumentos.editar)
 
 
 def test_parado_30_minutos_libera_a_edicao(duas_janelas):
@@ -118,7 +116,7 @@ def test_parado_com_algo_digitado_nao_libera(duas_janelas):
     a, _ = duas_janelas
     aba = a.aba_instrumentos
     aba.tabela.selectRow(0)
-    aba.campos["faixa"].setText("0-5 m")  # digitado e não salvo
+    aba.criar_janela_edicao(aba.atual).campos["faixa"].setText("0-5 m")  # não salvo
     a.ultima_atividade -= timedelta(minutes=31)
     a.a_cada_sinal()
     assert a.rotulo_modo.text() == "Modo edição"
@@ -155,7 +153,7 @@ def test_aviso_lembra_de_salvar_antes(duas_janelas):
     a, b = duas_janelas
     aba = a.aba_instrumentos
     aba.tabela.selectRow(0)
-    aba.campos["faixa"].setText("0-5 m")   # digitado e não salvo
+    aba.criar_janela_edicao(aba.atual).campos["faixa"].setText("0-5 m")  # não salvo
     b.pedir_edicao()
     a.verificar_pedido()
     assert "não salvas" in a.caixa_pedido.text()

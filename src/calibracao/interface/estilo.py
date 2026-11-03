@@ -51,6 +51,10 @@ QTableCornerButton::section {{ background: {campo}; border: none; }}
 QTableView::indicator {{ width: 18px; height: 18px; border: 1px solid {borda}; border-radius: 3px;
                          background: {campo}; }}
 QTableView::indicator:checked {{ background: {borda}; }}
+QCheckBox::indicator {{ width: 18px; height: 18px; border: 1px solid {borda}; border-radius: 3px;
+                       background: {campo}; }}
+QCheckBox::indicator:checked {{ background: {borda}; }}
+QCheckBox::indicator:disabled {{ border: 1px solid {campo_borda}; }}
 QScrollBar:vertical {{ background: {caixa}; width: 14px; }}
 QScrollBar::handle:vertical {{ background: {campo_borda}; border-radius: 6px; min-height: 30px; }}
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: {caixa}; }}

@@ -1,14 +1,15 @@
 """Aba Instrumentos: lista com filtros e busca à esquerda; dados do instrumento escolhido à direita.
 
-Erros de digitação aparecem em vermelho na área de avisos (sem pop-up). Só mudar a condição e
-enviar para a Lixeira abrem uma janelinha, para pedir data, observação e confirmação.
+Os dados são só apresentação (pedido do usuário em 2026-11-03): para mudar, EDITAR abre a janela
+de edição no meio da tela (`janela_instrumento.py`). Mudar a condição e enviar para a Lixeira
+abrem uma janelinha, para pedir data, observação e confirmação.
 """
 
 import datetime
+import html
 
-from PySide6.QtCore import QDate, Signal
+from PySide6.QtCore import QDate, Qt, Signal
 from PySide6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QDateEdit,
     QDialog,
@@ -29,7 +30,6 @@ from calibracao.dados.repositorio import (
     ErroDeValidacao,
     Instrumento,
     MudancaCondicao,
-    Plano,
     Repositorio,
 )
 from calibracao.interface.componentes import (
@@ -38,12 +38,12 @@ from calibracao.interface.componentes import (
     formatar_data,
     tabela_somente_leitura,
 )
-from calibracao.interface.estilo import CORES_CONDICAO
+from calibracao.interface.estilo import CORES_CONDICAO, destacar, tem_destaque
+from calibracao.interface.janela_instrumento import JanelaEditarInstrumento
 from calibracao.interface.lista_instrumentos import ListaInstrumentos
-from calibracao.interface.painel_plano import PainelPlano, numero, numero_em_texto
+from calibracao.interface.painel_plano import PainelPlano, numero_em_texto
 from calibracao.regras.condicao import Condicao
 from calibracao.regras.lixeira import Tipo
-from calibracao.regras.localizacao import com_marcas, eh_indicativa, eh_reserva
 
 # O que acontece com o instrumento em cada condição (texto da janelinha de mudar condição).
 EXPLICACAO_CONDICAO = {
@@ -53,19 +53,14 @@ EXPLICACAO_CONDICAO = {
 }
 
 
-def _texto(campo: QLineEdit) -> str | None:
-    return campo.text().strip() or None
-
-
-def _data_digitada(texto: str) -> datetime.date | None:
-    """dd/mm/aaaa (vazio = None); ValueError se não for uma data."""
-    texto = texto.strip()
-    return datetime.datetime.strptime(texto, "%d/%m/%Y").date() if texto else None
-
-
-DICA_PRIMEIRA = ("Quando fazer a primeira calibração no programa (olhe a próxima calibração na "
-                 "planilha DQ05). Com ela o instrumento já entra no cronograma; depois da 1ª "
-                 "calibração registrada, as datas seguintes vêm dela.")
+# Dados mostrados na ficha (só apresentação), em duas colunas: (chave, rótulo).
+DADOS = [("codigo", "Código"), ("tipo", "Tipo"), ("localizacao", "Localização"),
+         ("faixa", "Faixa"), ("resolucao", "Resolução"), ("fabricante", "Fabricante"),
+         ("data_compra", "Data de compra"), ("periodicidade_meses", "Periodicidade"),
+         ("custo_compra", "Custo de compra"), ("responsavel", "Responsável"),
+         ("primeira_prevista", "1ª calibração prevista"), ("plano", "Plano"),
+         ("exige_calibracao", "Precisa de calibração"), ("condicao", "Condição"),
+         ("observacoes", "Observações")]
 
 
 def _data_qt(data: datetime.date) -> QDate:
@@ -145,6 +140,7 @@ class AbaInstrumentos(QWidget):
         self.hoje = hoje
         self.atual: Instrumento | None = None
         self.pode_editar = True
+        self.janela_edicao: JanelaEditarInstrumento | None = None
 
         self.painel_plano = PainelPlano(repositorio)
         self.painel_plano.alterado.connect(self.alterado)
@@ -175,78 +171,27 @@ class AbaInstrumentos(QWidget):
         faixa = QHBoxLayout(self)
         faixa.addWidget(self.lista, 1)
         faixa.addWidget(coluna_direita, 1)
+        self.mostrar(None)
 
     # --- Montagem ---------------------------------------------------------------------------
 
     def _caixa_dados(self) -> QGroupBox:
-        self.campos = {nome: QLineEdit() for nome in
-                       ("codigo", "tipo", "localizacao", "faixa", "resolucao", "fabricante",
-                        "data_compra", "periodicidade_meses", "custo_compra", "responsavel")}
-        self.campos["periodicidade_meses"].setToolTip("De quantos em quantos meses calibrar.")
-        self.campos["custo_compra"].setToolTip("Valor pago na compra, em reais (ex.: 350,00).")
-        self.plano = QComboBox()
-        self.exige = QCheckBox("Precisa de calibração")
-        self.exige.setToolTip("Desmarque para instrumentos que não precisam de calibração: "
-                              "eles saem do cronograma.")
-        self.observacoes = QLineEdit()
-        # 1ª calibração prevista (pedido de 2026-11-03): no lugar do histórico da DQ05.
-        self.primeira = QLineEdit(placeholderText="dd/mm/aaaa")
-        self.primeira.setToolTip(DICA_PRIMEIRA)
-        self.dica_primeira = QLabel("Só até a 1ª calibração registrada no programa",
-                                    objectName="dica")
-        self.dica_primeira.setToolTip(DICA_PRIMEIRA)
-        # Caixa "Reserva" (pedido de 2026-11-03): marcar põe " - Reserva" na localização e
-        # desmarcar tira; digitar "Reserva" no campo também marca a caixa.
-        self.reserva = QCheckBox("Reserva")
-        self.reserva.setToolTip("Marque se o instrumento está guardado como reserva: a "
-                                "localização ganha \"- Reserva\" (em azul). Desmarque quando "
-                                "ele voltar a ser usado.")
-        self.reserva.clicked.connect(lambda marcada: self._marca_clicada(reserva=marcada))
-        self.indicativa = QCheckBox("Orientação indicativa")
-        self.indicativa.setToolTip("Marque se o instrumento é usado como orientação indicativa "
-                                   "(continua em uso e no cronograma): a localização ganha "
-                                   "\"- Orientação indicativa\". Fica no histórico ao salvar.")
-        self.indicativa.clicked.connect(
-            lambda marcada: self._marca_clicada(indicativa=marcada))
-        self.campos["localizacao"].textChanged.connect(self._localizacao_mudou)
-
+        """Só apresentação: rótulo e valor em duas colunas (para mudar, EDITAR)."""
+        self.valores = {nome: QLabel(textFormat=Qt.RichText, wordWrap=True)
+                        for nome, _ in DADOS}
         grade = QGridLayout()
-        rotulos = [("codigo", "Código"), ("tipo", "Tipo"), ("localizacao", "Localização"),
-                   ("faixa", "Faixa"), ("resolucao", "Resolução"), ("fabricante", "Fabricante"),
-                   ("data_compra", "Data de compra"),
-                   ("periodicidade_meses", "Periodicidade (meses)"),
-                   ("custo_compra", "Custo de compra (R$)"), ("responsavel", "Responsável")]
-        for indice, (nome, rotulo) in enumerate(rotulos):
+        for indice, (nome, rotulo) in enumerate(DADOS):
             linha, coluna = divmod(indice, 2)
-            grade.addWidget(QLabel(rotulo), linha, coluna * 2)
-            grade.addWidget(self.campos[nome], linha, coluna * 2 + 1)
-        self.novo_plano = QPushButton("Novo plano")
-        self.novo_plano.setToolTip("Cria um plano vazio; depois inclua os pontos na sub-aba "
-                                   "Plano de calibração.")
-        self.novo_plano.clicked.connect(self.pedir_nome_do_plano)
-        rotulo_primeira = QLabel("1ª calibração prevista")
-        rotulo_primeira.setToolTip(DICA_PRIMEIRA)
-        grade.addWidget(rotulo_primeira, 5, 0)
-        grade.addWidget(self.primeira, 5, 1)
-        grade.addWidget(self.dica_primeira, 5, 2, 1, 2)
-        grade.addWidget(QLabel("Plano"), 6, 0)
-        grade.addWidget(self.plano, 6, 1, 1, 2)
-        grade.addWidget(self.novo_plano, 6, 3)
-        grade.addWidget(QLabel("Observações"), 7, 0)
-        grade.addWidget(self.observacoes, 7, 1, 1, 3)
-        caixas = QHBoxLayout()
-        for caixa in (self.exige, self.reserva, self.indicativa):
-            caixas.addWidget(caixa)
-            caixas.addSpacing(20)
-        caixas.addStretch(1)
-        self.condicao_atual = QLabel()
-        caixas.addWidget(self.condicao_atual)
-        grade.addLayout(caixas, 8, 1, 1, 3)
+            grade.addWidget(QLabel(f"{rotulo}:"), linha, coluna * 2)
+            grade.addWidget(self.valores[nome], linha, coluna * 2 + 1)
+        grade.setColumnStretch(1, 1)
+        grade.setColumnStretch(3, 1)
 
+        self.editar = QPushButton("EDITAR", objectName="principal")
+        self.editar.setToolTip("Abre a janela para mudar os dados deste instrumento.")
+        self.editar.clicked.connect(self.editar_instrumento)
         self.novo = QPushButton("Novo instrumento")
         self.novo.clicked.connect(self.novo_instrumento)
-        self.salvar = QPushButton("SALVAR", objectName="principal")
-        self.salvar.clicked.connect(self.salvar_instrumento)
         self.mudar_condicao = QPushButton("Mudar condição")
         self.mudar_condicao.setToolTip("Desativar ou voltar a usar, com data e observação.")
         self.mudar_condicao.clicked.connect(self.mudar_condicao_instrumento)
@@ -256,7 +201,7 @@ class AbaInstrumentos(QWidget):
         botoes.addWidget(self.novo, 1)
         botoes.addWidget(self.mudar_condicao, 1)
         botoes.addWidget(self.lixeira, 1)
-        botoes.addWidget(self.salvar, 2)
+        botoes.addWidget(self.editar, 2)
 
         self.titulo_dados = QLabel(objectName="dica")
         self.avisos = QLabel(wordWrap=True, objectName="avisos")
@@ -272,61 +217,59 @@ class AbaInstrumentos(QWidget):
 
     def atualizar(self, situacoes: dict) -> None:
         """Recarrega a lista (chamada pela janela, que já calculou o cronograma)."""
-        self._recarregar_planos()
         self.lista.atualizar(self.repo.listar_instrumentos(incluir_desativados=True),
                              self.repo.condicoes_atuais(), situacoes)
-
-    def _recarregar_planos(self) -> None:
-        self.plano.clear()
-        self.plano.addItem("— sem plano —", None)
-        for plano in self.repo.listar_planos():
-            self.plano.addItem(plano.nome, plano.id)
 
     def mostrar(self, instrumento: Instrumento | None) -> None:
         self.atual = instrumento
         self.lista.marcar(instrumento.id if instrumento else None)
-        dados = instrumento or Instrumento(codigo="", tipo="")
-        for nome, campo in self.campos.items():
-            valor = getattr(dados, nome)
-            if nome == "custo_compra":
-                campo.setText(numero_em_texto(valor))
-            else:
-                campo.setText("" if valor is None else str(valor))
-            campo.setCursorPosition(0)  # texto longo mostra o começo, não o fim
-        if dados.plano_id is not None and self.plano.findData(dados.plano_id) < 0:
-            # plano na Lixeira: continua aparecendo, para não sumir sem ninguém perceber
-            nome = self.repo.obter_plano(dados.plano_id).nome
-            self.plano.addItem(f"{nome} (na Lixeira)", dados.plano_id)
-        self.plano.setCurrentIndex(max(self.plano.findData(dados.plano_id), 0))
-        self.exige.setChecked(dados.exige_calibracao)
-        self.primeira.setText(formatar_data(dados.primeira_prevista)
-                              if dados.primeira_prevista else "")
-        # Depois da 1ª calibração registrada, a data não é mais usada: fica só para consulta.
-        ja_calibrado = bool(instrumento and self.repo.listar_calibracoes(instrumento.id))
-        self.primeira.setReadOnly(not self.pode_editar or ja_calibrado)
-        self.dica_primeira.setText(
-            "Não é mais usada: já há calibração no programa" if ja_calibrado
-            else "Só até a 1ª calibração registrada no programa")
-        self.observacoes.setText(dados.observacoes or "")
-        if not self.pode_editar:
-            self.titulo_dados.setText(f"Consultando {dados.codigo}" if instrumento else "")
+        if instrumento is None:
+            for valor in self.valores.values():
+                valor.setText("—")
+            self.titulo_dados.setText("Escolha um instrumento na lista (clique no código).")
         else:
-            self.titulo_dados.setText(f"Editando {dados.codigo}" if instrumento
-                                      else "Novo instrumento: preencha e clique em SALVAR")
-        self.mudar_condicao.setEnabled(instrumento is not None)
-        self.lixeira.setEnabled(instrumento is not None)
+            self._mostrar_dados(instrumento)
+            self.titulo_dados.setText(
+                "Só para ver. Para mudar, clique em EDITAR." if self.pode_editar
+                else f"Consultando {instrumento.codigo}")
+        for botao in (self.editar, self.mudar_condicao, self.lixeira):
+            botao.setEnabled(instrumento is not None)
         self.painel_plano.mostrar(instrumento.plano_id if instrumento else None)
         self._mostrar_condicao(instrumento)
         self._aviso("")
 
+    def _mostrar_dados(self, instrumento: Instrumento) -> None:
+        plano = "sem plano"
+        if instrumento.plano_id is not None:
+            plano = self.repo.obter_plano(instrumento.plano_id).nome
+            if self.repo.na_lixeira(Tipo.PLANO, instrumento.plano_id):
+                plano += " (na Lixeira)"
+        atual = self.repo.condicao_atual(instrumento.id)
+        desde = f" desde {formatar_data(atual.data)}" if atual.data else ""
+        local = instrumento.localizacao or "—"
+        textos = {
+            "codigo": instrumento.codigo, "tipo": instrumento.tipo,
+            "faixa": instrumento.faixa, "resolucao": instrumento.resolucao,
+            "fabricante": instrumento.fabricante, "data_compra": instrumento.data_compra,
+            "periodicidade_meses": (f"{instrumento.periodicidade_meses} meses"
+                                    if instrumento.periodicidade_meses else None),
+            "custo_compra": (f"R$ {numero_em_texto(instrumento.custo_compra)}"
+                             if instrumento.custo_compra is not None else None),
+            "responsavel": instrumento.responsavel,
+            "primeira_prevista": (formatar_data(instrumento.primeira_prevista)
+                                  if instrumento.primeira_prevista else None),
+            "plano": plano,
+            "exige_calibracao": "Sim" if instrumento.exige_calibracao else "Não",
+            "condicao": f"{atual.condicao}{desde}",
+            "observacoes": instrumento.observacoes,
+        }
+        for nome, texto in textos.items():
+            self.valores[nome].setText(f"<b>{html.escape(texto)}</b>" if texto else "—")
+        self.valores["localizacao"].setText(destacar(local) if tem_destaque(local)
+                                            else html.escape(local))
+
     def _mostrar_condicao(self, instrumento: Instrumento | None) -> None:
         historico = self.repo.historico_condicao(instrumento.id) if instrumento else []
-        if instrumento is None:
-            self.condicao_atual.setText("")
-        else:
-            atual = historico[-1] if historico else MudancaCondicao(Condicao.EM_USO, None)
-            desde = f" desde {formatar_data(atual.data)}" if atual.data else ""
-            self.condicao_atual.setText(f"Condição: <b>{atual.condicao}</b>{desde}")
         # Condição e marca de orientação indicativa juntas, por data (mais recente em cima).
         linhas = [(m.data, 0, n, m.condicao.value, CORES_CONDICAO[m.condicao], m.motivo,
                    "Parecer final da calibração" if m.calibracao_id else "Mudança manual")
@@ -349,68 +292,43 @@ class AbaInstrumentos(QWidget):
     # --- Ações ------------------------------------------------------------------------------
 
     def definir_edicao(self, pode: bool) -> None:
-        """Modo consulta: botões de mudar somem e os campos não aceitam digitação."""
-        for botao in (self.novo, self.salvar, self.mudar_condicao, self.lixeira):
+        """Modo consulta: botões de mudar somem (os dados já são só apresentação)."""
+        for botao in (self.novo, self.editar, self.mudar_condicao, self.lixeira):
             botao.setVisible(pode)
-        for campo in (*self.campos.values(), self.observacoes, self.primeira):
-            campo.setReadOnly(not pode)
-        self.plano.setEnabled(pode)
-        self.novo_plano.setVisible(pode)
-        self.exige.setEnabled(pode)
-        self.reserva.setEnabled(pode)
-        self.indicativa.setEnabled(pode)
         self.pode_editar = pode
         self.painel_plano.definir_edicao(pode)
+        if self.janela_edicao is not None and not pode:
+            self.janela_edicao.reject()  # perdeu a edição: a janela de editar fecha
         self.recarregar_atual()
 
-    def _marca_clicada(self, reserva: bool | None = None,
-                       indicativa: bool | None = None) -> None:
-        campo = self.campos["localizacao"]
-        campo.setText(com_marcas(campo.text(), reserva, indicativa) or "")
-        campo.setCursorPosition(0)
-
-    def _localizacao_mudou(self, texto: str) -> None:
-        self.reserva.setChecked(eh_reserva(texto))
-        self.indicativa.setChecked(eh_indicativa(texto))
-
     def tem_alteracao(self) -> bool:
-        """Algo digitado na ficha ou no plano e ainda não salvo."""
-        if self.painel_plano.tem_alteracao():
-            return True
-        dados = self.atual or Instrumento(codigo="", tipo="")
-        for nome, campo in self.campos.items():
-            valor = getattr(dados, nome)
-            salvo = (numero_em_texto(valor) if nome == "custo_compra"
-                     else "" if valor is None else str(valor))
-            if campo.text().strip() != salvo.strip():
-                return True
-        primeira = formatar_data(dados.primeira_prevista) if dados.primeira_prevista else ""
-        if self.primeira.text().strip() != primeira:
-            return True
-        return ((self.observacoes.text().strip() != (dados.observacoes or "").strip())
-                or (self.atual is not None and (self.plano.currentData() != dados.plano_id
-                                                or self.exige.isChecked()
-                                                != dados.exige_calibracao)))
+        """Algo digitado (na janela de edição ou no plano) e ainda não salvo."""
+        return self.painel_plano.tem_alteracao() or (
+            self.janela_edicao is not None and self.janela_edicao.tem_alteracao())
 
-    def pedir_nome_do_plano(self) -> None:
-        from PySide6.QtWidgets import QInputDialog
-        codigo = self.campos["codigo"].text().strip()
-        nome, ok = QInputDialog.getText(self, "Novo plano", "Nome do plano:",
-                                        text=f"Plano {codigo}" if codigo else "Plano ")
-        if ok:
-            self.criar_plano(nome)
+    def criar_janela_edicao(self, instrumento: Instrumento | None) -> JanelaEditarInstrumento:
+        """A janela de editar (ou de novo instrumento), já ligada à aba; quem chama dá exec()."""
+        janela = JanelaEditarInstrumento(self.repo, self.hoje, instrumento, parent=self)
+        janela.salvo.connect(self._salvou)
+        janela.finished.connect(self._fechou_edicao)
+        self.janela_edicao = janela
+        return janela
 
-    def criar_plano(self, nome: str) -> None:
-        """Cria o plano e já o escolhe no campo Plano (falta clicar em SALVAR para ligar)."""
-        try:
-            plano_id = self.repo.incluir_plano(Plano(nome))
-        except ErroDeValidacao as erro:
-            self._aviso("\n".join(f"✖ {m}" for m in erro.mensagens), erro=True)
-            return
-        self._recarregar_planos()
-        self.plano.setCurrentIndex(self.plano.findData(plano_id))
-        self._aviso(f"Plano \"{nome.strip()}\" criado. Clique em SALVAR para ligá-lo a este "
-                    "instrumento e depois inclua os pontos na sub-aba Plano de calibração.")
+    def _fechou_edicao(self, _resultado: int) -> None:
+        self.janela_edicao = None
+
+    def editar_instrumento(self) -> None:
+        if self.atual is not None:
+            self.criar_janela_edicao(self.atual).exec()
+
+    def novo_instrumento(self) -> None:
+        self.criar_janela_edicao(None).exec()
+
+    def _salvou(self, instrumento_id: int) -> None:
+        instrumento = self.repo.obter_instrumento(instrumento_id)
+        self.alterado.emit()
+        self.mostrar(instrumento)
+        self._aviso(f"✔ {instrumento.codigo} salvo.", certo=True)
 
     def recarregar_atual(self) -> None:
         """Redesenha o instrumento aberto (mudou algo pela Lixeira)."""
@@ -420,55 +338,6 @@ class AbaInstrumentos(QWidget):
             self.mostrar(None)
         else:
             self.mostrar(self.repo.obter_instrumento(self.atual.id))
-
-    def novo_instrumento(self) -> None:
-        self.mostrar(None)
-        self.campos["codigo"].setFocus()
-
-    def salvar_instrumento(self) -> None:
-        texto_meses = self.campos["periodicidade_meses"].text().strip()
-        if texto_meses and not texto_meses.isdigit():
-            self._aviso("✖ A periodicidade deve ser um número inteiro de meses.", erro=True)
-            return
-        try:
-            custo = numero(self.campos["custo_compra"].text().replace("R$", ""))
-        except ValueError:
-            self._aviso("✖ O custo de compra deve ser um número (ex.: 350,00).", erro=True)
-            return
-        try:
-            primeira = _data_digitada(self.primeira.text())
-        except ValueError:
-            self._aviso("✖ A 1ª calibração prevista deve ser uma data (dd/mm/aaaa).", erro=True)
-            return
-        instrumento = Instrumento(
-            codigo=self.campos["codigo"].text().strip(),
-            tipo=self.campos["tipo"].text().strip(),
-            localizacao=_texto(self.campos["localizacao"]),
-            faixa=_texto(self.campos["faixa"]),
-            resolucao=_texto(self.campos["resolucao"]),
-            fabricante=_texto(self.campos["fabricante"]),
-            data_compra=_texto(self.campos["data_compra"]),
-            periodicidade_meses=int(texto_meses) if texto_meses else None,
-            plano_id=self.plano.currentData(),
-            exige_calibracao=self.exige.isChecked(),
-            observacoes=_texto(self.observacoes),
-            custo_compra=custo,
-            responsavel=_texto(self.campos["responsavel"]),
-            primeira_prevista=primeira,
-            id=self.atual.id if self.atual else None,
-        )
-        try:
-            if instrumento.id is None:
-                instrumento.id = self.repo.incluir_instrumento(instrumento, self.hoje)
-            else:
-                self.repo.atualizar_instrumento(instrumento, self.hoje)
-        except ErroDeValidacao as erro:
-            self._aviso("\n".join(f"✖ {m}" for m in erro.mensagens), erro=True)
-            return
-        self.atual = instrumento
-        self.alterado.emit()
-        self.mostrar(self.repo.obter_instrumento(instrumento.id))
-        self._aviso(f"✔ {instrumento.codigo} salvo.", certo=True)
 
     def mudar_condicao_instrumento(self) -> None:
         if self.atual is None:
