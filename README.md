@@ -16,9 +16,10 @@
 </p>
 <p align="center">
   <img src="https://img.shields.io/badge/área-gestão_da_qualidade-blue?style=flat-square" alt="Área"/>
-  <img src="https://img.shields.io/badge/tipo-aplicação_web_local-orange?style=flat-square" alt="Tipo"/>
-  <img src="https://img.shields.io/badge/testes-unittest-brightgreen?style=flat-square" alt="Testes"/>
+  <img src="https://img.shields.io/badge/tipo-aplicação_desktop-orange?style=flat-square" alt="Tipo"/>
+  <img src="https://img.shields.io/badge/testes-pytest_(315)-brightgreen?style=flat-square" alt="Testes"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
+  <img src="https://img.shields.io/badge/versão-1.0.0_em_uso-success?style=flat-square" alt="Versão"/>
 </p>
 
 <p align="center">
@@ -483,6 +484,25 @@ o protótipo:
 | **Custo estimado do mês** | Soma do último custo de calibração de cada instrumento previsto — ajuda a planejar o orçamento das calibrações externas. |
 | **Motivo do atraso** | Para a calibração vencida, informa-se por que ainda não foi feita; ao registrá-la, o motivo vai junto. O atraso fica registrado sem alarde — às vezes não é culpa de ninguém. |
 
+**Fase 6 — Programa pronto para a rede e versão `1.0.0`.** Antes de entrar em uso, o programa
+passou por um **teste de uso real** numa cópia separada (o "programa de TESTE", com faixa amarela,
+para mexer à vontade sem bagunçar o banco oficial). Cada achado virou uma correção, mostrada por
+foto e aprovada antes de seguir:
+
+| Melhoria | O que faz |
+|---|---|
+| **Abre rápido pela rede** | Na pasta da rede só se vê um `.exe` pequeno: ele copia o programa para o computador uma vez por versão e abre de lá em ~2 s (antes, 10–15 s). Atualizar = trocar uma pasta. |
+| **Aba Calibrar** | Lugar próprio para calibrar: a lista de instrumentos, o botão **NOVA CALIBRAÇÃO** e as calibrações feitas; cada uma abre só para ver, com **EDITAR** à parte. |
+| **Ver × editar** | Ficha do instrumento e plano de calibração são **só apresentação**; para mudar, botões **EDITAR** abrem janelas próprias com faixa amarela "Você está editando" — ninguém altera nada sem querer. |
+| **Tudo o que é clicável se mostra** | Passar o mouse clareia botões, abas, filtros e células; o código na lista é um botão; caixinhas com contorno; aviso verde **"✔ Salvo"** a cada gravação. |
+| **Marcas Reserva e Orientação indicativa** | Caixinhas na ficha; a orientação indicativa deixou de ser "condição" e virou uma marca a mais, com histórico. |
+| **1ª calibração prevista** | O programa começa sem calibrações antigas, mas cada instrumento recebe a data da próxima calibração e **já entra no cronograma**. |
+| **Incerteza "não se aplica"** | Onde a planilha diz "-" ou "N/A", o ponto é avaliado só pelo valor — diferente de incerteza esquecida, que continua bloqueando. |
+| **Dois computadores** | No modo consulta, botões **Pedir edição** e **Atualizar** no canto; a resposta volta em **verde** (liberado) ou **vermelho** (recusado); a tela se atualiza sozinha a cada 10 s. |
+| **Gráfico de tendência com todos os pontos** | Abre com **todos os pontos juntos**, cada um com cor e formato próprios e afastados para não se cobrirem. Tolerâncias iguais → eixo no erro; diferentes → eixo em **% da tolerância usada** (100% = no limite). Clicar no nome do ponto na legenda esconde/mostra; um ponto por vez continua disponível. |
+| **Cronograma a partir da implantação** | O seletor de mês começa no mês atual e nos próximos; os meses que já passaram ficam embaixo, como registro, sem nada de antes da implantação. |
+| **Rolagem** | Roda do mouse só rola (nunca muda opção sem querer); **Shift + roda** rola para os lados. |
+
 ### 🗺️ Roteiro
 
 - [x] Fase 0 — Fundação (estrutura, versão, testes, decisões de arquitetura)
@@ -493,7 +513,7 @@ o protótipo:
   lixeira e trava de edição para uso em rede)
 - [x] Fase 5 — Melhorias e correções (plano novo pela tela, correção de calibração com registro,
   cronograma de qualquer mês com custo estimado, motivo do atraso, proteção contra cópia)
-- [ ] Fase 6 — Versão `1.0.0` em uso na empresa
+- [x] Fase 6 — Programa para a rede, teste de uso real e versão `1.0.0` em uso na empresa (novembro de 2026)
 
 ### 🧪 Testes do protótipo
 

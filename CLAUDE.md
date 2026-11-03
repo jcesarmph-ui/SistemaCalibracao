@@ -108,17 +108,18 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
 
 ## ▶ PRÓXIMA SESSÃO — lembrar o usuário logo no início (atualizado em 2026-11-03)
 1. **Escrever SÓ em português** (o usuário ficou bravo com frases em inglês em 2026-11-03).
-2. **Correções do teste: todos os itens 1–16 feitos** (`docs/correcoes_do_teste.md`). Itens 6–8
-   (2026-11-03): botões "Pedir edição" e "Atualizar" no canto (só no modo consulta), resposta em
-   verde/vermelho, consulta relê a cada 10 s. Pacote de teste **gerado de novo em 2026-11-03**
-   (`dist/TESTE - Calibração`, já com Shift + roda e itens 6–8). Pendente do usuário: testar em
-   2 PCs na rede (copiar sem abrir antes) e trazer novas correções.
-   **Item 17 anotado, não feito** (gráfico de tendência com todos os pontos juntos como
-   principal) e **item 18 anotado, não feito** (seletor de mês começa na implantação; atual e
-   próximos em cima, passados embaixo). O usuário está juntando mais melhorias antes.
-3. Branches: `fase-6-trava-botoes` (PR #14, base `fase-6-caixa-reserva`) sobre
-   `fase-6-caixa-reserva` (PR #13, base `fase-6-exe`); nenhum juntado. Banco da entrega remontado
-   da DQ05 em 2026-11-03 (esquema v9).
+2. **Versão `1.0.0` entregue em 2026-11-03** (tag `v1.0.0`, tudo juntado ao `main`). Itens 1–18
+   de `docs/correcoes_do_teste.md` feitos (17 = gráfico com todos os pontos juntos; 18 = seletor
+   de mês a partir da implantação). **Implantação = novembro de 2026** (`metadados.implantado_em`
+   = 2026-11-01, gravado por `empacotamento/montar_entrega.py`; banco de antes guardado em
+   `dados/entrega_antes_1.0.0.db`). Programa de teste **não** é mais gerado (pedido do usuário).
+   Entrega pronta em `dist/entrega` (conferida: abre, versão 1.0.0, 123 instrumentos, sem
+   calibrações, sem lugar oficial). **O usuário copia a pasta para a rede sem abrir antes**; depois
+   digita a "1ª calibração prevista" de cada instrumento olhando a DQ05.
+   A partir daqui: CORREÇÃO (1.0.x) = conserto; MENOR (1.x.0) = novidade. Atualizar na rede =
+   trocar a pasta oculta `programa` (com o programa fechado por todos); **nunca** trocar `dados`.
+3. Pendências que continuam: confidencialidade do repositório público (só quando o usuário
+   pedir); limpeza dos arquivos do protótipo na árvore (perguntar antes de remover).
 4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,
    com opções numeradas ("responda 1 ou 2").
 
