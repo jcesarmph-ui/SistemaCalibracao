@@ -119,6 +119,9 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    digita a "1ª calibração prevista" de cada instrumento olhando a DQ05.
    A partir daqui: CORREÇÃO (1.0.x) = conserto; MENOR (1.x.0) = novidade. Atualizar na rede =
    trocar a pasta oculta `programa` (com o programa fechado por todos); **nunca** trocar `dados`.
+   **Prints** de cada versão: repositório **PRIVADO** `jcesarmph-ui/calibracao-prints` (pasta
+   `Projetos\calibracao-prints`, uma pasta `prints-X.Y.Z` por versão), gerados por
+   `dados/fotos/foto_prints.py` (cópia do banco da entrega + uso simulado até 03/2029).
 3. Pendências que continuam: confidencialidade do repositório público (só quando o usuário
    pedir); limpeza dos arquivos do protótipo na árvore (perguntar antes de remover).
 4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,
