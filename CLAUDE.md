@@ -81,11 +81,10 @@ tendência; lixeira com exclusão lógica. Detalhes do comportamento atual: `REA
   "Classificação (Classe)" com valor `1` (extensômetro, máquina de tração) = **classe exigida 1**, não tolerância.
 
 ## Bancos de dados — CUIDADO
-- **Banco do protótipo**:
-  `C:\Users\rodrigo.lima\Projetos\Calibração de Instrumentos\Arquivos\data\calibracao.db`
-  (pasta do programa protótipo: `Calibração de Instrumentos.exe` + `Arquivos\`).
-- **Nunca alterar esse banco** nem a pasta `Calibração de Instrumentos`. Para desenvolver, **copiar** o
-  banco para `data/calibracao.db` desta pasta (ignorado pelo Git: `data/*.db`) e trabalhar na cópia.
+- **Pasta do protótipo apagada** (pedido do usuário em 2026-11-03): a pasta
+  `Projetos\Calibração de Instrumentos` (`.exe` do Streamlit + `Arquivos\`) foi para a Lixeira do
+  Windows. O banco dela (dados de protótipo) ficou guardado em `dados/prototipo_calibracao.db`
+  (fora do Git), conferido por SHA-256. O programa novo não usa nada dela.
 - Na entrega (`1.0.0`), vai para a pasta comum da empresa um banco **novo**, montado a partir da
   planilha (cadastros e planos, sem calibrações), junto do `.exe` novo.
 - O `.db` **nunca** esteve no GitHub (conferido em todo o histórico em 2026-10-28).
