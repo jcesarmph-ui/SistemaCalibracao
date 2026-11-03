@@ -2,7 +2,8 @@
 
 Regra (herdada do protótipo): o ponto só é aprovado se a faixa inteira `[x − U, x + U]` ficar dentro
 dos limites. Incerteza ausente nunca vale zero: o ponto fica "não avaliado". U negativa (existe na
-planilha DQ05) é usada sem o sinal.
+planilha DQ05) é usada sem o sinal. Ponto marcado "U não se aplica" (na DQ05 vem "-" ou "N/A" onde
+vai a incerteza; pedido do usuário em 2026-11-03) é avaliado só pelo valor, sem U.
 
 - Numérico com nominal: x = medido − nominal, comparado com a tolerância (ex.: ± 0,05).
 - Numérico sem nominal fixo (durômetro, excentricidade da balança): o laboratório já entrega o erro;
@@ -37,12 +38,12 @@ class Avaliacao:
 
 
 def _comparar(x: float, incerteza: float | None, minimo: float | None,
-              maximo: float | None) -> Avaliacao:
-    if incerteza is None:
+              maximo: float | None, sem_incerteza: bool = False) -> Avaliacao:
+    if incerteza is None and not sem_incerteza:
         return Avaliacao(Resultado.NAO_AVALIADO, "incerteza ausente")
     if minimo is None and maximo is None:
         return Avaliacao(Resultado.NAO_AVALIADO, "tolerância ausente")
-    u = abs(incerteza)
+    u = 0.0 if sem_incerteza else abs(incerteza)
     faixa = (x - u, x + u)
     if minimo is not None and faixa[0] < minimo - _FOLGA:
         return Avaliacao(Resultado.REPROVADO, "abaixo do limite inferior", faixa)
@@ -53,19 +54,19 @@ def _comparar(x: float, incerteza: float | None, minimo: float | None,
 
 def avaliar_numerico(valor: float | None, *, nominal: float | None,
                      tolerancia_inferior: float | None, tolerancia_superior: float | None,
-                     incerteza: float | None) -> Avaliacao:
+                     incerteza: float | None, sem_incerteza: bool = False) -> Avaliacao:
     """`valor` é o medido (com nominal) ou o erro do certificado (sem nominal fixo)."""
     if valor is None:
         return Avaliacao(Resultado.NAO_INFORMADO)
     erro = valor - nominal if nominal is not None else valor
-    return _comparar(erro, incerteza, tolerancia_inferior, tolerancia_superior)
+    return _comparar(erro, incerteza, tolerancia_inferior, tolerancia_superior, sem_incerteza)
 
 
 def avaliar_limite(valor: float | None, *, minimo: float | None, maximo: float | None,
-                   incerteza: float | None) -> Avaliacao:
+                   incerteza: float | None, sem_incerteza: bool = False) -> Avaliacao:
     if valor is None:
         return Avaliacao(Resultado.NAO_INFORMADO)
-    return _comparar(valor, incerteza, minimo, maximo)
+    return _comparar(valor, incerteza, minimo, maximo, sem_incerteza)
 
 
 def resultado_geral(resultados: list[Resultado]) -> Resultado:

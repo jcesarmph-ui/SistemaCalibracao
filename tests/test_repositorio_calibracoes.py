@@ -1,5 +1,6 @@
 """Repositório: registro de calibrações (regras da fase 2 + banco)."""
 
+import datetime
 from datetime import date
 
 import pytest
@@ -15,6 +16,7 @@ from calibracao.dados.repositorio import (
 )
 from calibracao.regras.avaliacao import Resultado
 from calibracao.regras.condicao import Condicao, ParecerFinal
+from calibracao.regras.lixeira import Tipo
 
 HOJE = date(2027, 3, 15)
 
@@ -84,10 +86,12 @@ def test_parecer_muda_a_condicao_e_guarda_no_historico(repo, paquimetro):
     nova.motivo_parecer = "Usar só para conferência"
     nova.custo, nova.responsavel = 150.0, "Fulano"
     calibracao_id = repo.registrar_calibracao(nova, HOJE)
-    [mudanca] = repo.historico_condicao(instrumento)
-    assert (mudanca.condicao, mudanca.data, mudanca.motivo, mudanca.calibracao_id) == (
-        Condicao.ORIENTACAO_INDICATIVA, date(2027, 3, 10), "Usar só para conferência",
-        calibracao_id)
+    # orientação indicativa não é condição: continua "Em uso" e ganha a marca, com histórico
+    assert repo.historico_condicao(instrumento) == []
+    [marca] = repo.historico_indicativa(instrumento)
+    assert (marca.marcada, marca.data, marca.motivo, marca.calibracao_id) == (
+        True, date(2027, 3, 10), "Usar só para conferência", calibracao_id)
+    assert repo.obter_instrumento(instrumento).localizacao.endswith("Orientação indicativa")
     salva = repo.listar_calibracoes(instrumento)[-1]
     assert (salva.parecer_final, salva.custo, salva.responsavel) == (
         ParecerFinal.ORIENTACAO_INDICATIVA, 150.0, "Fulano")
@@ -189,3 +193,75 @@ def test_ponto_sem_nominal_fixo_usa_o_erro(repo):
     ], parecer_final=ParecerFinal.APROVADO), HOJE)
     [registrado] = repo.pontos_da_calibracao(repo.listar_calibracoes(instrumento)[0].id)
     assert (registrado.resultado, registrado.valor_padrao) == (Resultado.APROVADO, 75.3)
+
+
+def test_calibracao_na_lixeira_desfaz_a_marca_e_restaurar_refaz(repo, paquimetro):
+    instrumento, pontos = paquimetro
+    antes = repo.obter_instrumento(instrumento).localizacao
+    calibracao_id = repo.registrar_calibracao(calibracao(
+        instrumento, pontos, parecer=ParecerFinal.ORIENTACAO_INDICATIVA), HOJE)
+    repo.enviar_para_lixeira(Tipo.CALIBRACAO, calibracao_id, None,
+                             datetime.datetime(2027, 3, 11, 8, 0))
+    assert repo.obter_instrumento(instrumento).localizacao == antes
+    assert repo.historico_indicativa(instrumento) == []
+    repo.restaurar(Tipo.CALIBRACAO, calibracao_id)
+    assert repo.obter_instrumento(instrumento).localizacao.endswith("Orientação indicativa")
+
+
+def test_lixeira_nao_desfaz_se_a_marca_mudou_depois(repo, paquimetro):
+    instrumento, pontos = paquimetro
+    calibracao_id = repo.registrar_calibracao(calibracao(
+        instrumento, pontos, parecer=ParecerFinal.ORIENTACAO_INDICATIVA), HOJE)
+    ficha = repo.obter_instrumento(instrumento)
+    ficha.localizacao = "Laboratório"  # alguém desmarcou na ficha
+    repo.atualizar_instrumento(ficha, HOJE)
+    repo.enviar_para_lixeira(Tipo.CALIBRACAO, calibracao_id, None,
+                             datetime.datetime(2027, 3, 11, 8, 0))
+    assert repo.obter_instrumento(instrumento).localizacao == "Laboratório"
+
+
+def test_parecer_indicativa_ja_marcado_nao_repete_no_historico(repo, paquimetro):
+    instrumento, pontos = paquimetro
+    ficha = repo.obter_instrumento(instrumento)
+    ficha.localizacao = "CT-01 - Orientação indicativa"
+    repo.atualizar_instrumento(ficha, HOJE)
+    repo.registrar_calibracao(calibracao(
+        instrumento, pontos, parecer=ParecerFinal.ORIENTACAO_INDICATIVA), HOJE)
+    assert [m.calibracao_id for m in repo.historico_indicativa(instrumento)] == [None]
+
+
+def test_trena_com_orientacao_indicativa_calibra_so_os_qualitativos(repo):
+    """Pedido de 2026-11-03: os numéricos nem aparecem (vale só para trenas)."""
+    plano = repo.incluir_plano(Plano("Plano TRE-900"))
+    repo.incluir_ponto(PontoPlano(plano, "NUMERICO", "300", valor_nominal=300.0,
+                                  tolerancia_inferior=-0.5, tolerancia_superior=0.5,
+                                  incerteza=0.2))
+    visual = repo.incluir_ponto(PontoPlano(plano, "VERIFICACAO", "Fita legível"))
+    trena = repo.incluir_instrumento(Instrumento(
+        "TRE-900", "Trena", localizacao="CT-01 - Orientação indicativa", plano_id=plano,
+        periodicidade_meses=12))
+    instrumento = repo.obter_instrumento(trena)
+    assert [p.id for p in repo.pontos_para_calibrar(instrumento)] == [visual]
+    repo.registrar_calibracao(NovaCalibracao(trena, date(2027, 3, 10), [
+        PontoMedido(visual, escolha=Resultado.APROVADO)],
+        parecer_final=ParecerFinal.APROVADO), HOJE)
+    assert [p.descricao for p in repo.pontos_da_calibracao(
+        repo.listar_calibracoes(trena)[0].id)] == ["Fita legível"]
+    # sem a marca, a trena volta a ser calibrada em todos os pontos
+    instrumento.localizacao = "CT-01"
+    repo.atualizar_instrumento(instrumento, HOJE)
+    assert len(repo.pontos_para_calibrar(repo.obter_instrumento(trena))) == 2
+
+
+def test_ponto_com_incerteza_nao_aplica_e_avaliado(repo):
+    plano = repo.incluir_plano(Plano("Plano MIC-900"))
+    planeza = repo.incluir_ponto(PontoPlano(plano, "LIMITE", "Planeza", valor_maximo=2.0,
+                                            incerteza_nao_aplica=True))
+    mic = repo.incluir_instrumento(Instrumento("MIC-900", "Micrômetro", plano_id=plano,
+                                               periodicidade_meses=12))
+    [ponto] = repo.listar_pontos(plano)
+    assert ponto.incerteza_nao_aplica is True
+    calibracao_id = repo.registrar_calibracao(NovaCalibracao(mic, date(2027, 3, 10), [
+        PontoMedido(planeza, valor=0.64)], parecer_final=ParecerFinal.APROVADO), HOJE)
+    [registrado] = repo.pontos_da_calibracao(calibracao_id)
+    assert (registrado.resultado, registrado.incerteza_nao_aplica) == (Resultado.APROVADO, True)

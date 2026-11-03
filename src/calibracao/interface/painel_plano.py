@@ -1,7 +1,10 @@
-"""Plano de calibração do instrumento: tabela de pontos editável direto nas células.
+"""Plano de calibração do instrumento (pedido do usuário em 2026-11-03, item 12 do teste).
 
-É por aqui que o usuário corrige o que veio da planilha DQ05 e preenche as incertezas (U) que
-faltam. Mudar o plano vale daqui para a frente: calibrações já feitas guardam a "foto" antiga.
+Na aba Instrumentos fica só um resumo (`ResumoPlano`) com dois botões que abrem janelas grandes:
+VER PLANO (só apresentação, o plano inteiro) e EDITAR PLANO (a tabela de pontos editável — um
+clique na célula já deixa digitar). É por aqui que o usuário corrige o que veio da planilha DQ05 e
+preenche as incertezas (U) que faltam. Mudar o plano vale daqui para a frente: calibrações já
+feitas guardam a "foto" antiga.
 """
 
 import datetime
@@ -10,6 +13,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -50,8 +54,17 @@ COLUNAS = [
     ("incerteza", "Incerteza (U)", True,
      "Incerteza expandida de medição: quanto o resultado pode variar para mais ou para menos. "
      "Sem ela o ponto fica \"não avaliado\" e a calibração não pode ser salva."),
+    ("incerteza_nao_aplica", "U não se aplica", None,
+     "Marque quando a incerteza não se aplica ao ponto (na DQ05 vinha \"-\" ou \"N/A\"): ele é "
+     "avaliado só pelo valor medido."),
 ]
 _COLUNA = {nome: indice for indice, (nome, *_) in enumerate(COLUNAS)}
+
+
+def falta_incerteza(ponto) -> bool:
+    """Ponto medido (numérico ou limite) sem U e sem a marca "U não se aplica"."""
+    return (ponto.tipo in ("NUMERICO", "LIMITE") and ponto.incerteza is None
+            and not ponto.incerteza_nao_aplica)
 
 
 def numero(texto: str) -> float | None:
@@ -69,6 +82,7 @@ def numero_em_texto(valor: float | None) -> str:
 class PainelPlano(QWidget):
     alterado = Signal()
     plano_descartado = Signal()  # o plano inteiro foi para a Lixeira
+    salvo = Signal()             # SALVAR PLANO deu certo (a janela de editar fecha)
 
     def __init__(self, repositorio: Repositorio) -> None:
         super().__init__()
@@ -84,6 +98,8 @@ class PainelPlano(QWidget):
             item = QTableWidgetItem(titulo)
             item.setToolTip(dica)
             self.tabela.setHorizontalHeaderItem(indice, item)
+        # Um clique na célula (ou começar a digitar) já edita (pedido de 2026-11-03).
+        self.tabela.setEditTriggers(QAbstractItemView.AllEditTriggers)
         self._gatilhos_edicao = self.tabela.editTriggers()  # volta a eles ao sair da consulta
         cabecalho = self.tabela.horizontalHeader()
         # Cada coluna do tamanho do conteúdo (rola para o lado se precisar); a última completa.
@@ -94,9 +110,9 @@ class PainelPlano(QWidget):
         self.adicionar.clicked.connect(self.adicionar_ponto)
         self.remover = QPushButton("Enviar ponto para a Lixeira")
         self.remover.clicked.connect(self.remover_ponto)
-        self.salvar = QPushButton("Salvar alterações do plano")
+        self.salvar = QPushButton("SALVAR PLANO", objectName="principal")
         self.salvar.clicked.connect(self.salvar_plano)
-        botoes = QHBoxLayout()
+        self.botoes = botoes = QHBoxLayout()
         botoes.addWidget(self.adicionar)
         botoes.addWidget(self.remover)
         self.descartar_plano = QPushButton("Enviar plano para a Lixeira")
@@ -121,26 +137,27 @@ class PainelPlano(QWidget):
         self.tabela.setRowCount(0)
         for ponto in self._pontos:
             self._nova_linha(ponto)
-        sem_u = sum(1 for p in self._pontos if p.tipo in ("NUMERICO", "LIMITE")
-                    and p.incerteza is None)
+        sem_u = sum(1 for p in self._pontos if falta_incerteza(p))
         if plano_id is not None and self.repo.na_lixeira(Tipo.PLANO, plano_id):
             self._pontos = []
             self.tabela.setRowCount(0)
             for botao in (self.adicionar, self.remover, self.salvar, self.descartar_plano):
                 botao.setEnabled(False)
             self.titulo.setText("O plano deste instrumento está na Lixeira: restaure-o pela aba "
-                                "Lixeira ou escolha outro plano nos dados acima.")
+                                "Lixeira ou escolha outro plano em EDITAR (dados do "
+                                "instrumento).")
             self._aviso("")
             return
         if plano_id is None:
-            self.titulo.setText("Este instrumento não tem plano: escolha um plano nos dados "
-                                "acima e clique em SALVAR." if self.pode_editar
+            self.titulo.setText("Este instrumento não tem plano: escolha um plano em EDITAR "
+                                "(dados do instrumento)." if self.pode_editar
                                 else "Este instrumento não tem plano de calibração.")
         else:
             nome = self.repo.obter_plano(plano_id).nome
             self.titulo.setText(f"{nome}: {len(self._pontos)} ponto(s). "
-                                + ("Clique duas vezes numa célula para editar."
-                                   if self.pode_editar else "(somente consulta)"))
+                                + ("Clique numa célula e digite para mudar; depois clique "
+                                   "em SALVAR PLANO." if self.pode_editar
+                                   else "(somente consulta)"))
         for botao in (self.adicionar, self.remover, self.salvar, self.descartar_plano):
             botao.setEnabled(plano_id is not None)
         self._aviso(f"⚠ {sem_u} ponto(s) sem Incerteza (U): preencha antes de registrar a "
@@ -150,6 +167,12 @@ class PainelPlano(QWidget):
         linha = self.tabela.rowCount()
         self.tabela.insertRow(linha)
         for indice, (nome, _, eh_numero, _) in enumerate(COLUNAS):
+            if nome == "incerteza_nao_aplica":
+                caixa = QTableWidgetItem()
+                caixa.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
+                caixa.setCheckState(Qt.Checked if ponto.incerteza_nao_aplica else Qt.Unchecked)
+                self.tabela.setItem(linha, indice, caixa)
+                continue
             if nome == "tipo":
                 escolha = QComboBox()
                 for sigla, (texto, dica) in TIPOS.items():
@@ -163,7 +186,7 @@ class PainelPlano(QWidget):
             texto = (str(valor) if nome == "ordem" and valor is not None
                      else numero_em_texto(valor) if eh_numero else (valor or ""))
             item = QTableWidgetItem(texto)
-            if nome == "incerteza" and ponto.tipo in ("NUMERICO", "LIMITE") and valor is None:
+            if nome == "incerteza" and falta_incerteza(ponto):
                 item.setBackground(Qt.yellow)  # aviso: falta a U
                 item.setForeground(Qt.black)
             self.tabela.setItem(linha, indice, item)
@@ -176,11 +199,14 @@ class PainelPlano(QWidget):
         self._nova_linha(PontoPlano(self.plano_id, "NUMERICO", "", ordem=proxima))
         self.tabela.scrollToBottom()
         self.tabela.editItem(self.tabela.item(self.tabela.rowCount() - 1, _COLUNA["descricao"]))
-        self._aviso("Preencha o ponto novo e clique em \"Salvar alterações do plano\".")
+        self._aviso("Preencha o ponto novo e clique em SALVAR PLANO.")
 
     def _ponto_da_linha(self, linha: int) -> PontoPlano:
         dados = {"plano_id": self.plano_id, "id": self.tabela.item(linha, 0).data(Qt.UserRole)}
         for indice, (nome, titulo, eh_numero, _) in enumerate(COLUNAS):
+            if nome == "incerteza_nao_aplica":
+                dados[nome] = self.tabela.item(linha, indice).checkState() == Qt.Checked
+                continue
             if nome == "tipo":
                 dados[nome] = self.tabela.cellWidget(linha, indice).currentData()
                 continue
@@ -239,6 +265,7 @@ class PainelPlano(QWidget):
         self.mostrar(self.plano_id)
         self.alterado.emit()
         self._aviso("✔ Plano salvo. Vale para as próximas calibrações.", certo=True)
+        self.salvo.emit()
 
     def remover_ponto(self) -> None:
         linha = self.tabela.currentRow()
@@ -293,3 +320,200 @@ class PainelPlano(QWidget):
         cor = "#ef5350" if erro else "#43a047" if certo else "#ffd54f"
         self.avisos.setStyleSheet(f"color: {cor};")
         self.avisos.setText(texto)
+
+
+def _maximizar(janela: QDialog) -> None:
+    janela.setWindowFlag(Qt.WindowMaximizeButtonHint, True)
+    janela.setWindowState(Qt.WindowMaximized)
+
+
+class JanelaEditarPlano(QDialog):
+    """EDITAR PLANO: janela grande com a tabela editável; SALVAR PLANO grava e fecha."""
+
+    def __init__(self, repositorio: Repositorio, plano_id: int, parent=None) -> None:
+        super().__init__(parent)
+        nome = repositorio.obter_plano(plano_id).nome
+        self.setWindowTitle(f"Editar plano — {nome}")
+        _maximizar(self)
+        self.painel = PainelPlano(repositorio)
+        self.painel.mostrar(plano_id)
+        self.painel.salvo.connect(self.accept)
+        self.painel.plano_descartado.connect(self.accept)
+        faixa = QLabel("Você está editando o plano: clique numa célula e digite; depois clique em "
+                       "SALVAR PLANO (ou em Cancelar para desistir).", alignment=Qt.AlignCenter)
+        faixa.setStyleSheet("background: #ffd54f; color: #000000; padding: 6px; "
+                            "font-weight: bold;")
+        self.cancelar = QPushButton("Cancelar")
+        self.cancelar.clicked.connect(self.reject)
+        self.painel.botoes.insertWidget(self.painel.botoes.count() - 1, self.cancelar)
+        coluna = QVBoxLayout(self)
+        coluna.addWidget(QLabel(f"EDITAR PLANO — {nome}", objectName="titulo",
+                                alignment=Qt.AlignCenter))
+        coluna.addWidget(faixa)
+        coluna.addWidget(self.painel, 1)
+
+
+class JanelaVerPlano(QDialog):
+    """VER PLANO: o plano inteiro, só apresentação. EDITAR PLANO (só no modo edição) fecha com
+    `EDITAR` e quem abriu abre a janela de edição."""
+
+    EDITAR = 2
+
+    def __init__(self, repositorio: Repositorio, plano_id: int, parent=None,
+                 pode_editar: bool = False) -> None:
+        super().__init__(parent)
+        from calibracao.interface.aba_calibracoes import referencia  # evita import circular
+        from calibracao.interface.componentes import celula, tabela_somente_leitura
+
+        nome = repositorio.obter_plano(plano_id).nome
+        self.setWindowTitle(f"Plano — {nome}")
+        _maximizar(self)
+        pontos = repositorio.listar_pontos(plano_id)
+        self.tabela = tabela_somente_leitura(
+            ["Nº", "Seção", "Tipo", "Descrição", "Exigido", "Incerteza (U)"])
+        cabecalho = self.tabela.horizontalHeader()
+        cabecalho.setSectionResizeMode(QHeaderView.ResizeToContents)
+        cabecalho.setSectionResizeMode(4, QHeaderView.Stretch)
+        self.tabela.setRowCount(len(pontos))
+        for linha, ponto in enumerate(pontos):
+            if ponto.tipo not in ("NUMERICO", "LIMITE"):
+                incerteza = celula("—")
+            elif ponto.incerteza_nao_aplica:
+                incerteza = celula("não se aplica")
+            elif ponto.incerteza is None:
+                incerteza = celula("falta", ("#ffd54f", "#000000"))  # aviso: preencher
+            else:
+                incerteza = celula(numero_em_texto(ponto.incerteza))
+            itens = [celula(str(ponto.ordem)), celula(ponto.secao or ""),
+                     celula(TIPOS.get(ponto.tipo, (ponto.tipo,))[0]), celula(ponto.descricao),
+                     celula(referencia(ponto)), incerteza]
+            for coluna, item in enumerate(itens):
+                self.tabela.setItem(linha, coluna, item)
+        sem_u = sum(1 for p in pontos if falta_incerteza(p))
+
+        self.editar = QPushButton("EDITAR PLANO", objectName="principal")
+        self.editar.clicked.connect(lambda: self.done(self.EDITAR))
+        self.editar.setVisible(pode_editar)
+        fechar = QPushButton("Fechar")
+        fechar.clicked.connect(self.accept)
+        rodape = QHBoxLayout()
+        rodape.addStretch(2)
+        rodape.addWidget(fechar, 1)
+        rodape.addWidget(self.editar, 1)
+        coluna = QVBoxLayout(self)
+        coluna.addWidget(QLabel(f"PLANO — {nome}", objectName="titulo", alignment=Qt.AlignCenter))
+        coluna.addWidget(QLabel(f"{len(pontos)} ponto(s). Só para ver; para mudar, clique em "
+                                "EDITAR PLANO.", objectName="dica", alignment=Qt.AlignCenter))
+        aviso = QLabel(f"⚠ {sem_u} ponto(s) sem Incerteza (U): preencha em EDITAR PLANO antes de "
+                       "calibrar." if sem_u else "", objectName="avisos")
+        coluna.addWidget(self.tabela, 1)
+        coluna.addWidget(aviso)
+        coluna.addLayout(rodape)
+
+
+class ResumoPlano(QWidget):
+    """O que fica na aba Instrumentos: nome do plano, quantos pontos e os botões VER PLANO e
+    EDITAR PLANO (cada um abre a sua janela grande)."""
+
+    alterado = Signal()
+    plano_descartado = Signal()
+
+    def __init__(self, repositorio: Repositorio) -> None:
+        super().__init__()
+        self.repo = repositorio
+        self.plano_id: int | None = None
+        self.pode_editar = True
+        self.janela_edicao: JanelaEditarPlano | None = None
+
+        self.titulo = QLabel(wordWrap=True)
+        self.avisos = QLabel(wordWrap=True, objectName="avisos")
+        self.ver = QPushButton("VER PLANO")
+        self.ver.setToolTip("Abre o plano inteiro numa janela grande, só para ver.")
+        self.ver.setStyleSheet("font-size: 16pt; font-weight: bold; padding: 14px;")
+        self.ver.clicked.connect(self.ver_plano)
+        self.editar = QPushButton("EDITAR PLANO", objectName="principal")
+        self.editar.setToolTip("Abre a janela para mudar os pontos, tolerâncias e incertezas.")
+        self.editar.clicked.connect(self.editar_plano)
+        botoes = QHBoxLayout()
+        botoes.addWidget(self.ver, 1)
+        botoes.addWidget(self.editar, 1)
+        coluna = QVBoxLayout(self)
+        coluna.addWidget(self.titulo)
+        coluna.addWidget(self.avisos)
+        coluna.addLayout(botoes)
+        coluna.addStretch(1)
+        self.mostrar(None)
+
+    def mostrar(self, plano_id: int | None) -> None:
+        self.plano_id = plano_id
+        na_lixeira = plano_id is not None and self.repo.na_lixeira(Tipo.PLANO, plano_id)
+        if plano_id is None:
+            self.titulo.setText("Este instrumento não tem plano de calibração."
+                                + (" Escolha um plano em EDITAR (dados do instrumento)."
+                                   if self.pode_editar else ""))
+        elif na_lixeira:
+            self.titulo.setText("O plano deste instrumento está na Lixeira: restaure-o pela aba "
+                                "Lixeira ou escolha outro plano em EDITAR (dados do "
+                                "instrumento).")
+        else:
+            pontos = self.repo.listar_pontos(plano_id)
+            nome = self.repo.obter_plano(plano_id).nome
+            self.titulo.setText(f"<b>{nome}</b>: {len(pontos)} ponto(s).")
+            sem_u = sum(1 for p in pontos if falta_incerteza(p))
+            self.avisos.setText(f"⚠ {sem_u} ponto(s) sem Incerteza (U): preencha em EDITAR "
+                                "PLANO antes de registrar a calibração." if sem_u else "")
+        if plano_id is None or na_lixeira:
+            self.avisos.setText("")
+        tem_plano = plano_id is not None and not na_lixeira
+        self.ver.setEnabled(tem_plano)
+        self.editar.setEnabled(tem_plano)
+
+    def criar_janela_ver(self) -> JanelaVerPlano:
+        return JanelaVerPlano(self.repo, self.plano_id, parent=self,
+                              pode_editar=self.pode_editar)
+
+    def ver_plano(self) -> None:
+        if self.plano_id is not None and self.criar_janela_ver().exec() == JanelaVerPlano.EDITAR:
+            self.editar_plano()
+
+    def criar_janela_edicao(self) -> JanelaEditarPlano:
+        """A janela de editar, já ligada ao resumo; quem chama dá exec() (os testes não)."""
+        janela = JanelaEditarPlano(self.repo, self.plano_id, parent=self)
+        janela.painel.alterado.connect(self.alterado)
+        janela.painel.plano_descartado.connect(self.plano_descartado)
+        janela.painel.salvo.connect(lambda: self._aviso_salvo())
+        janela.finished.connect(self._fechou_edicao)
+        self.janela_edicao = janela
+        return janela
+
+    def _fechou_edicao(self, _resultado: int) -> None:
+        self.janela_edicao = None
+        self.mostrar(self.plano_id)
+
+    def _aviso_salvo(self) -> None:
+        self.mostrar(self.plano_id)
+        self.avisos.setText("✔ Plano salvo. Vale para as próximas calibrações.")
+
+    def editar_plano(self) -> None:
+        if self.plano_id is not None:
+            self.criar_janela_edicao().exec()
+
+    def descartar(self, motivo: str) -> None:
+        """Enviar o plano para a Lixeira (o botão fica na janela EDITAR PLANO)."""
+        painel = PainelPlano(self.repo)
+        painel.mostrar(self.plano_id)
+        painel.alterado.connect(self.alterado)
+        painel.plano_descartado.connect(self.plano_descartado)
+        painel.descartar(motivo)
+        self.mostrar(self.plano_id)
+
+    def tem_alteracao(self) -> bool:
+        return self.janela_edicao is not None and self.janela_edicao.painel.tem_alteracao()
+
+    def definir_edicao(self, pode: bool) -> None:
+        """Modo consulta: só VER PLANO (sem EDITAR PLANO)."""
+        self.pode_editar = pode
+        self.editar.setVisible(pode)
+        if self.janela_edicao is not None and not pode:
+            self.janela_edicao.reject()  # perdeu a edição: a janela de editar fecha
+        self.mostrar(self.plano_id)

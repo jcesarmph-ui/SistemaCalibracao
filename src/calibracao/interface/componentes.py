@@ -1,22 +1,79 @@
 """Peças de tela usadas em mais de uma aba."""
 
+import contextlib
 import datetime
 
-from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, QPoint, Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
+    QAbstractButton,
     QAbstractItemView,
+    QAbstractScrollArea,
+    QAbstractSpinBox,
+    QApplication,
+    QComboBox,
     QFrame,
     QGroupBox,
     QHeaderView,
     QLabel,
+    QTabBar,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-from calibracao.interface.estilo import destacar, tem_destaque
+from calibracao.interface.estilo import abreviar_indicativa, destacar, tem_destaque
+
+
+class FiltroRodaDoMouse(QObject):
+    """A roda do mouse só rola a tela: nunca troca opção, data ou aba (pedido de 2026-10-30).
+
+    Em cima de lista de opções, campo de data/número ou barra de abas, a rolagem vai para quem
+    está por trás (a tabela ou a página), que sobe e desce normalmente.
+    """
+
+    SEM_RODA = (QComboBox, QAbstractSpinBox, QTabBar)
+    # Mãozinha em tudo o que é clicável (pedido de 2026-11-03); desligado fica com a seta.
+    CLICAVEIS = (QAbstractButton, QComboBox, QTabBar)
+
+    def eventFilter(self, objeto, evento) -> bool:  # noqa: N802 — nome exigido pelo Qt
+        if (evento.type() in (QEvent.Polish, QEvent.EnabledChange)
+                and isinstance(objeto, self.CLICAVEIS)):
+            objeto.setCursor(Qt.PointingHandCursor if objeto.isEnabled() else Qt.ArrowCursor)
+        if (evento.type() == QEvent.Wheel and evento.modifiers() & Qt.ShiftModifier
+                and self._rolar_para_o_lado(objeto, evento)):
+            return True
+        if evento.type() == QEvent.Wheel and isinstance(objeto, self.SEM_RODA):
+            pai = objeto.parentWidget()
+            if pai is not None:
+                QApplication.sendEvent(pai, evento)
+            return True
+        return False
+
+    @staticmethod
+    def _rolar_para_o_lado(objeto, evento) -> bool:
+        """Shift + roda = rolar para os lados (pedido de 2026-11-03), na primeira área com barra
+        horizontal a partir de onde está o mouse."""
+        passo = evento.angleDelta().y() or evento.angleDelta().x()
+        widget = objeto if isinstance(objeto, QWidget) else None
+        while widget is not None:
+            if isinstance(widget, QAbstractScrollArea):
+                barra = widget.horizontalScrollBar()
+                if barra.maximum() > barra.minimum():
+                    barra.setValue(barra.value() - round(passo / 120 * barra.singleStep() * 3))
+                    return True
+            widget = widget.parentWidget()
+        return False
+
+
+def instalar_filtro_roda() -> None:
+    """Liga o filtro (roda do mouse e mãozinha) para o programa inteiro (janelas e diálogos),
+    uma vez só."""
+    app = QApplication.instance()
+    if app is not None and not hasattr(app, "_filtro_roda"):
+        app._filtro_roda = FiltroRodaDoMouse(app)
+        app.installEventFilter(app._filtro_roda)
 
 
 def formatar_data(data: datetime.date | None) -> str:
@@ -52,6 +109,10 @@ def aplicar_destaques(tabela: QTableWidget) -> None:
             rotulo.setAlignment(Qt.AlignVCenter | (Qt.AlignHCenter if item.textAlignment()
                                                    & Qt.AlignHCenter else Qt.AlignLeft))
             rotulo.setContentsMargins(3, 0, 3, 0)
+            if abreviar_indicativa(item.text()):
+                # "IND.": o texto inteiro ao passar o mouse; a coluna se ajusta ao curto
+                rotulo.setToolTip(item.text())
+                item.setSizeHint(rotulo.sizeHint())
             tabela.setCellWidget(linha, coluna, rotulo)
 
 
@@ -138,3 +199,33 @@ class ListaFlutuante(QFrame):
         posicao.setX(min(posicao.x(), tela.right() - self.width()))  # não sai da tela à direita
         self.move(posicao)
         self.show()
+
+
+def altura_do_conteudo(tabela: QTableWidget, linhas_minimas: int = 3) -> None:
+    """A tabela fica da altura das linhas que tem (no mínimo `linhas_minimas`), para o que vem
+    logo abaixo dela — ex.: os botões da Lixeira — ficar perto (pedido de 2026-11-03). Com
+    muitas linhas, cresce até o espaço da tela e rola."""
+    linhas = max(tabela.rowCount(), linhas_minimas)
+    altura = tabela.horizontalHeader().height() + 4
+    altura += sum(tabela.rowHeight(n) for n in range(tabela.rowCount()))
+    altura += (linhas - tabela.rowCount()) * tabela.verticalHeader().defaultSectionSize()
+    if tabela.horizontalScrollBar().isVisible():
+        altura += tabela.horizontalScrollBar().height()
+    tabela.setMaximumHeight(altura)
+
+
+@contextlib.contextmanager
+def preenchendo(tabela: QTableWidget):
+    """Preencher muitas linhas de uma vez: a tabela não se redesenha nem recalcula a largura das
+    colunas a cada célula, só uma vez no fim (era o que deixava a tela lenta depois de salvar,
+    achado em 2026-11-03)."""
+    cabecalho = tabela.horizontalHeader()
+    modos = [cabecalho.sectionResizeMode(n) for n in range(tabela.columnCount())]
+    tabela.setUpdatesEnabled(False)
+    cabecalho.setSectionResizeMode(QHeaderView.Interactive)
+    try:
+        yield
+    finally:
+        for coluna, modo in enumerate(modos):
+            cabecalho.setSectionResizeMode(coluna, modo)
+        tabela.setUpdatesEnabled(True)

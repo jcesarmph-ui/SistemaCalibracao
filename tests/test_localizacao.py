@@ -2,7 +2,7 @@
 
 import pytest
 
-from calibracao.regras.localizacao import padronizar_localizacao
+from calibracao.regras.localizacao import local_do_filtro, padronizar_localizacao
 
 
 @pytest.mark.parametrize(
@@ -31,3 +31,11 @@ from calibracao.regras.localizacao import padronizar_localizacao
 )
 def test_padronizar_localizacao(antes, depois):
     assert padronizar_localizacao(antes) == depois
+
+
+def test_local_do_filtro_junta_reserva_e_orientacao_indicativa():
+    assert local_do_filtro("CT-01 - Orientação indicativa") == "CT-01"
+    assert local_do_filtro("Laboratório - Reserva") == "Laboratório"
+    assert local_do_filtro("Laboratório - Orientação indicativa") == "Laboratório"
+    assert local_do_filtro("Ponte Rolante") == "Ponte Rolante"
+    assert local_do_filtro(None) is None

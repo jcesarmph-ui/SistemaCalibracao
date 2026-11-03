@@ -90,7 +90,7 @@ def test_orientacao_indicativa_continua_no_cronograma(repo):
     calibrar(repo, a, date(2027, 3, 1), parecer=ParecerFinal.ORIENTACAO_INDICATIVA)
     [linha] = repo.cronograma(HOJE)
     assert (linha.condicao, linha.parecer_ultima, linha.situacao) == (
-        Condicao.ORIENTACAO_INDICATIVA, ParecerFinal.ORIENTACAO_INDICATIVA, Situacao.EM_DIA)
+        Condicao.EM_USO, ParecerFinal.ORIENTACAO_INDICATIVA, Situacao.EM_DIA)
 
 
 def test_calibracao_na_lixeira_nao_conta_no_cronograma(repo):
@@ -211,3 +211,38 @@ def test_motivo_do_atraso_nao_grava_no_modo_consulta(repo):
     repo.modo_consulta = True
     with pytest.raises(ErroDeValidacao):
         repo.informar_motivo_atraso(a, "x")
+
+
+# --- 1ª calibração prevista, digitada na ficha olhando a DQ05 (pedido de 2026-11-03) -------
+
+def test_com_a_primeira_prevista_o_instrumento_ja_entra_no_cronograma(repo):
+    novo_instrumento(repo, "SEM")                                         # sem data: fica de fora
+    novo_instrumento(repo, "MES", primeira_prevista=date(2027, 3, 20))    # este mês
+    novo_instrumento(repo, "PROX", primeira_prevista=date(2027, 4, 2))    # mês que vem
+    novo_instrumento(repo, "VENC", primeira_prevista=date(2027, 1, 10))   # passou sem calibrar
+    novo_instrumento(repo, "DIA", primeira_prevista=date(2027, 9, 1))
+    assert situacoes(repo) == {
+        "SEM": Situacao.SEM_CALIBRACAO, "MES": Situacao.PENDENTE_MES,
+        "PROX": Situacao.PROXIMO_MES, "VENC": Situacao.VENCIDA, "DIA": Situacao.EM_DIA}
+    linha = next(c for c in repo.cronograma(HOJE) if c.instrumento.codigo == "MES")
+    assert (linha.ultima, linha.proxima) == (None, date(2027, 3, 20))
+
+
+def test_primeira_prevista_no_cronograma_do_mes_e_projecao(repo):
+    a = novo_instrumento(repo, "A", periodicidade=6, primeira_prevista=date(2027, 5, 10))
+    [maio] = repo.cronograma_do_mes(date(2027, 5, 1), HOJE)
+    assert (maio.prevista.prevista, maio.prevista.situacao) == (
+        date(2027, 5, 10), SituacaoNoMes.PREVISTA)
+    [novembro] = repo.cronograma_do_mes(date(2027, 11, 1), HOJE)  # projeção: + 6 meses
+    assert novembro.prevista.prevista == date(2027, 11, 10)
+    assert repo.prevista_atual(a) == date(2027, 5, 10)
+
+
+def test_depois_da_primeira_calibracao_vale_a_calibracao(repo):
+    a = novo_instrumento(repo, "A", primeira_prevista=date(2027, 3, 20))
+    calibrar(repo, a, date(2027, 3, 5))
+    [linha] = repo.cronograma(HOJE)
+    assert (linha.situacao, linha.proxima) == (Situacao.FEITA_MES, date(2028, 3, 5))
+    [marco] = repo.cronograma_do_mes(date(2027, 3, 1), HOJE)
+    assert (marco.prevista.situacao, marco.prevista.realizada) == (
+        SituacaoNoMes.FEITA, date(2027, 3, 5))

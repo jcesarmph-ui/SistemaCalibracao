@@ -1,5 +1,6 @@
 """Lugar oficial do banco: cópia só consulta e nunca criar banco vazio."""
 
+import datetime
 import os
 import shutil
 from datetime import date
@@ -60,9 +61,12 @@ def test_primeira_abertura_adota_o_lugar_oficial(oficial):
     repo, copia_de = abrir_banco(oficial)
     assert copia_de is None
     assert repo.pasta_oficial() == local_do_banco(oficial / "calibracao.db")
+    assert repo.data_implantacao() == datetime.date.today()
+    repo.marcar_implantacao(datetime.date(2030, 1, 1))  # depois nunca muda
     repo.fechar()
     repo, copia_de = abrir_banco(oficial)  # abrir de novo do mesmo lugar: normal
     assert copia_de is None
+    assert repo.data_implantacao() == datetime.date.today()
     repo.fechar()
 
 

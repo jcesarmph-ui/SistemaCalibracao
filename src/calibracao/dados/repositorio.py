@@ -24,10 +24,12 @@ from calibracao.regras.avaliacao import (
 )
 from calibracao.regras.condicao import (
     CONDICAO_DO_PARECER,
+    TIPOS_QUALITATIVOS,
     Condicao,
     ParecerFinal,
     erros_mudanca_condicao,
     pareceres_permitidos,
+    so_qualitativos,
 )
 from calibracao.regras.cronograma import (
     CalibracaoResumo,
@@ -39,7 +41,7 @@ from calibracao.regras.cronograma import (
     situacao,
 )
 from calibracao.regras.lixeira import Tipo, bloqueio_exclusao_permanente, bloqueio_restaurar
-from calibracao.regras.localizacao import padronizar_localizacao
+from calibracao.regras.localizacao import com_marcas, eh_indicativa, padronizar_localizacao
 from calibracao.regras.trava import sinal_antigo
 
 MENSAGEM_CONSULTA = ("Modo consulta: outra pessoa está editando. Nada foi salvo.")
@@ -56,18 +58,26 @@ class ErroDeValidacao(Exception):
 
 
 def _escrita(metodo):
-    """Toda gravação: recusada no modo consulta; banco ocupado vira aviso na tela."""
+    """Toda gravação: recusada no modo consulta; banco ocupado vira aviso na tela. Quando dá
+    certo, avisa `ao_gravar` (a janela mostra "✔ Salvo" — pedido de 2026-11-03), uma vez só
+    mesmo que uma gravação chame outra."""
 
     @functools.wraps(metodo)
     def envolto(self, *args, **kwargs):
         if self.modo_consulta:
             raise ErroDeValidacao([MENSAGEM_CONSULTA])
+        self._gravacoes_abertas += 1
         try:
-            return metodo(self, *args, **kwargs)
+            resultado = metodo(self, *args, **kwargs)
         except sqlite3.OperationalError as erro:
             if "locked" in str(erro) or "busy" in str(erro):
                 raise ErroDeValidacao([MENSAGEM_OCUPADO]) from erro
             raise
+        finally:
+            self._gravacoes_abertas -= 1
+        if self._gravacoes_abertas == 0 and self.ao_gravar is not None:
+            self.ao_gravar()
+        return resultado
 
     return envolto
 
@@ -101,6 +111,8 @@ class Instrumento:
     observacoes: str | None = None
     custo_compra: float | None = None
     responsavel: str | None = None
+    # Quando fazer a 1ª calibração no programa (olhando a DQ05); depois dela não é mais usada.
+    primeira_prevista: datetime.date | None = None
     id: int | None = None
 
 
@@ -110,6 +122,17 @@ class MudancaCondicao:
 
     condicao: Condicao
     data: datetime.date | None
+    motivo: str | None = None
+    calibracao_id: int | None = None
+
+
+@dataclass
+class MarcaIndicativa:
+    """Uma linha do histórico da marca de orientação indicativa (pedido de 2026-11-03):
+    posta (`marcada`) ou tirada; `calibracao_id` preenchido = veio do parecer final."""
+
+    marcada: bool
+    data: datetime.date
     motivo: str | None = None
     calibracao_id: int | None = None
 
@@ -141,6 +164,8 @@ class PontoPlano:
     classe_exigida: str | None = None
     criterio: str | None = None
     incerteza: float | None = None
+    # "U não se aplica": avaliado só pelo valor (na DQ05 vem "-" ou "N/A" onde vai a U)
+    incerteza_nao_aplica: bool = False
     id: int | None = None
 
 
@@ -219,6 +244,7 @@ class PontoRegistrado:
     valor_medido: float | None
     resultado: Resultado
     observacao: str | None
+    incerteza_nao_aplica: bool = False
     id: int | None = None  # linha de pontos_calibracao (usado para corrigir)
 
 
@@ -325,6 +351,12 @@ _CONDICAO_ATUAL = f"""COALESCE((SELECT v.condicao FROM ({_CONDICOES_VALIDAS}) v
     WHERE v.instrumento_id = instrumentos.id ORDER BY v.data DESC, v.id DESC LIMIT 1), 'Em uso')"""
 
 
+# Marcas de orientação indicativa que valem (as de calibrações na Lixeira não).
+_MARCAS_VALIDAS = """
+    SELECT m.* FROM marcas_indicativa m LEFT JOIN calibracoes c ON c.id = m.calibracao_id
+    WHERE m.calibracao_id IS NULL OR c.excluido_em IS NULL"""
+
+
 def _data(texto: str | None) -> datetime.date | None:
     return datetime.date.fromisoformat(texto) if texto else None
 
@@ -362,6 +394,7 @@ def _ponto_da_foto(registrado: PontoRegistrado) -> PontoPlano:
         tolerancia_superior=registrado.tolerancia_superior,
         valor_minimo=registrado.valor_minimo, valor_maximo=registrado.valor_maximo,
         classe_exigida=registrado.classe_exigida, criterio=registrado.criterio,
+        incerteza_nao_aplica=bool(registrado.incerteza_nao_aplica),
     )
 
 
@@ -373,7 +406,18 @@ def _mudanca(linha: sqlite3.Row) -> MudancaCondicao:
 def _instrumento(linha: sqlite3.Row) -> Instrumento:
     dados = {campo: linha[campo] for campo in ["id", *_CAMPOS_INSTRUMENTO]}
     dados["exige_calibracao"] = bool(dados["exige_calibracao"])
+    dados["primeira_prevista"] = _data(dados["primeira_prevista"])
     return Instrumento(**dados)
+
+
+def _dados_instrumento(instrumento: Instrumento) -> dict:
+    """Campos como vão para o banco (código sem espaços, localização padronizada, data ISO)."""
+    dados = asdict(instrumento)
+    dados["codigo"] = dados["codigo"].strip()
+    dados["localizacao"] = padronizar_localizacao(dados["localizacao"])
+    if dados["primeira_prevista"] is not None:
+        dados["primeira_prevista"] = dados["primeira_prevista"].isoformat()
+    return dados
 
 
 class Repositorio:
@@ -382,6 +426,8 @@ class Repositorio:
         self.token = uuid.uuid4().hex  # identifica esta janela aberta na trava de edição
         # Sem trava (testes, fotos), pode editar; a janela liga o modo consulta se precisar.
         self.modo_consulta = False
+        self.ao_gravar = None  # chamado depois de cada gravação que deu certo
+        self._gravacoes_abertas = 0
 
     @classmethod
     def abrir(cls, caminho: Path, hoje: datetime.date | None = None) -> "Repositorio":
@@ -411,6 +457,35 @@ class Repositorio:
             self._conexao.execute(
                 "INSERT OR REPLACE INTO metadados (chave, valor) VALUES ('pasta_oficial', ?)",
                 (caminho,))
+
+    def data_implantacao(self) -> datetime.date | None:
+        """Dia em que o banco foi aberto pela 1ª vez no lugar oficial: o programa começou a ser
+        usado (o seletor de meses do cronograma não volta antes disso — item 18 do teste)."""
+        linha = self._conexao.execute(
+            "SELECT valor FROM metadados WHERE chave = 'implantado_em'").fetchone()
+        return datetime.date.fromisoformat(linha[0]) if linha else None
+
+    def marcar_implantacao(self, dia: datetime.date) -> None:
+        """Grava o dia da implantação só da primeira vez (depois nunca muda)."""
+        with self._conexao:
+            self._conexao.execute(
+                "INSERT OR IGNORE INTO metadados (chave, valor) VALUES ('implantado_em', ?)",
+                (dia.isoformat(),))
+
+    # ---------------------------------------------------------------- banco de teste
+
+    def banco_de_teste(self) -> bool:
+        """True se este banco é o do programa de TESTE (pedido de 2026-11-03): lá o usuário mexe
+        em tudo para achar melhorias; a marca fica no próprio banco, então o mesmo programa mostra
+        "TESTE" sozinho. O banco da entrega nunca tem essa marca."""
+        linha = self._conexao.execute(
+            "SELECT valor FROM metadados WHERE chave = 'banco_de_teste'").fetchone()
+        return linha is not None and linha[0] == "sim"
+
+    def marcar_banco_de_teste(self) -> None:
+        with self._conexao:
+            self._conexao.execute(
+                "INSERT OR REPLACE INTO metadados (chave, valor) VALUES ('banco_de_teste', 'sim')")
 
     def __enter__(self) -> "Repositorio":
         return self
@@ -551,33 +626,41 @@ class Repositorio:
             raise ErroDeValidacao(erros)
 
     @_escrita
-    def incluir_instrumento(self, instrumento: Instrumento) -> int:
+    def incluir_instrumento(self, instrumento: Instrumento,
+                            hoje: datetime.date | None = None) -> int:
         self._validar_instrumento(instrumento)
-        dados = asdict(instrumento)
-        dados["codigo"] = dados["codigo"].strip()
-        dados["localizacao"] = padronizar_localizacao(dados["localizacao"])
+        dados = _dados_instrumento(instrumento)
         with self._conexao:
             cursor = self._conexao.execute(
                 f"INSERT INTO instrumentos ({', '.join(_CAMPOS_INSTRUMENTO)}) "
                 f"VALUES ({', '.join('?' * len(_CAMPOS_INSTRUMENTO))})",
                 [dados[campo] for campo in _CAMPOS_INSTRUMENTO],
             )
+            if eh_indicativa(dados["localizacao"]):
+                self._inserir_marca(cursor.lastrowid, True, hoje or datetime.date.today(),
+                                    None, None)
         return cursor.lastrowid
 
     @_escrita
-    def atualizar_instrumento(self, instrumento: Instrumento) -> None:
+    def atualizar_instrumento(self, instrumento: Instrumento,
+                              hoje: datetime.date | None = None) -> None:
+        """Pôr ou tirar o " - Orientação indicativa" da localização entra no histórico."""
         if instrumento.id is None:
             raise ValueError("Instrumento sem id: use incluir_instrumento.")
         self._validar_instrumento(instrumento)
-        dados = asdict(instrumento)
-        dados["codigo"] = dados["codigo"].strip()
-        dados["localizacao"] = padronizar_localizacao(dados["localizacao"])
+        dados = _dados_instrumento(instrumento)
+        antes = self._conexao.execute("SELECT localizacao FROM instrumentos WHERE id = ?",
+                                      (instrumento.id,)).fetchone()[0]
         with self._conexao:
             self._conexao.execute(
                 f"UPDATE instrumentos SET {', '.join(f'{c} = ?' for c in _CAMPOS_INSTRUMENTO)} "
                 "WHERE id = ?",
                 [*(dados[campo] for campo in _CAMPOS_INSTRUMENTO), instrumento.id],
             )
+            marcada = eh_indicativa(dados["localizacao"])
+            if marcada != eh_indicativa(antes):
+                self._inserir_marca(instrumento.id, marcada, hoje or datetime.date.today(),
+                                    None, None)
 
     # ---------------------------------------------------------------- condição
 
@@ -606,7 +689,7 @@ class Repositorio:
     def mudar_condicao(self, instrumento_id: int, condicao: Condicao,
                        data: datetime.date | None, motivo: str | None,
                        hoje: datetime.date) -> None:
-        """Mudança manual (desativar, reativar, orientação indicativa); motivo é opcional."""
+        """Mudança manual (desativar ou voltar a usar); motivo é opcional."""
         erros = erros_mudanca_condicao(data, hoje)
         atual = self.condicao_atual(instrumento_id)
         if atual.condicao == condicao:
@@ -637,6 +720,50 @@ class Repositorio:
         if not self.esta_desativado(instrumento_id):
             raise ErroDeValidacao(["Este instrumento não está desativado."])
         self.mudar_condicao(instrumento_id, Condicao.EM_USO, data, motivo, hoje)
+
+    # ---------------------------------------------------------------- orientação indicativa
+
+    def historico_indicativa(self, instrumento_id: int) -> list[MarcaIndicativa]:
+        """Quando a marca de orientação indicativa foi posta ou tirada (as que valem)."""
+        linhas = self._conexao.execute(
+            f"SELECT * FROM ({_MARCAS_VALIDAS}) WHERE instrumento_id = ? ORDER BY data, id",
+            (instrumento_id,))
+        return [MarcaIndicativa(bool(linha["marcada"]), _data(linha["data"]), linha["motivo"],
+                                linha["calibracao_id"]) for linha in linhas]
+
+    def _inserir_marca(self, instrumento_id: int, marcada: bool, data: datetime.date,
+                       motivo: str | None, calibracao_id: int | None) -> None:
+        self._conexao.execute(
+            "INSERT INTO marcas_indicativa (instrumento_id, marcada, data, motivo, calibracao_id)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (instrumento_id, int(marcada), data.isoformat(), (motivo or "").strip() or None,
+             calibracao_id))
+
+    def _marcar_localizacao(self, instrumento_id: int, marcada: bool) -> None:
+        local = self._conexao.execute("SELECT localizacao FROM instrumentos WHERE id = ?",
+                                      (instrumento_id,)).fetchone()[0]
+        self._conexao.execute("UPDATE instrumentos SET localizacao = ? WHERE id = ?",
+                              (com_marcas(local, indicativa=marcada), instrumento_id))
+
+    def _marca_da_calibracao(self, calibracao_id: int) -> tuple[sqlite3.Row | None, bool]:
+        """A linha da marca que o parecer da calibração pôs e se alguém mexeu na marca depois."""
+        linha = self._conexao.execute(
+            "SELECT * FROM marcas_indicativa WHERE calibracao_id = ?", (calibracao_id,)
+        ).fetchone()
+        if linha is None:
+            return None, False
+        depois = self._conexao.execute(
+            f"SELECT 1 FROM ({_MARCAS_VALIDAS}) WHERE instrumento_id = ? AND id > ?",
+            (linha["instrumento_id"], linha["id"])).fetchone()
+        return linha, depois is not None
+
+    def _acertar_marca_da_calibracao(self, calibracao_id: int, valendo: bool) -> None:
+        """Calibração para a Lixeira desfaz a marca que o parecer dela pôs (restaurar refaz),
+        só se ninguém mexeu na marca depois (pedido de 2026-11-03)."""
+        linha, mexeram_depois = self._marca_da_calibracao(calibracao_id)
+        if linha is not None and not mexeram_depois:
+            marcada = bool(linha["marcada"])
+            self._marcar_localizacao(linha["instrumento_id"], marcada if valendo else not marcada)
 
     # ---------------------------------------------------------------- planos e pontos
 
@@ -682,7 +809,17 @@ class Repositorio:
             "ORDER BY ordem, id",
             (plano_id,),
         )
-        return [PontoPlano(**{c: linha[c] for c in [*_CAMPOS_PONTO, "id"]}) for linha in linhas]
+        return [PontoPlano(**{c: linha[c] for c in [*_CAMPOS_PONTO, "id"]}
+                           | {"incerteza_nao_aplica": bool(linha["incerteza_nao_aplica"])})
+                for linha in linhas]
+
+    def pontos_para_calibrar(self, instrumento: Instrumento) -> list[PontoPlano]:
+        """Pontos que entram na calibração: todos do plano, ou só os qualitativos na trena com
+        orientação indicativa (ver `regras.condicao.so_qualitativos`)."""
+        pontos = self.listar_pontos(instrumento.plano_id) if instrumento.plano_id else []
+        if so_qualitativos(instrumento.tipo, instrumento.localizacao):
+            return [p for p in pontos if p.tipo in TIPOS_QUALITATIVOS]
+        return pontos
 
     @staticmethod
     def _validar_ponto(ponto: PontoPlano) -> None:
@@ -746,10 +883,12 @@ class Repositorio:
                 medido.valor, nominal=ponto.valor_nominal,
                 tolerancia_inferior=ponto.tolerancia_inferior,
                 tolerancia_superior=ponto.tolerancia_superior, incerteza=medido.incerteza,
+                sem_incerteza=bool(ponto.incerteza_nao_aplica),
             )
         if ponto.tipo == "LIMITE":
             return avaliar_limite(medido.valor, minimo=ponto.valor_minimo,
-                                  maximo=ponto.valor_maximo, incerteza=medido.incerteza)
+                                  maximo=ponto.valor_maximo, incerteza=medido.incerteza,
+                                  sem_incerteza=bool(ponto.incerteza_nao_aplica))
         if medido.escolha in ESCOLHAS_QUALITATIVAS:
             return Avaliacao(medido.escolha)
         return Avaliacao(Resultado.NAO_INFORMADO)
@@ -771,7 +910,7 @@ class Repositorio:
             erros.append("O custo da calibração não pode ser negativo.")
         if instrumento.plano_id is None:
             raise ErroDeValidacao([*erros, "Instrumento sem plano de calibração."])
-        pontos = self.listar_pontos(instrumento.plano_id)
+        pontos = self.pontos_para_calibrar(instrumento)
         medidos = {m.ponto_plano_id: m for m in nova.pontos}
         if set(medidos) != {p.id for p in pontos}:
             erros.append("Os pontos informados não correspondem ao plano atual do instrumento.")
@@ -818,6 +957,11 @@ class Repositorio:
             if nova_condicao != atual.condicao:
                 self._inserir_condicao(instrumento.id, nova_condicao, nova.data_calibracao,
                                        nova.motivo_parecer, calibracao_id)
+            if (nova.parecer_final == ParecerFinal.ORIENTACAO_INDICATIVA
+                    and not eh_indicativa(instrumento.localizacao)):
+                self._marcar_localizacao(instrumento.id, True)
+                self._inserir_marca(instrumento.id, True, nova.data_calibracao,
+                                    nova.motivo_parecer, calibracao_id)
             for ponto, medido, avaliacao in avaliacoes:
                 foto = {c: getattr(ponto, c) for c in _CAMPOS_REGISTRADO if hasattr(ponto, c)}
                 foto.update(valor=medido.valor, incerteza=medido.incerteza,
@@ -864,7 +1008,8 @@ class Repositorio:
         )
         return [
             PontoRegistrado(**{c: linha[c] for c in _CAMPOS_REGISTRADO}
-                            | {"resultado": Resultado(linha["resultado"]), "id": linha["id"]})
+                            | {"resultado": Resultado(linha["resultado"]), "id": linha["id"],
+                               "incerteza_nao_aplica": bool(linha["incerteza_nao_aplica"])})
             for linha in linhas
         ]
 
@@ -942,6 +1087,11 @@ class Repositorio:
                 raise ErroDeValidacao([
                     "A condição do instrumento mudou depois desta calibração "
                     f"({depois[-1].data:%d/%m/%Y}): o parecer final não pode mais ser mudado."])
+        marca, mexeram_depois = self._marca_da_calibracao(calibracao_id)
+        if mudou_parecer and mexeram_depois:
+            raise ErroDeValidacao([
+                "A marca de orientação indicativa do instrumento mudou depois desta calibração: "
+                "o parecer final não pode mais ser mudado."])
         anteriores = [m for m in outras if m.data is None or m.data <= antiga.data_calibracao]
         condicao_antes = anteriores[-1].condicao if anteriores else Condicao.EM_USO
         with self._conexao:
@@ -968,9 +1118,24 @@ class Repositorio:
                     self._inserir_condicao(antiga.instrumento_id, nova_condicao,
                                            antiga.data_calibracao, novos["motivo_parecer"],
                                            calibracao_id)
+                if marca is not None:  # desfaz a marca que o parecer antigo pôs
+                    self._conexao.execute("DELETE FROM marcas_indicativa WHERE id = ?",
+                                          (marca["id"],))
+                    self._marcar_localizacao(antiga.instrumento_id, not marca["marcada"])
+                local = self._conexao.execute(
+                    "SELECT localizacao FROM instrumentos WHERE id = ?",
+                    (antiga.instrumento_id,)).fetchone()[0]
+                if (correcao.parecer_final == ParecerFinal.ORIENTACAO_INDICATIVA
+                        and not eh_indicativa(local)):
+                    self._marcar_localizacao(antiga.instrumento_id, True)
+                    self._inserir_marca(antiga.instrumento_id, True, antiga.data_calibracao,
+                                        novos["motivo_parecer"], calibracao_id)
             else:
                 self._conexao.execute("UPDATE condicoes SET motivo = ? WHERE calibracao_id = ?",
                                       (novos["motivo_parecer"], calibracao_id))
+                self._conexao.execute(
+                    "UPDATE marcas_indicativa SET motivo = ? WHERE calibracao_id = ?",
+                    (novos["motivo_parecer"], calibracao_id))
             self._conexao.execute(
                 "INSERT INTO correcoes_calibracao (calibracao_id, quando, usuario, mudancas) "
                 "VALUES (?, ?, ?, ?)",
@@ -1036,7 +1201,9 @@ class Repositorio:
             if not instrumento.exige_calibracao:
                 continue
             calibracoes = self.listar_calibracoes(instrumento.id)
-            previstas = [
+            # sem calibração no programa, vale a 1ª calibração prevista digitada na ficha
+            previstas = [instrumento.primeira_prevista] if instrumento.primeira_prevista else []
+            previstas += [
                 c.data_proxima or proxima_calibracao(c.data_calibracao,
                                                      instrumento.periodicidade_meses)
                 for c in calibracoes
@@ -1074,7 +1241,7 @@ class Repositorio:
             condicao = condicoes.get(instrumento.id)
             ativo = condicao is None or condicao.condicao != Condicao.DESATIVADO
             for prevista in previstas_no_mes(resumo, instrumento.periodicidade_meses, mes, hoje,
-                                             ativo):
+                                             ativo, instrumento.primeira_prevista):
                 if prevista.situacao == SituacaoNoMes.VENCIDA:
                     prevista = dataclasses.replace(prevista,
                                                    motivo_atraso=motivos.get(instrumento.id))
@@ -1086,7 +1253,7 @@ class Repositorio:
         """Data prevista para a próxima calibração (a partir da última registrada)."""
         calibracoes = self.listar_calibracoes(instrumento_id)
         if not calibracoes:
-            return None
+            return self.obter_instrumento(instrumento_id).primeira_prevista
         ultima = calibracoes[-1]
         return ultima.data_proxima or proxima_calibracao(
             ultima.data_calibracao, self.obter_instrumento(instrumento_id).periodicidade_meses)
@@ -1119,6 +1286,8 @@ class Repositorio:
     def enviar_para_lixeira(self, tipo: Tipo, item_id: int, motivo: str | None,
                             agora: datetime.datetime) -> None:
         with self._conexao:
+            if tipo == Tipo.CALIBRACAO and not self.na_lixeira(tipo, item_id):
+                self._acertar_marca_da_calibracao(item_id, valendo=False)
             self._conexao.execute(
                 f"UPDATE {_TABELA[tipo]} SET excluido_em = ?, motivo_exclusao = ? "
                 "WHERE id = ? AND excluido_em IS NULL",
@@ -1140,12 +1309,15 @@ class Repositorio:
         bloqueio = bloqueio_restaurar(tipo, self._pai_na_lixeira(tipo, item_id))
         if bloqueio:
             raise ErroDeValidacao([bloqueio])
+        voltando = self.na_lixeira(tipo, item_id)
         with self._conexao:
             self._conexao.execute(
                 f"UPDATE {_TABELA[tipo]} SET excluido_em = NULL, motivo_exclusao = NULL "
                 "WHERE id = ?",
                 (item_id,),
             )
+            if tipo == Tipo.CALIBRACAO and voltando:
+                self._acertar_marca_da_calibracao(item_id, valendo=True)
 
     def _tem_dependencias(self, tipo: Tipo, item_id: int) -> bool:
         consultas = {
@@ -1167,9 +1339,11 @@ class Repositorio:
         if bloqueio:
             raise ErroDeValidacao([bloqueio])
         with self._conexao:
-            if tipo == Tipo.INSTRUMENTO:  # o histórico de condição vai junto
+            if tipo == Tipo.INSTRUMENTO:  # o histórico de condição e da marca vai junto
                 self._conexao.execute(
                     "DELETE FROM condicoes WHERE instrumento_id = ?", (item_id,))
+                self._conexao.execute(
+                    "DELETE FROM marcas_indicativa WHERE instrumento_id = ?", (item_id,))
             self._conexao.execute(f"DELETE FROM {_TABELA[tipo]} WHERE id = ?", (item_id,))
 
     def listar_lixeira(self) -> list[ItemLixeira]:

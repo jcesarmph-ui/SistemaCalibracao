@@ -126,9 +126,11 @@ def test_registrar_pela_tela_muda_a_condicao(app, repo, paquimetro):
     [salva] = repo.listar_calibracoes(paquimetro.id)
     assert (salva.data_calibracao, salva.custo, salva.laboratorio, salva.resultado) == (
         date(2026, 10, 26), 150.0, "Lab Fictício", Resultado.REPROVADO)
-    atual = repo.condicao_atual(paquimetro.id)
-    assert (atual.condicao, atual.motivo) == (
-        Condicao.ORIENTACAO_INDICATIVA, "Usar só para conferência")
+    # orientação indicativa não é condição: segue Em uso e ganha a marca na localização
+    assert repo.condicao_atual(paquimetro.id).condicao == Condicao.EM_USO
+    assert repo.obter_instrumento(paquimetro.id).localizacao.endswith("Orientação indicativa")
+    [marca] = repo.historico_indicativa(paquimetro.id)
+    assert (marca.marcada, marca.motivo) == (True, "Usar só para conferência")
 
 
 def registrar(repo, instrumento, data, valores=(30.01, 60.02), parecer=ParecerFinal.APROVADO):
@@ -174,11 +176,58 @@ def test_grafico_salva_png(app, repo, paquimetro, tmp_path):
     registrar(repo, paquimetro, date(2026, 10, 1), valores=(30.045, 60.0),
               parecer=ParecerFinal.ORIENTACAO_INDICATIVA)
     janela = JanelaTendencia(repo.tendencia(paquimetro.id), "PAQ-900")
-    assert janela.ponto.count() == 2
-    janela.ponto.setCurrentIndex(1)
+    assert janela.ponto.count() == 3                  # todos juntos + 1 por ponto
+    assert janela.ponto.currentText().startswith("Todos os pontos juntos")  # o principal
+    assert janela.todos and len(janela._desenhados) == 4  # 2 pontos x 2 calibrações
+    janela.salvar_png(tmp_path / "todos.png")
+    janela.ponto.setCurrentIndex(2)
+    assert not janela.todos and len(janela._desenhados) == 2
     imagem = tmp_path / "tendencia.png"
     janela.salvar_png(imagem)
     assert imagem.read_bytes()[:4] == b"\x89PNG"
+
+
+def test_todos_juntos_mesma_tolerancia_fica_em_erro(app, repo, paquimetro):
+    from calibracao.interface.grafico_tendencia import JanelaTendencia, tolerancia_comum
+    registrar(repo, paquimetro, date(2025, 10, 1))
+    registrar(repo, paquimetro, date(2026, 10, 1))
+    series = repo.tendencia(paquimetro.id)
+    assert tolerancia_comum(series)
+    janela = JanelaTendencia(series, "PAQ-900")
+    assert "eixo em erro" in janela._eixo.get_title()
+    # os dois pontos da mesma data ficam um pouco afastados para o lado
+    mesma_data = [d.x for d in janela._desenhados if d.medicao.data == date(2025, 10, 1)]
+    assert len(set(mesma_data)) == 2
+    # clicar no nome na legenda esconde o ponto; clicar de novo mostra
+    janela.esconder_ou_mostrar(0)
+    assert not any(a.get_visible() for a in janela._grupos[0])
+    assert janela._itens_legenda[0][1].get_alpha() == 0.3
+    janela.esconder_ou_mostrar(0)
+    assert all(a.get_visible() for a in janela._grupos[0])
+
+
+def test_todos_juntos_tolerancias_diferentes_fica_em_porcentagem(app):
+    from calibracao.dados.repositorio import MedicaoTendencia, SerieTendencia
+    from calibracao.interface.grafico_tendencia import JanelaTendencia, em_porcentagem
+    assert em_porcentagem(0.01, -0.02, 0.05) == pytest.approx(20)    # lado de cima: 0,05
+    assert em_porcentagem(-0.01, -0.02, 0.05) == pytest.approx(-50)  # lado de baixo: 0,02
+    assert em_porcentagem(-0.01, None, 0.05) == pytest.approx(-20)   # falta um lado: o outro
+    assert em_porcentagem(0.01, None, None) is None
+    ok, dia = Resultado.APROVADO, date(2025, 1, 1)
+    series = [
+        SerieTendencia("1 kg", "g", [MedicaoTendencia(dia, 0.5, 0.1, -1, 1, ok)]),
+        SerieTendencia("20 kg", "g", [MedicaoTendencia(dia, 5, 1, -10, 10, ok)]),
+        SerieTendencia("Sem tol.", "g", [MedicaoTendencia(dia, 1, 1, None, None, ok)]),
+    ]
+    janela = JanelaTendencia(series, "BAL-900")
+    assert "% da tolerância" in janela._eixo.get_title()
+    assert [round(d.y) for d in janela._desenhados] == [50, 50]
+    assert "Sem tol." in janela.aviso.text()   # sem tolerância: fora, e avisado
+
+
+def test_cor_e_marcador_nao_se_repetem():
+    from calibracao.interface.grafico_tendencia import cor_e_marcador
+    assert len({cor_e_marcador(i) for i in range(20)}) == 20
 
 
 def test_grafico_sem_dados(app):
@@ -192,8 +241,12 @@ def test_corrigir_pela_tela_vem_preenchido_e_registra_a_correcao(app, repo, paqu
     painel = PainelCalibracoes(repo, HOJE)
     painel.usuario = "maria.silva - PC-LAB"
     painel.mostrar(paquimetro)
-    assert painel.corrigir.isEnabled()
     [salva] = repo.listar_calibracoes(paquimetro.id)
+    # a calibração abre só para ver; EDITAR (modo edição) leva à correção
+    ver = JanelaVerCalibracao(repo, paquimetro, salva, pode_editar=True)
+    assert not ver.editar.isHidden()
+    ver.editar.click()
+    assert ver.result() == JanelaVerCalibracao.EDITAR
     janela = JanelaNovaCalibracao(repo, paquimetro, HOJE, corrigir=salva,
                                   usuario=painel.usuario)
     # vem como foi salva, com a data travada
@@ -214,7 +267,7 @@ def test_corrigir_pela_tela_vem_preenchido_e_registra_a_correcao(app, repo, paqu
     [registro] = repo.listar_correcoes(calibracao_id)
     assert registro.usuario == "maria.silva - PC-LAB"
     assert len(registro.mudancas) == 2
-    # "Ver pontos" mostra a correção
+    # "Ver calibração" mostra a correção
     ver = JanelaVerCalibracao(repo, paquimetro, corrigida)
     assert ver.tabela_correcoes.rowCount() == 2
 
@@ -227,7 +280,24 @@ def test_corrigir_sem_mudar_nada_avisa(app, repo, paquimetro):
     assert "Nada foi alterado" in janela.avisos.text()
 
 
-def test_modo_consulta_esconde_corrigir(app, repo, paquimetro):
+def test_modo_consulta_esconde_editar_e_nova_calibracao(app, repo, paquimetro):
+    registrar(repo, paquimetro, date(2026, 10, 20))
     painel = PainelCalibracoes(repo, HOJE)
     painel.definir_edicao(False)
-    assert painel.corrigir.isHidden()
+    assert painel.registrar.isHidden()
+    [salva] = repo.listar_calibracoes(paquimetro.id)
+    ver = JanelaVerCalibracao(repo, paquimetro, salva, pode_editar=painel.pode_editar)
+    assert ver.editar.isHidden()
+
+
+def test_ponto_com_u_nao_se_aplica_na_janela(app, repo):
+    """"-"/"N/A" na DQ05 (2026-11-03): a U aparece "não se aplica" e o ponto é avaliado."""
+    plano = repo.incluir_plano(Plano("Plano MIC-901"))
+    repo.incluir_ponto(PontoPlano(plano, "LIMITE", "Planeza", valor_maximo=2.0,
+                                  incerteza_nao_aplica=True))
+    mic = repo.obter_instrumento(repo.incluir_instrumento(Instrumento(
+        "MIC-901", "Micrômetro", plano_id=plano, periodicidade_meses=12)))
+    janela = JanelaNovaCalibracao(repo, mic, HOJE)
+    assert janela.tabela.item(0, J.INCERTEZA).text() == "não se aplica"
+    janela.tabela.item(0, J.MEDIDO).setText("0,64")
+    assert janela.resultados() == [Resultado.APROVADO]

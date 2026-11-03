@@ -7,6 +7,8 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QPoint, QPointF, Qt  # noqa: E402
+from PySide6.QtGui import QWheelEvent  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from calibracao.dados.repositorio import (  # noqa: E402
@@ -83,18 +85,36 @@ def test_cronograma_filtra_sem_calibracao(janela):
 
 def test_cadastrar_instrumento_pela_tela(janela):
     aba = janela.aba_instrumentos
-    aba.novo_instrumento()
-    aba.campos["codigo"].setText("PAQ-950")
-    aba.campos["tipo"].setText("Paquímetro")
-    aba.campos["periodicidade_meses"].setText("12")
-    aba.campos["custo_compra"].setText("R$ 350,50")
-    aba.campos["responsavel"].setText("Fulano")
-    aba.salvar_instrumento()
+    edicao = aba.criar_janela_edicao(None)  # botão "Novo instrumento"
+    assert edicao.windowTitle() == "Novo instrumento"
+    edicao.campos["codigo"].setText("PAQ-950")
+    edicao.campos["tipo"].setText("Paquímetro")
+    edicao.campos["periodicidade_meses"].setText("12")
+    edicao.campos["custo_compra"].setText("R$ 350,50")
+    edicao.campos["responsavel"].setText("Fulano")
+    edicao.salvar_instrumento()
+    assert edicao.result()  # salvou e fechou
     assert "salvo" in aba.avisos.text()
     assert texto(janela.valores_indicadores["instrumentos"]) == "5"
     salvo = next(i for i in janela.repo.listar_instrumentos() if i.codigo == "PAQ-950")
     assert (salvo.custo_compra, salvo.responsavel) == (350.5, "Fulano")
-    assert aba.campos["custo_compra"].text() == "350,5"
+    assert aba.valores["custo_compra"].text() == "<b>R$ 350,5</b>"
+
+
+def test_ficha_e_so_apresentacao_e_editar_abre_a_janela(janela):
+    """Item 10 do teste (2026-11-03): a ficha não tem campos; EDITAR abre a janela."""
+    aba = janela.aba_instrumentos
+    escolher(aba, "TRE-901")
+    assert aba.valores["codigo"].text() == "<b>TRE-901</b>"
+    assert "EDITAR" in aba.titulo_dados.text()
+    edicao = aba.criar_janela_edicao(aba.atual)
+    assert edicao.windowTitle() == "Editar instrumento — TRE-901"
+    assert edicao.campos["codigo"].text() == "TRE-901"
+    edicao.campos["faixa"].setText("0-5 m")
+    assert aba.tem_alteracao()  # digitado e não salvo
+    edicao.reject()             # Cancelar: nada muda
+    assert not aba.tem_alteracao()
+    assert janela.repo.obter_instrumento(aba.atual.id).faixa is None
 
 
 def codigos_da_lista(aba):
@@ -110,6 +130,14 @@ def test_filtros_de_tipo_e_localizacao(janela):
     aba.filtro_tipo.setCurrentText("Todos os tipos")
     aba.filtro_local.setCurrentText("Expedição")
     assert codigos_da_lista(aba) == ["TRE-901", "TRE-902", "TRE-903", "TRE-904"]
+    # orientação indicativa e reserva não criam outro local no filtro
+    janela.repo.incluir_instrumento(Instrumento(
+        "PAQ-951", "Paquímetro", localizacao="CT-01 - Orientação indicativa"))
+    janela.atualizar()
+    opcoes = [aba.filtro_local.itemText(n) for n in range(aba.filtro_local.count())]
+    assert opcoes == ["Todas as localizações", "CT-01", "Expedição"]
+    aba.filtro_local.setCurrentText("CT-01")
+    assert codigos_da_lista(aba) == ["PAQ-950", "PAQ-951"]
 
 
 def test_mudar_condicao_pela_tela(janela):
@@ -117,7 +145,7 @@ def test_mudar_condicao_pela_tela(janela):
     escolher(aba, "TRE-901")
     aba.aplicar_condicao(Condicao.DESATIVADO, date(2026, 10, 20), "Fita rompida")
     assert "Desativado" in aba.avisos.text()
-    assert "Desativado" in aba.condicao_atual.text()
+    assert "Desativado" in aba.valores["condicao"].text()
     assert aba.tabela_historico.item(0, 2).text() == "Fita rompida"
     # sai do cronograma e dos indicadores, mas continua na lista (filtro Desativados)
     assert texto(janela.valores_indicadores["instrumentos"]) == "3"
@@ -131,23 +159,23 @@ def test_mudar_condicao_pela_tela(janela):
 def test_mudar_condicao_recusa_data_futura(janela):
     aba = janela.aba_instrumentos
     escolher(aba, "TRE-902")
-    aba.aplicar_condicao(Condicao.ORIENTACAO_INDICATIVA, date(2026, 11, 1), "")
+    aba.aplicar_condicao(Condicao.DESATIVADO, date(2026, 11, 1), "")
     assert "futuro" in aba.avisos.text()
     assert "#ef5350" in aba.avisos.styleSheet()
 
 
 def test_erro_de_digitacao_aparece_em_vermelho(janela):
-    aba = janela.aba_instrumentos
-    aba.novo_instrumento()
-    aba.campos["codigo"].setText("TRE-901")  # já existe
-    aba.campos["tipo"].setText("Trena")
-    aba.campos["periodicidade_meses"].setText("doze")
-    aba.salvar_instrumento()
-    assert "número inteiro" in aba.avisos.text()
-    aba.campos["periodicidade_meses"].setText("12")
-    aba.salvar_instrumento()
-    assert "Já existe" in aba.avisos.text()
-    assert "#ef5350" in aba.avisos.styleSheet()
+    edicao = janela.aba_instrumentos.criar_janela_edicao(None)
+    edicao.campos["codigo"].setText("TRE-901")  # já existe
+    edicao.campos["tipo"].setText("Trena")
+    edicao.campos["periodicidade_meses"].setText("doze")
+    edicao.salvar_instrumento()
+    assert "número inteiro" in edicao.avisos.text()
+    edicao.campos["periodicidade_meses"].setText("12")
+    edicao.salvar_instrumento()
+    assert "Já existe" in edicao.avisos.text()
+    assert "#ef5350" in edicao.avisos.styleSheet()
+    assert not edicao.result()  # com erro, a janela continua aberta
 
 
 def escolher(aba, codigo):
@@ -168,7 +196,7 @@ def plano_da_trena(janela):
     repo.incluir_ponto(PontoPlano(plano_id, "NUMERICO", "300", valor_nominal=300.0,
                                   tolerancia_inferior=-0.5, tolerancia_superior=0.5))
     escolher(aba, "TRE-901")
-    return aba.painel_plano, plano_id
+    return aba.painel_plano.criar_janela_edicao().painel, plano_id  # EDITAR PLANO
 
 
 def test_plano_avisa_e_aceita_a_incerteza(janela, plano_da_trena):
@@ -209,7 +237,7 @@ def test_salvar_plano_mantem_o_numero_original_da_planilha(janela):
                                   valor_nominal=300.0, tolerancia_inferior=-0.5,
                                   tolerancia_superior=0.5))
     escolher(aba, "TRE-902")
-    painel = aba.painel_plano
+    painel = aba.painel_plano.criar_janela_edicao().painel
     assert not painel.tem_alteracao()
     painel.tabela.item(painel.tabela.rowCount() - 1, 12).setText("0,2")
     assert painel.tem_alteracao()
@@ -218,14 +246,13 @@ def test_salvar_plano_mantem_o_numero_original_da_planilha(janela):
 
 
 def test_criar_plano_novo_pela_tela(janela):
-    aba = janela.aba_instrumentos
-    aba.novo_instrumento()
-    aba.campos["codigo"].setText("PAQ-951")
-    aba.campos["tipo"].setText("Paquímetro")
-    aba.criar_plano("Plano PAQ-951")
-    assert "SALVAR" in aba.avisos.text()
-    assert aba.plano.currentText() == "Plano PAQ-951"
-    aba.salvar_instrumento()
+    edicao = janela.aba_instrumentos.criar_janela_edicao(None)
+    edicao.campos["codigo"].setText("PAQ-951")
+    edicao.campos["tipo"].setText("Paquímetro")
+    edicao.criar_plano("Plano PAQ-951")
+    assert "SALVAR" in edicao.avisos.text()
+    assert edicao.plano.currentText() == "Plano PAQ-951"
+    edicao.salvar_instrumento()
     salvo = next(i for i in janela.repo.listar_instrumentos() if i.codigo == "PAQ-951")
     assert janela.repo.obter_plano(salvo.plano_id).nome == "Plano PAQ-951"
 
@@ -234,7 +261,8 @@ def test_plano_na_lixeira_continua_aparecendo(janela):
     aba = janela.aba_instrumentos
     escolher(aba, "TRE-901")
     aba.painel_plano.descartar("Criado por engano")
-    assert "(na Lixeira)" in aba.plano.currentText()
+    assert "(na Lixeira)" in aba.valores["plano"].text()
+    assert "(na Lixeira)" in aba.criar_janela_edicao(aba.atual).plano.currentText()
     assert "está na Lixeira" in aba.painel_plano.titulo.text()
     janela.aba_lixeira.busca.setText("engano")
     assert janela.aba_lixeira.tabela.rowCount() == 1
@@ -275,7 +303,7 @@ def test_cronograma_de_um_mes_futuro_com_custo_estimado(janela):
 
 
 def test_informar_motivo_do_atraso_da_vencida(janela):
-    janela.abas.setCurrentIndex(1)
+    janela.abas.setCurrentWidget(janela.aba_cronograma)
     janela.filtro_cronograma.setCurrentText("Vencida")
     assert codigos_do_cronograma(janela) == ["TRE-903"]
     assert not janela.informar_motivo.isEnabled()  # nada escolhido
@@ -290,3 +318,266 @@ def test_informar_motivo_do_atraso_da_vencida(janela):
     registrar = JanelaNovaCalibracao(janela.repo, instrumento, HOJE)
     assert registrar.atrasada()
     assert registrar.motivo_atraso.text() == "Aguardando orçamento"
+
+
+def rodar_a_roda(widget):
+    evento = QWheelEvent(QPointF(5, 5), QPointF(widget.mapToGlobal(QPoint(5, 5))), QPoint(0, 0),
+                         QPoint(0, -120), Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False)
+    QApplication.sendEvent(widget, evento)
+
+
+def test_roda_do_mouse_nao_muda_opcao_data_nem_aba(janela):
+    janela.show()
+    filtro = janela.filtro_cronograma
+    rodar_a_roda(filtro)
+    assert filtro.currentIndex() == 0
+    mes = janela.mes_cronograma
+    rodar_a_roda(mes)
+    assert mes.currentIndex() == 0
+    abas = janela.abas.tabBar()
+    antes = abas.currentIndex()
+    rodar_a_roda(abas)
+    assert abas.currentIndex() == antes
+    registrar = JanelaNovaCalibracao(
+        janela.repo, janela.repo.listar_instrumentos()[0], HOJE, parent=janela)
+    data = registrar.data.date()
+    rodar_a_roda(registrar.data)
+    assert registrar.data.date() == data
+
+
+def test_programa_oficial_nao_mostra_teste(janela):
+    assert not janela.repo.banco_de_teste()
+    assert janela.faixa_teste.isHidden()
+    assert "TESTE" not in janela.windowTitle()
+
+
+def test_banco_de_teste_mostra_titulo_e_faixa(app, tmp_path):
+    """Programa de TESTE (pedido de 2026-11-03): a marca vem do banco."""
+    repo = Repositorio.abrir(tmp_path / "calibracao.db", HOJE)
+    repo.marcar_banco_de_teste()
+    assert repo.banco_de_teste()
+    tela = JanelaPrincipal(repo, tmp_path, HOJE)
+    try:
+        assert not tela.faixa_teste.isHidden()
+        assert "VERSÃO DE TESTE" in tela.faixa_teste.text()
+        assert tela.windowTitle().endswith("— TESTE")
+        titulos = [r.text() for r in tela.findChildren(type(tela.faixa_teste))
+                   if r.objectName() == "titulo"]
+        assert titulos == ["CALIBRAÇÃO DE INSTRUMENTOS — TESTE"]
+    finally:
+        tela.close()
+        repo.fechar()
+
+
+def test_caixa_reserva_poe_e_tira_da_localizacao(janela):
+    """Pedido de 2026-11-03: caixa "Reserva" na janela de edição."""
+    aba = janela.aba_instrumentos
+    escolher(aba, "TRE-901")
+    edicao = aba.criar_janela_edicao(aba.atual)
+    campo = edicao.campos["localizacao"]
+    assert not edicao.reserva.isChecked()
+    edicao.reserva.click()
+    assert campo.text() == "Expedição - Reserva"
+    edicao.salvar_instrumento()
+    assert janela.repo.obter_instrumento(aba.atual.id).localizacao == "Expedição - Reserva"
+    edicao = aba.criar_janela_edicao(aba.atual)
+    campo = edicao.campos["localizacao"]
+    assert edicao.reserva.isChecked()
+    edicao.reserva.click()
+    assert campo.text() == "Expedição"
+    # digitar à mão também marca a caixa
+    campo.setText("Expedição - Reserva")
+    assert edicao.reserva.isChecked()
+    campo.setText("Expedição")
+    assert not edicao.reserva.isChecked()
+
+
+def test_modo_consulta_esconde_editar(janela):
+    aba = janela.aba_instrumentos
+    escolher(aba, "TRE-901")
+    aba.definir_edicao(False)
+    assert aba.editar.isHidden() and aba.novo.isHidden()
+    assert aba.titulo_dados.text() == "Consultando TRE-901"
+    aba.definir_edicao(True)
+    assert not aba.editar.isHidden()
+
+
+def test_caixa_orientacao_indicativa_entra_no_historico(janela):
+    """Orientação indicativa é marca a mais: segue "Em uso" (pedido de 2026-11-03)."""
+    aba = janela.aba_instrumentos
+    escolher(aba, "TRE-901")
+    edicao = aba.criar_janela_edicao(aba.atual)
+    edicao.indicativa.click()
+    assert edicao.campos["localizacao"].text() == "Expedição - Orientação indicativa"
+    edicao.reserva.click()
+    assert edicao.campos["localizacao"].text() == "Expedição - Reserva - Orientação indicativa"
+    edicao.salvar_instrumento()
+    assert aba.valores["condicao"].text().startswith("<b>Em uso")
+    assert aba.tabela_historico.item(0, 1).text() == "Orientação indicativa"
+    assert aba.tabela_historico.item(0, 3).text() == "Ficha do instrumento"
+    aba.filtro_condicao.setCurrentText("Orientação indicativa")
+    assert codigos_da_lista(aba) == ["TRE-901"]
+    aba.filtro_condicao.setCurrentText("Todos menos desativados")
+    escolher(aba, "TRE-901")
+    edicao = aba.criar_janela_edicao(aba.atual)
+    edicao.indicativa.click()
+    edicao.salvar_instrumento()
+    assert janela.repo.obter_instrumento(aba.atual.id).localizacao == "Expedição - Reserva"
+    assert aba.tabela_historico.item(0, 1).text() == "Deixou de ser orientação indicativa"
+
+
+def test_ficha_primeira_calibracao_prevista(janela):
+    aba = janela.aba_instrumentos
+    escolher(aba, "TRE-904")  # sem calibração no programa
+    edicao = aba.criar_janela_edicao(aba.atual)
+    assert not edicao.primeira.isReadOnly()
+    edicao.primeira.setText("31/02/2027")
+    edicao.salvar_instrumento()
+    assert "dd/mm/aaaa" in edicao.avisos.text()
+    edicao.primeira.setText("20/11/2026")
+    edicao.salvar_instrumento()
+    assert janela.repo.obter_instrumento(aba.atual.id).primeira_prevista == date(2026, 11, 20)
+    assert aba.valores["primeira_prevista"].text() == "<b>20/11/2026</b>"
+    assert "2 pendentes" not in texto(janela.valores_indicadores["mes"])
+    assert texto(janela.valores_indicadores["proximo_mes"]) == "2"  # TRE-902 e TRE-904
+    escolher(aba, "TRE-901")  # já calibrado: a data fica só para consulta
+    assert aba.criar_janela_edicao(aba.atual).primeira.isReadOnly()
+
+
+def test_aba_calibrar_tem_nova_calibracao(janela):
+    """Pedido de 2026-11-03: aba Calibrar com a lista e o botão NOVA CALIBRAÇÃO."""
+    nomes = [janela.abas.tabText(n) for n in range(janela.abas.count())]
+    assert nomes == ["Instrumentos", "Calibrar", "Cronograma", "Lixeira"]
+    assert janela.abas.currentWidget() is janela.aba_cronograma  # abre no Cronograma
+    aba = janela.aba_calibrar
+    painel = aba.painel_calibracoes
+    assert painel.registrar.text() == "NOVA CALIBRAÇÃO"
+    assert not painel.registrar.isEnabled()  # nada escolhido
+    escolher(aba.lista, "TRE-901")
+    assert aba.atual.codigo == "TRE-901"
+    assert painel.registrar.isEnabled()
+    assert aba.valores["codigo"].text() == "<b>TRE-901</b>"
+    assert painel.tabela.rowCount() == 1  # a calibração já feita
+    assert "TRE-901" in aba.caixa_calibracoes.title()
+    # as calibrações saíram da aba Instrumentos
+    subabas = janela.aba_instrumentos.subabas
+    assert [subabas.tabText(n) for n in range(subabas.count())] == [
+        "Plano de calibração", "Histórico de condição"]
+
+
+def test_so_o_codigo_da_lista_e_clicavel(janela):
+    """Pedido de 2026-11-03: o código é como um botão; as outras colunas não respondem."""
+    from PySide6.QtCore import QEvent, QPointF
+    from PySide6.QtGui import QMouseEvent
+
+    aba = janela.aba_instrumentos
+    tabela = aba.tabela
+    item = tabela.item(0, 0)
+    assert not item.font().underline()
+    assert "Clique para abrir" in item.toolTip()
+
+    def clicar(coluna):
+        retangulo = tabela.visualItemRect(tabela.item(0, coluna))
+        ponto = QPointF(retangulo.center())
+        for tipo in (QEvent.MouseButtonPress, QEvent.MouseButtonRelease):
+            evento = QMouseEvent(tipo, ponto, ponto, Qt.LeftButton, Qt.LeftButton,
+                                 Qt.NoModifier)
+            QApplication.sendEvent(tabela.viewport(), evento)
+
+    clicar(1)  # Localização: nada acontece
+    assert aba.atual is None
+    clicar(0)  # Código: abre o instrumento
+    assert aba.atual is not None and aba.atual.codigo == item.text()
+    aba.lista._mouse_sobre(tabela.model().index(1, 0))  # mouse sobre o código: clareia
+    assert tabela.item(1, 0).background().color().name() == "#2e2e2e"
+    aba.lista._mouse_sobre(tabela.model().index(1, 2))  # sobre outra coluna: apaga
+    assert tabela.item(1, 0).background().style() == Qt.NoBrush
+
+
+def test_ver_plano_e_editar_plano_em_janelas(janela, plano_da_trena):
+    """Item 12 do teste (2026-11-03): o plano abre em janelas grandes."""
+    _, plano_id = plano_da_trena
+    resumo = janela.aba_instrumentos.painel_plano
+    assert "ponto(s)" in resumo.titulo.text() and "sem Incerteza" in resumo.avisos.text()
+    ver = resumo.criar_janela_ver()
+    ultima = ver.tabela.rowCount() - 1
+    assert ver.tabela.item(ultima, 5).text() == "falta"           # U que falta, em amarelo
+    assert ver.tabela.item(ultima, 4).text() == "300, tolerância ± 0,5"
+    ver.editar.click()
+    assert ver.result() == ver.EDITAR
+    edicao = resumo.criar_janela_edicao()
+    assert "EDITAR PLANO" in edicao.findChild(type(resumo.titulo), "titulo").text()
+    painel = edicao.painel
+    linha = painel.tabela.rowCount() - 1
+    painel.tabela.item(linha, 13).setCheckState(Qt.Checked)        # U não se aplica
+    assert resumo.tem_alteracao()
+    painel.salvar_plano()
+    assert edicao.result()                                          # salvou e fechou
+    assert janela.repo.listar_pontos(plano_id)[-1].incerteza_nao_aplica is True
+    assert resumo.avisos.text().startswith("✔ Plano salvo")
+    assert janela.aba_instrumentos.painel_plano.criar_janela_ver().tabela.item(
+        ultima, 5).text() == "não se aplica"
+
+
+def test_modo_consulta_so_ver_plano(janela, plano_da_trena):
+    resumo = janela.aba_instrumentos.painel_plano
+    resumo.definir_edicao(False)
+    assert resumo.editar.isHidden() and not resumo.ver.isHidden()
+    assert resumo.criar_janela_ver().editar.isHidden()
+
+
+def test_maozinha_no_que_e_clicavel(janela):
+    """Pedido de 2026-11-03: mãozinha em botões, abas, filtros e caixinhas; desligado, seta."""
+    from PySide6.QtWidgets import QCheckBox
+
+    aba = janela.aba_instrumentos
+    assert aba.novo.cursor().shape() == Qt.PointingHandCursor
+    assert aba.filtro_tipo.cursor().shape() == Qt.PointingHandCursor
+    assert janela.abas.tabBar().cursor().shape() == Qt.PointingHandCursor
+    assert not aba.editar.isEnabled()  # nada escolhido: desligado
+    assert aba.editar.cursor().shape() == Qt.ArrowCursor
+    escolher(aba, "TRE-901")
+    assert aba.editar.cursor().shape() == Qt.PointingHandCursor
+    edicao = aba.criar_janela_edicao(aba.atual)
+    edicao.show()  # a mãozinha entra quando a janela aparece
+    QApplication.processEvents()
+    assert edicao.findChild(QCheckBox).cursor().shape() == Qt.PointingHandCursor
+    edicao.reject()
+
+
+def test_aviso_salvo_a_cada_gravacao(janela):
+    """Item 3 do teste (2026-11-03): "✔ Salvo" aparece ao gravar e some sozinho."""
+    assert janela.aviso_salvo.isHidden()
+    aba = janela.aba_instrumentos
+    escolher(aba, "TRE-901")
+    edicao = aba.criar_janela_edicao(aba.atual)
+    edicao.campos["faixa"].setText("0-5 m")
+    edicao.salvar_instrumento()
+    assert not janela.aviso_salvo.isHidden()
+    assert janela.aviso_salvo.text() == "✔ Salvo"
+    QApplication.processEvents()  # a tela terminou de se atualizar: começa a contar
+    assert janela.relogio_salvo.isActive()
+    janela.relogio_salvo.timeout.emit()  # passou o tempo
+    assert janela.aviso_salvo.isHidden()
+
+
+
+def test_shift_roda_rola_para_os_lados(app):
+    """Item 4 do teste (2026-11-03): Shift + roda do mouse rola na horizontal."""
+    from PySide6.QtWidgets import QTableWidget
+
+    from calibracao.interface.componentes import instalar_filtro_roda
+
+    instalar_filtro_roda()
+    tabela = QTableWidget(3, 40)
+    tabela.resize(300, 200)
+    tabela.show()
+    QApplication.processEvents()
+    barra = tabela.horizontalScrollBar()
+    assert barra.maximum() > 0 and barra.value() == 0
+    ponto = QPointF(50, 50)
+    evento = QWheelEvent(ponto, ponto, QPoint(0, 0), QPoint(0, -120), Qt.NoButton,
+                         Qt.ShiftModifier, Qt.NoScrollPhase, False)
+    QApplication.sendEvent(tabela.viewport(), evento)
+    assert barra.value() > 0
+    tabela.close()

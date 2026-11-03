@@ -49,10 +49,11 @@ def situacao(ultima: datetime.date | None, proxima: datetime.date | None,
     """Situação do instrumento.
 
     `ultima`: data da última calibração **visível** (fora da Lixeira); `proxima`: a data prevista a
-    partir dela; `prevista_anterior`: a data que estava prevista antes dessa última calibração (para
-    saber se ela foi a calibração prevista para este mês).
+    partir dela (sem calibração no programa: a 1ª calibração prevista, digitada na ficha);
+    `prevista_anterior`: a data que estava prevista antes dessa última calibração (para saber se
+    ela foi a calibração prevista para este mês).
     """
-    if ultima is None:
+    if ultima is None and proxima is None:
         return Situacao.SEM_CALIBRACAO
     if mesmo_mes(ultima, hoje) and mesmo_mes(prevista_anterior, hoje):
         return Situacao.FEITA_MES
@@ -72,8 +73,8 @@ def previsto_no_mes(proxima: datetime.date | None, ano: int, mes: int) -> bool:
 
 
 # --- Cronograma de qualquer mês (pedido do usuário em 2026-10-30) -------------------------
-# Seletor de 12 meses para trás a 24 para a frente (como o protótipo): também limita a projeção.
-MESES_PARA_TRAS = 12
+# Seletor: o mês atual e 24 para a frente (também limita a projeção); embaixo, os meses que já
+# passaram desde a implantação, como registro (pedido de 2026-11-03, item 18 do teste).
 MESES_PARA_FRENTE = 24
 
 
@@ -105,15 +106,25 @@ class PrevistaNoMes:
     motivo_atraso: str | None = None
 
 
-def meses_do_seletor(hoje: datetime.date) -> list[datetime.date]:
-    """Primeiro dia de cada mês do seletor, do mais antigo ao mais distante."""
+def meses_do_seletor(hoje: datetime.date,
+                     implantacao: datetime.date | None = None) -> list[datetime.date]:
+    """Primeiro dia de cada mês do seletor: em cima o mês atual e os próximos; depois os que já
+    passaram, do mais recente ao da implantação (nenhum mês antes de o programa ser usado)."""
     inicio = hoje.replace(day=1)
-    return [somar_meses(inicio, n) for n in range(-MESES_PARA_TRAS, MESES_PARA_FRENTE + 1)]
+    meses = [somar_meses(inicio, n) for n in range(MESES_PARA_FRENTE + 1)]
+    if implantacao is not None:
+        primeiro = implantacao.replace(day=1)
+        mes = somar_meses(inicio, -1)
+        while mes >= primeiro:
+            meses.append(mes)
+            mes = somar_meses(mes, -1)
+    return meses
 
 
 def previstas_no_mes(calibracoes: list[CalibracaoResumo], periodicidade_meses: int | None,
                      mes: datetime.date, hoje: datetime.date,
-                     ativo: bool = True) -> list[PrevistaNoMes]:
+                     ativo: bool = True,
+                     primeira_prevista: datetime.date | None = None) -> list[PrevistaNoMes]:
     """Calibrações previstas para o mês de `mes` de um instrumento.
 
     - Prevista de uma calibração que já teve a seguinte registrada → "Feita" (com a data em que foi
@@ -122,7 +133,11 @@ def previstas_no_mes(calibracoes: list[CalibracaoResumo], periodicidade_meses: i
       mês ou Prevista.
     - Meses depois dela: projeção repetindo a periodicidade, só de este mês em diante.
     Instrumento desativado (`ativo=False`) mostra só o que já foi feito.
+    `primeira_prevista` (digitada na ficha, pedido de 2026-11-03) faz o papel da prevista antes da
+    primeira calibração do programa.
     """
+    if primeira_prevista is not None:
+        calibracoes = [CalibracaoResumo(primeira_prevista, primeira_prevista), *calibracoes]
     if not calibracoes:
         return []
     este_mes = hoje.replace(day=1)

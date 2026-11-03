@@ -8,12 +8,21 @@ Versão 3: condição do instrumento (Em uso / Orientação indicativa / Desativ
 lugar das desativações; parecer final e custo da calibração; custo de compra e responsável do
 instrumento.
 Versão 4: trava de edição para uso em rede (uma linha só: quem está editando).
+Versão 5: registro das correções de calibrações. Versão 6: motivo do atraso.
+Versão 7: orientação indicativa deixa de ser condição (pedido de 2026-11-03): vira marca na
+localização, com histórico próprio (`marcas_indicativa`).
+Versão 8: data prevista da 1ª calibração no programa, digitada na ficha olhando a DQ05 (pedido de
+2026-11-03): o programa não guarda as calibrações antigas da planilha, só essa data.
+Versão 9: ponto com "U não se aplica" (na DQ05, "-" ou "N/A" onde vai a incerteza), no plano e na
+"foto" guardada com cada calibração.
 """
 
 import sqlite3
 from pathlib import Path
 
-VERSAO_ESQUEMA = 6
+from calibracao.regras.localizacao import com_marcas
+
+VERSAO_ESQUEMA = 9
 
 TABELAS = """
 CREATE TABLE IF NOT EXISTS metadados (
@@ -173,6 +182,22 @@ CREATE TABLE IF NOT EXISTS correcoes_calibracao (
 CREATE INDEX IF NOT EXISTS idx_correcoes_calibracao ON correcoes_calibracao(calibracao_id);
 """
 
+# Versão 7. Histórico da marca de orientação indicativa (a marca em si é o " - Orientação
+# indicativa" da localização). Linha de uma calibração na Lixeira deixa de valer, como nas
+# condições; `calibracao_id` preenchido = veio do parecer final.
+TABELAS_V7 = """
+CREATE TABLE IF NOT EXISTS marcas_indicativa (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    instrumento_id INTEGER NOT NULL REFERENCES instrumentos(id),
+    marcada INTEGER NOT NULL,
+    data TEXT NOT NULL,
+    motivo TEXT,
+    calibracao_id INTEGER REFERENCES calibracoes(id) ON DELETE CASCADE,
+    criado_em TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS ix_marcas_indicativa_instrumento ON marcas_indicativa(instrumento_id);
+"""
+
 # Colunas acrescentadas na versão 3: (tabela, coluna, tipo).
 COLUNAS_V3 = [
     ("instrumentos", "custo_compra", "REAL"),
@@ -231,6 +256,14 @@ def criar_tabelas(conexao: sqlite3.Connection) -> None:
     # ...e, enquanto ainda não foi feita (vencida), o motivo informado no instrumento.
     if "motivo_atraso_pendente" not in _colunas(conexao, "instrumentos"):
         conexao.execute("ALTER TABLE instrumentos ADD COLUMN motivo_atraso_pendente TEXT")
+    conexao.executescript(TABELAS_V7)
+    if "primeira_prevista" not in _colunas(conexao, "instrumentos"):
+        conexao.execute("ALTER TABLE instrumentos ADD COLUMN primeira_prevista TEXT")
+    for tabela in ("pontos_plano", "pontos_calibracao"):
+        if "incerteza_nao_aplica" not in _colunas(conexao, tabela):
+            conexao.execute(f"ALTER TABLE {tabela} ADD COLUMN incerteza_nao_aplica "
+                            "INTEGER NOT NULL DEFAULT 0")
+    _migrar_condicao_indicativa(conexao)
     conexao.execute(
         "INSERT OR REPLACE INTO metadados (chave, valor) VALUES ('versao_esquema', ?)",
         (str(VERSAO_ESQUEMA),),
@@ -253,3 +286,32 @@ def _migrar_desativacoes(conexao: sqlite3.Connection) -> None:
                 (linha["instrumento_id"], linha["reativado_em"]),
             )
     conexao.execute("DROP TABLE desativacoes")
+
+
+def _migrar_condicao_indicativa(conexao: sqlite3.Connection) -> None:
+    """Banco até a versão 6: a condição "Orientação indicativa" vira "Em uso" + marca.
+
+    Cada mudança para orientação indicativa vira uma linha no histórico da marca; quem estava
+    nessa condição ganha o " - Orientação indicativa" na localização.
+    """
+    linhas = conexao.execute(
+        "SELECT * FROM condicoes WHERE condicao = 'Orientação indicativa' ORDER BY id").fetchall()
+    if not linhas:
+        return
+    validas = """SELECT k.* FROM condicoes k LEFT JOIN calibracoes c ON c.id = k.calibracao_id
+                 WHERE k.calibracao_id IS NULL OR c.excluido_em IS NULL"""
+    atuais = {linha["instrumento_id"]: linha["condicao"] for linha in conexao.execute(
+        f"{validas} ORDER BY k.data, k.id")}
+    for linha in linhas:
+        conexao.execute(
+            "INSERT INTO marcas_indicativa (instrumento_id, marcada, data, motivo, calibracao_id) "
+            "VALUES (?, 1, ?, ?, ?)",
+            (linha["instrumento_id"], linha["data"], linha["motivo"], linha["calibracao_id"]))
+    for instrumento_id, condicao in atuais.items():
+        if condicao == "Orientação indicativa":
+            local = conexao.execute("SELECT localizacao FROM instrumentos WHERE id = ?",
+                                    (instrumento_id,)).fetchone()[0]
+            conexao.execute("UPDATE instrumentos SET localizacao = ? WHERE id = ?",
+                            (com_marcas(local, indicativa=True), instrumento_id))
+    conexao.execute("UPDATE condicoes SET condicao = 'Em uso' "
+                    "WHERE condicao = 'Orientação indicativa'")

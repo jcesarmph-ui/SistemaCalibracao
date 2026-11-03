@@ -1,10 +1,18 @@
 """Gráfico de tendência (Matplotlib dentro da janela), como no protótipo, com exportar PNG.
 
-Um ponto do plano por vez (escolhido na lista): o erro de cada calibração (medido − nominal, ou o
-erro do certificado) com a barra da Incerteza (U), e a tolerância em linhas tracejadas. Ponto
-reprovado ganha marcador vermelho — vermelho só para problema, como no resto do programa.
+Abre em **todos os pontos juntos** (pedido de 2026-11-03, item 17 do teste), um de cada cor; na
+lista dá para escolher um ponto por vez. Em cada um: o erro de cada calibração (medido − nominal,
+ou o erro do certificado) com a barra da Incerteza (U), e a tolerância em linhas tracejadas.
+
+Todos juntos: se todos os pontos têm a mesma tolerância, o eixo é o erro (na unidade do ponto);
+se não, é a **% da tolerância usada** (100% = no limite), para caber tudo num gráfico só. Pontos da
+mesma data ficam um pouco afastados para o lado, para um não cobrir o outro.
+
+Reprovado: vermelho (marcador no gráfico de um ponto, anel em volta no de todos) — vermelho só
+para problema, como no resto do programa.
 """
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import matplotlib
@@ -27,7 +35,7 @@ from PySide6.QtWidgets import (  # noqa: E402
     QVBoxLayout,
 )
 
-from calibracao.dados.repositorio import SerieTendencia  # noqa: E402
+from calibracao.dados.repositorio import MedicaoTendencia, SerieTendencia  # noqa: E402
 from calibracao.interface.componentes import formatar_data  # noqa: E402
 from calibracao.interface.estilo import CORES  # noqa: E402
 from calibracao.interface.painel_plano import numero_em_texto  # noqa: E402
@@ -41,6 +49,58 @@ COR_REPROVADO = CORES["erro"]
 COR_TEXTO = "#f0f0f0"
 COR_GRADE = "#3a3a3a"
 COR_FUNDO = CORES["caixa"]
+# Todos juntos: paleta categórica para fundo escuro SEM amarelo, verde e vermelho (no programa
+# querem dizer aviso, certo e erro), sempre na mesma ordem. Passou de 5 pontos, a cor se repete
+# com outro formato de marcador — cada ponto continua com uma combinação só dele.
+CORES_PONTOS = ["#3987e5", "#d95926", "#199e70", "#d55181", "#9085e9"]
+MARCADORES = ["o", "s", "^", "D", "v", "P"]
+TODOS = "Todos os pontos juntos"
+
+
+def cor_e_marcador(indice: int) -> tuple[str, str]:
+    return (CORES_PONTOS[indice % len(CORES_PONTOS)],
+            MARCADORES[indice // len(CORES_PONTOS) % len(MARCADORES)])
+
+
+def _tolerancias(serie: SerieTendencia) -> tuple[float | None, float | None]:
+    """Tolerância da calibração mais recente do ponto (a "foto" de cada uma fica na dica)."""
+    ultima = serie.medicoes[-1]
+    return ultima.tolerancia_inferior, ultima.tolerancia_superior
+
+
+def tolerancia_comum(series: list[SerieTendencia]) -> bool:
+    """Todos os pontos com a mesma tolerância e a mesma unidade → o eixo pode ser o erro."""
+    tolerancias = {_tolerancias(s) for s in series}
+    unidades = {s.unidade for s in series}
+    return (len(tolerancias) == 1 and len(unidades) == 1
+            and any(t is not None for t in next(iter(tolerancias))))
+
+
+def em_porcentagem(valor: float, inferior: float | None, superior: float | None) -> float | None:
+    """Erro em % da tolerância do seu lado (acima de zero, a superior; abaixo, a inferior).
+    Faltando um lado, vale o tamanho do outro; sem nenhum, não dá para calcular (None)."""
+    lado = superior if valor >= 0 else inferior
+    if lado is None or lado == 0:
+        lado = inferior if valor >= 0 else superior
+    if lado is None or lado == 0:
+        return None
+    return valor / abs(lado) * 100
+
+
+@dataclass
+class _Desenhado:
+    """Um marcador na tela, para a dica do mouse."""
+
+    x: float
+    y: float
+    nome: str | None
+    medicao: MedicaoTendencia
+    porcentagem: float | None = None
+    serie: int | None = None
+
+
+def _texto(valor: float) -> str:
+    return f"{valor:g}".replace("-", "−").replace(".", ",")
 
 
 class JanelaTendencia(QDialog):
@@ -53,8 +113,10 @@ class JanelaTendencia(QDialog):
         self.setWindowState(Qt.WindowMaximized)
 
         self.ponto = QComboBox()
-        for serie in series:
-            self.ponto.addItem(f"{serie.nome} ({len(serie.medicoes)} calibração(ões))")
+        if len(series) > 1:  # o principal: é o primeiro a aparecer
+            self.ponto.addItem(f"{TODOS} ({len(series)} pontos)", None)
+        for indice, serie in enumerate(series):
+            self.ponto.addItem(f"{serie.nome} ({len(serie.medicoes)} calibração(ões))", indice)
         self.ponto.currentIndexChanged.connect(self.desenhar)
         self.exportar = QPushButton("Salvar imagem (PNG)")
         self.exportar.clicked.connect(self._escolher_arquivo)
@@ -62,7 +124,7 @@ class JanelaTendencia(QDialog):
         fechar = QPushButton("Fechar")
         fechar.clicked.connect(self.accept)
         topo = QHBoxLayout()
-        topo.addWidget(QLabel("Ponto do plano:"))
+        topo.addWidget(QLabel("Mostrar:"))
         topo.addWidget(self.ponto, 1)
         topo.addWidget(self.exportar)
         topo.addWidget(fechar)
@@ -70,6 +132,7 @@ class JanelaTendencia(QDialog):
         self.figura = Figure(figsize=(12, 6), facecolor=COR_FUNDO)
         self.tela = FigureCanvasQTAgg(self.figura)
         self.tela.mpl_connect("motion_notify_event", self._passou_o_mouse)
+        self.tela.mpl_connect("pick_event", self._clicou_na_legenda)
         self.aviso = QLabel(objectName="dica", wordWrap=True)
 
         coluna = QVBoxLayout(self)
@@ -78,11 +141,20 @@ class JanelaTendencia(QDialog):
         coluna.addWidget(self.aviso)
         self.desenhar()
 
+    @property
+    def todos(self) -> bool:
+        return bool(self.series) and self.ponto.currentData() is None
+
     def desenhar(self) -> None:
         self.figura.clear()
         eixo = self.figura.add_subplot(facecolor=COR_FUNDO)
         self._eixo = eixo
-        self._pontos_desenhados = []
+        self._desenhados: list[_Desenhado] = []
+        # Todos juntos: o que foi desenhado de cada ponto, para esconder/mostrar pela legenda.
+        self._grupos: dict[int, list] = {}
+        self._na_legenda: dict[object, int] = {}
+        self._itens_legenda: dict[int, tuple] = {}
+        self.escondidos: set[int] = set()
         if not self.series:
             eixo.set_axis_off()
             eixo.text(0.5, 0.5, "Ainda não há pontos numéricos medidos para o gráfico.",
@@ -91,7 +163,28 @@ class JanelaTendencia(QDialog):
             self.aviso.setText("")
             self.tela.draw_idle()
             return
-        serie = self.series[self.ponto.currentIndex()]
+        if self.todos:
+            self._desenhar_todos(eixo)
+        else:
+            self._desenhar_um(eixo, self.series[self.ponto.currentData()])
+        eixo.axhline(0, color=COR_GRADE, linewidth=1)
+        eixo.set_xlabel("Data da calibração", color=COR_TEXTO, fontsize=12)
+        eixo.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m/%Y"))
+        eixo.xaxis.set_major_locator(mdates.AutoDateLocator(maxticks=8))
+        eixo.tick_params(colors=COR_TEXTO, labelsize=11)
+        eixo.grid(True, color=COR_GRADE, linewidth=0.8, alpha=0.6)
+        for lado in eixo.spines.values():
+            lado.set_color(COR_GRADE)
+        self.figura.autofmt_xdate()
+        self.figura.tight_layout()
+
+        self._dica = eixo.annotate("", xy=(0, 0), xytext=(12, 12), textcoords="offset points",
+                                   color=COR_TEXTO, fontsize=11,
+                                   bbox={"boxstyle": "round", "fc": "#161616", "ec": "#e0e0e0"})
+        self._dica.set_visible(False)
+        self.tela.draw_idle()
+
+    def _desenhar_um(self, eixo, serie: SerieTendencia) -> None:
         medicoes = serie.medicoes
         unidade = f" {serie.unidade}" if serie.unidade else ""
         datas = [m.data for m in medicoes]
@@ -105,32 +198,16 @@ class JanelaTendencia(QDialog):
         if reprovados:
             eixo.scatter([m.data for m in reprovados], [m.erro for m in reprovados], s=110,
                          color=COR_REPROVADO, edgecolors=COR_FUNDO, linewidths=2, zorder=4)
-        # Tolerância da calibração mais recente (a "foto" de cada uma fica no tooltip).
-        ultima = medicoes[-1]
-        for valor, nome in ((ultima.tolerancia_superior, "Tol. superior"),
-                            (ultima.tolerancia_inferior, "Tol. inferior")):
-            if valor is not None:
-                eixo.axhline(valor, color=COR_TOLERANCIA, linestyle="--", linewidth=1.5)
-                eixo.annotate(f"{nome} {numero_em_texto(valor)}", xy=(1, valor),
-                              xycoords=("axes fraction", "data"), xytext=(-6, 4),
-                              textcoords="offset points", ha="right", color=COR_TEXTO,
-                              fontsize=10)
-        eixo.axhline(0, color=COR_GRADE, linewidth=1)
-        self._pontos_desenhados = medicoes
+        inferior, superior = _tolerancias(serie)
+        self._linhas_de_tolerancia(eixo, inferior, superior, numero_em_texto)
+        self._desenhados = [_Desenhado(mdates.date2num(m.data), m.erro, None, m)
+                            for m in medicoes]
 
         eixo.set_title(f"Tendência — {self.codigo} — {serie.nome}", color=COR_TEXTO,
                        fontsize=15, fontweight="bold", pad=12)
         eixo.set_ylabel(f"Erro{unidade}", color=COR_TEXTO, fontsize=12)
-        eixo.set_xlabel("Data da calibração", color=COR_TEXTO, fontsize=12)
-        eixo.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m/%Y"))
-        eixo.xaxis.set_major_locator(mdates.AutoDateLocator(maxticks=8))
-        eixo.yaxis.set_major_formatter(FuncFormatter(  # vírgula decimal, como no Brasil
-            lambda valor, _: f"{valor:g}".replace("-", "−").replace(".", ",")))
+        eixo.yaxis.set_major_formatter(FuncFormatter(lambda v, _: _texto(v)))
         eixo.margins(x=0.15, y=0.25)
-        eixo.tick_params(colors=COR_TEXTO, labelsize=11)
-        eixo.grid(True, color=COR_GRADE, linewidth=0.8, alpha=0.6)
-        for lado in eixo.spines.values():
-            lado.set_color(COR_GRADE)
         legenda = [Line2D([], [], color=COR_SERIE, marker="o", linewidth=2,
                           label="Erro medido ± Incerteza (U)"),
                    Line2D([], [], color=COR_TOLERANCIA, linestyle="--", label="Tolerância")]
@@ -139,27 +216,153 @@ class JanelaTendencia(QDialog):
                                   markersize=9, label="Ponto reprovado"))
         eixo.legend(handles=legenda, loc="upper left", fontsize=10, facecolor=COR_FUNDO,
                     edgecolor=COR_GRADE, labelcolor=COR_TEXTO)
-        self.figura.autofmt_xdate()
-        self.figura.tight_layout()
-
-        self._dica = eixo.annotate("", xy=(0, 0), xytext=(12, 12), textcoords="offset points",
-                                   color=COR_TEXTO, fontsize=11,
-                                   bbox={"boxstyle": "round", "fc": "#161616", "ec": "#e0e0e0"})
-        self._dica.set_visible(False)
         self.aviso.setText("Passe o mouse sobre um ponto para ver os valores. A barra vertical "
                            "é a Incerteza (U): o ponto só é aprovado se a barra inteira ficar "
                            "dentro da tolerância.")
+
+    def _desenhar_todos(self, eixo) -> None:
+        comum = tolerancia_comum(self.series)
+        todas_as_datas = [mdates.date2num(m.data) for s in self.series for m in s.medicoes]
+        largura = max(todas_as_datas) - min(todas_as_datas)
+        # Afastamento entre os pontos da mesma data: pequeno perto do período mostrado.
+        passo = max(largura * 0.008, 2.0)
+        meio = (len(self.series) - 1) / 2
+        legenda, sem_tolerancia, algum_reprovado = [], [], False
+        for indice, serie in enumerate(self.series):
+            cor, marcador = cor_e_marcador(indice)
+            inferior, superior = _tolerancias(serie)
+            xs, ys, baixo, cima, grupo = [], [], [], [], []
+            for m in serie.medicoes:
+                u = m.incerteza or 0.0
+                if comum:
+                    y, u_baixo, u_cima, pct = m.erro, u, u, None
+                else:
+                    pct = em_porcentagem(m.erro, m.tolerancia_inferior, m.tolerancia_superior)
+                    if pct is None:
+                        continue
+                    y = pct
+                    u_cima = abs(em_porcentagem(u, m.tolerancia_inferior,
+                                                m.tolerancia_superior) or 0.0)
+                    u_baixo = abs(em_porcentagem(-u, m.tolerancia_inferior,
+                                                 m.tolerancia_superior) or 0.0)
+                x = mdates.date2num(m.data) + (indice - meio) * passo
+                xs.append(x)
+                ys.append(y)
+                baixo.append(u_baixo)
+                cima.append(u_cima)
+                self._desenhados.append(_Desenhado(x, y, serie.nome, m, pct, indice))
+                if m.resultado == Resultado.REPROVADO:
+                    algum_reprovado = True
+                    grupo.append(eixo.scatter([x], [y], s=190, facecolors="none",
+                                              edgecolors=COR_REPROVADO, linewidths=2, zorder=5))
+            if not xs:
+                sem_tolerancia.append(serie.nome)
+                continue
+            grupo += eixo.plot(xs, ys, color=cor, linewidth=1.6, alpha=0.85, zorder=3)
+            barras = eixo.errorbar(xs, ys, yerr=[baixo, cima], fmt="none", ecolor=cor,
+                                   elinewidth=1.2, capsize=3, alpha=0.7, zorder=2)
+            grupo += [*barras.lines[1], *barras.lines[2]]
+            grupo.append(eixo.scatter(xs, ys, s=46, color=cor, marker=marcador,
+                                      edgecolors=COR_FUNDO, linewidths=1.5, zorder=4))
+            self._grupos[indice] = grupo
+            nome = serie.nome
+            if not comum and (inferior is not None or superior is not None):
+                nome += f" (tol. {self._faixa(inferior, superior, serie.unidade)})"
+            legenda.append(Line2D([], [], color=cor, marker=marcador, linewidth=1.6,
+                                  markersize=7, label=nome))
+
+        unidade = self.series[0].unidade
+        if comum:
+            inferior, superior = _tolerancias(self.series[0])
+            self._linhas_de_tolerancia(eixo, inferior, superior, numero_em_texto)
+            eixo.set_ylabel(f"Erro {unidade}" if unidade else "Erro", color=COR_TEXTO,
+                            fontsize=12)
+            eixo.yaxis.set_major_formatter(FuncFormatter(lambda v, _: _texto(v)))
+            explicacao = (f"Tolerância igual em todos os pontos "
+                          f"({self._faixa(inferior, superior, unidade)}): eixo em erro")
+        else:
+            self._linhas_de_tolerancia(eixo, -100, 100, lambda v: f"{_texto(v)}%")
+            eixo.set_ylabel("Erro em % da tolerância", color=COR_TEXTO, fontsize=12)
+            eixo.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{_texto(v)}%"))
+            explicacao = ("Tolerâncias diferentes entre os pontos: eixo em % da tolerância "
+                          "usada (100% = no limite)")
+        eixo.set_title(f"Tendência — {self.codigo} — todos os pontos\n{explicacao}",
+                       color=COR_TEXTO, fontsize=14, fontweight="bold", pad=12)
+        eixo.margins(x=0.06, y=0.25)
+        legenda.append(Line2D([], [], color=COR_TOLERANCIA, linestyle="--", label="Tolerância"))
+        if algum_reprovado:
+            legenda.append(Line2D([], [], color=COR_REPROVADO, marker="o", linestyle="",
+                                  markerfacecolor="none", markeredgewidth=2, markersize=11,
+                                  label="Reprovado"))
+        caixa = eixo.legend(handles=legenda, loc="upper left", bbox_to_anchor=(1.01, 1),
+                            fontsize=10, facecolor=COR_FUNDO, edgecolor=COR_GRADE,
+                            labelcolor=COR_TEXTO, title="Ponto (clique para esconder)",
+                            title_fontsize=11)
+        caixa.get_title().set_color(COR_TEXTO)
+        # Clicar no nome (ou no traço) de um ponto na legenda esconde/mostra esse ponto.
+        for indice, linha, texto in zip(self._grupos, caixa.get_lines(), caixa.get_texts(),
+                                        strict=False):
+            self._itens_legenda[indice] = (linha, texto)
+            for item in (linha, texto):
+                item.set_picker(True)
+                self._na_legenda[item] = indice
+        texto = ("Cada cor é um ponto do plano; os da mesma data ficam um pouco afastados para "
+                 "o lado, para não se cobrirem. A barra vertical é a Incerteza (U). Clique no "
+                 "nome de um ponto na legenda para escondê-lo ou mostrá-lo de novo. Passe o mouse "
+                 "sobre um ponto para ver os valores; para ver um ponto sozinho, escolha-o em "
+                 "\"Mostrar\".")
+        if sem_tolerancia:
+            texto += (" Sem tolerância, fora deste gráfico (veja-os sozinhos): "
+                      + ", ".join(sem_tolerancia) + ".")
+        self.aviso.setText(texto)
+
+    def esconder_ou_mostrar(self, indice: int) -> None:
+        """Ponto escondido fica apagado na legenda; clicar de novo mostra."""
+        escondido = indice not in self.escondidos
+        if escondido:
+            self.escondidos.add(indice)
+        else:
+            self.escondidos.discard(indice)
+        for artista in self._grupos.get(indice, []):
+            artista.set_visible(not escondido)
+        for item in self._itens_legenda.get(indice, ()):
+            item.set_alpha(0.3 if escondido else 1.0)
         self.tela.draw_idle()
 
+    def _clicou_na_legenda(self, evento) -> None:
+        indice = self._na_legenda.get(evento.artist)
+        if indice is not None:
+            self.esconder_ou_mostrar(indice)
+
+    @staticmethod
+    def _faixa(inferior: float | None, superior: float | None, unidade: str | None) -> str:
+        fim = f" {unidade}" if unidade else ""
+        if inferior is not None and superior is not None and abs(inferior) == abs(superior):
+            return f"± {numero_em_texto(abs(superior))}{fim}"
+        partes = [numero_em_texto(v) for v in (inferior, superior) if v is not None]
+        return " a ".join(partes) + fim
+
+    @staticmethod
+    def _linhas_de_tolerancia(eixo, inferior, superior, formato) -> None:
+        for valor, nome in ((superior, "Tol. superior"), (inferior, "Tol. inferior")):
+            if valor is not None:
+                eixo.axhline(valor, color=COR_TOLERANCIA, linestyle="--", linewidth=1.5)
+                eixo.annotate(f"{nome} {formato(valor)}", xy=(1, valor),
+                              xycoords=("axes fraction", "data"), xytext=(-6, 4),
+                              textcoords="offset points", ha="right", color=COR_TEXTO,
+                              fontsize=10)
+
     def _passou_o_mouse(self, evento) -> None:
-        """Tooltip com data, erro, U e resultado do ponto mais perto do mouse."""
-        if not self._pontos_desenhados or evento.inaxes is not self._eixo:
+        """Dica com ponto, data, erro, U e resultado do marcador mais perto do mouse."""
+        if not self._desenhados or evento.inaxes is not self._eixo:
             return
         perto = None
-        for medicao in self._pontos_desenhados:
-            x, y = self._eixo.transData.transform((mdates.date2num(medicao.data), medicao.erro))
-            if abs(x - evento.x) < 12 and abs(y - evento.y) < 12:
-                perto = medicao
+        for desenhado in self._desenhados:
+            if desenhado.serie in self.escondidos:
+                continue
+            x, y = self._eixo.transData.transform((desenhado.x, desenhado.y))
+            if abs(x - evento.x) < 10 and abs(y - evento.y) < 10:
+                perto = desenhado
                 break
         visivel = self._dica.get_visible()
         if perto is None:
@@ -167,21 +370,26 @@ class JanelaTendencia(QDialog):
                 self._dica.set_visible(False)
                 self.tela.draw_idle()
             return
-        u = numero_em_texto(perto.incerteza) or "—"
-        self._dica.xy = (mdates.date2num(perto.data), perto.erro)
-        self._dica.set_text(f"{formatar_data(perto.data)}\nErro: {numero_em_texto(perto.erro)}"
-                            f"\nIncerteza (U): {u}\n{perto.resultado.value}")
+        m = perto.medicao
+        linhas = [perto.nome] if perto.nome else []
+        linhas += [formatar_data(m.data), f"Erro: {numero_em_texto(m.erro)}"]
+        if perto.porcentagem is not None:
+            linhas[-1] += f" ({_texto(round(perto.porcentagem))}% da tolerância)"
+        linhas += [f"Incerteza (U): {numero_em_texto(m.incerteza) or '—'}", m.resultado.value]
+        self._dica.xy = (perto.x, perto.y)
+        self._dica.set_text("\n".join(linhas))
         self._dica.set_visible(True)
         self.tela.draw_idle()
 
     def salvar_png(self, caminho: Path) -> None:
-        if self._pontos_desenhados:
+        if self._desenhados:
             self._dica.set_visible(False)  # a dica do mouse não vai para a imagem
         self.figura.savefig(caminho, format="png", dpi=180, facecolor=COR_FUNDO,
                             bbox_inches="tight")
 
     def _escolher_arquivo(self) -> None:
-        nome = f"tendencia_{self.codigo}_ponto{self.ponto.currentIndex() + 1}.png"
+        final = "todos" if self.todos else f"ponto{(self.ponto.currentData() or 0) + 1}"
+        nome = f"tendencia_{self.codigo}_{final}.png"
         caminho, _ = QFileDialog.getSaveFileName(self, "Salvar gráfico", nome,
                                                  "Imagem PNG (*.png)")
         if caminho:

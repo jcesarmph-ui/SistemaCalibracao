@@ -50,11 +50,14 @@ tendência; lixeira com exclusão lógica. Detalhes do comportamento atual: `REA
   numéricos e qualitativos**, tolerâncias/critérios e demais informações necessárias.
 - **Calibrações já feitas NÃO entram no programa.** Ele começa **sem nenhuma calibração** quando for
   implantado; o histórico anterior à implantação fica só na planilha, para consulta.
-- **Começa "vazio de inputs"**: nenhuma data de última/próxima calibração vem da planilha; o
-  cronograma começa vazio. Transição: nos primeiros meses o usuário olha na planilha quando calibrar
-  cada instrumento, registra a calibração no programa e, daí em diante, o programa calcula a próxima.
-  Quando todos os instrumentos tiverem sido calibrados ao menos uma vez no programa, a planilha deixa
-  de ser acompanhada (só consulta de histórico antigo).
+- **Começa "vazio de inputs"**, mas com a **1ª calibração prevista** (mudança do usuário em
+  2026-11-03, no lugar da transição antiga): cada instrumento tem o campo **"1ª calibração
+  prevista"** na ficha; o usuário olha a próxima calibração na DQ05 uma vez e digita. Com a data, o
+  instrumento **já entra no cronograma** (mês, painéis, Vencida, projeção); sem data fica "Sem
+  calibração no programa". Depois da 1ª calibração registrada, as datas vêm dela (campo só
+  consulta) e o mês previsto aparece "Feita". **Nenhuma calibração antiga da planilha entra no
+  programa**; a DQ05 passa a ser só consulta de histórico. Esquema **v8**
+  (`instrumentos.primeira_prevista`).
 - **Cada instrumento já vem com tudo indicado no plano**: pontos, tolerâncias/critérios **e incerteza
   (U)**. Quando um valor mudou ao longo das calibrações da planilha, vale o da **última calibração**
   (é o atual). Se mudar no futuro, o usuário altera pela tela de edição de planos/pontos (já existe no
@@ -78,11 +81,10 @@ tendência; lixeira com exclusão lógica. Detalhes do comportamento atual: `REA
   "Classificação (Classe)" com valor `1` (extensômetro, máquina de tração) = **classe exigida 1**, não tolerância.
 
 ## Bancos de dados — CUIDADO
-- **Banco do protótipo**:
-  `C:\Users\rodrigo.lima\Projetos\Calibração de Instrumentos\Arquivos\data\calibracao.db`
-  (pasta do programa protótipo: `Calibração de Instrumentos.exe` + `Arquivos\`).
-- **Nunca alterar esse banco** nem a pasta `Calibração de Instrumentos`. Para desenvolver, **copiar** o
-  banco para `data/calibracao.db` desta pasta (ignorado pelo Git: `data/*.db`) e trabalhar na cópia.
+- **Pasta do protótipo apagada** (pedido do usuário em 2026-11-03): a pasta
+  `Projetos\Calibração de Instrumentos` (`.exe` do Streamlit + `Arquivos\`) foi para a Lixeira do
+  Windows. O banco dela (dados de protótipo) ficou guardado em `dados/prototipo_calibracao.db`
+  (fora do Git), conferido por SHA-256. O programa novo não usa nada dela.
 - Na entrega (`1.0.0`), vai para a pasta comum da empresa um banco **novo**, montado a partir da
   planilha (cadastros e planos, sem calibrações), junto do `.exe` novo.
 - O `.db` **nunca** esteve no GitHub (conferido em todo o histórico em 2026-10-28).
@@ -104,9 +106,42 @@ usuário): o usuário quer fazer **depois, não agora** — apenas lembrar a pen
 vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_responsavel.py`);
 `Abrir_CALIB.bat` e `iniciar_calib.py` (deixam de existir sem Streamlit); `.vscode/`.
 
+## ▶ PRÓXIMA SESSÃO — lembrar o usuário logo no início (atualizado em 2026-11-03)
+1. **Escrever SÓ em português** (o usuário ficou bravo com frases em inglês em 2026-11-03).
+2. **Versão `1.0.0` entregue em 2026-11-03** (tag `v1.0.0`, tudo juntado ao `main`). Itens 1–18
+   de `docs/correcoes_do_teste.md` feitos (17 = gráfico com todos os pontos juntos; 18 = seletor
+   de mês a partir da implantação). **Implantação = novembro de 2026** (`metadados.implantado_em`
+   = 2026-11-01, gravado por `empacotamento/montar_entrega.py`; banco de antes guardado em
+   `dados/entrega_antes_1.0.0.db`). Programa de teste **não** é mais gerado (pedido do usuário).
+   Entrega pronta em `dist/entrega` (conferida: abre, versão 1.0.0, 123 instrumentos, sem
+   calibrações, sem lugar oficial). **O usuário copia a pasta para a rede sem abrir antes**; depois
+   digita a "1ª calibração prevista" de cada instrumento olhando a DQ05.
+   A partir daqui: CORREÇÃO (1.0.x) = conserto; MENOR (1.x.0) = novidade. Atualizar na rede =
+   trocar a pasta oculta `programa` (com o programa fechado por todos); **nunca** trocar `dados`.
+3. Pendências que continuam: confidencialidade do repositório público (só quando o usuário
+   pedir); limpeza dos arquivos do protótipo na árvore (perguntar antes de remover).
+4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,
+   com opções numeradas ("responda 1 ou 2").
+
 ## Onde paramos (2026-10-30)
 - Fases 0–5 juntadas ao `main` (PRs #1–#11). Versão **`0.5.0`** (fase 5 fechada em 2026-10-30,
-  ADR 0003 = lugar oficial do banco). **Próximo: fase 6** (`.exe` + entrega `1.0.0`).
+  ADR 0003 = lugar oficial do banco). **Fase 6 em andamento** (branch `fase-6-exe`).
+  - **Pacote** (`empacotamento/gerar_exe.py`, ~3 min, em `dist/Calibração de Instrumentos/`):
+    **lançador** "Calibração de Instrumentos.exe" (`src/calibracao/lancador.py`, sem PySide6, 25 MB)
+    + `_internal` + `programa/` (PySide6 em pasta, 147 MB, com `versao.txt` = versão + data/hora).
+    Motivo (2026-10-30): um arquivo só abria em 10–15 s pela rede. O lançador copia `programa/` para
+    `%LOCALAPPDATA%\MG Centro de Servicos\Calibracao\<versão>` uma vez por versão (janelinha
+    "Preparando…") e abre de lá (~2 s); banco só na rede (`CALIBRACAO_DADOS`). Pastas `_internal`,
+    `programa`, `dados` ocultas: na rede só se vê o `.exe`. **Atualizar = trocar `programa/`.**
+  - Logo/ícone embutidos; sem pandas, OpenGL por software e traduções do Qt.
+  - **Modo foto** `CALIBRACAO_FOTO=<png>` (abre, fotografa e fecha; o lançador espera).
+  - `dist/entrega` (definitiva) e `dist/TESTE - Calibração`: pacote + banco de 28/10 (a DQ05 não
+    mudou), v6, conferido igual ao aprovado, **sem calibrações e sem `pasta_oficial`**.
+    **Não abrir antes de copiar para a rede** (a 1ª abertura grava o lugar oficial; no 1º teste o
+    usuário abriu em `dist` e a rede virou "cópia" — resolve clicando no aviso e digitando MUDAR).
+  - Achados do teste do usuário, já corrigidos: roda do mouse mudava opção/aba; filtro de
+    localização separava reserva/orientação indicativa.
+  - Faltam: teste em 2 PCs na rede (usuário), versão `1.0.0` + tag, README da entrega.
 - **Fase 5 (melhorias):** PR #6 **juntado** em 2026-10-30, aprovado por foto (botão **"Novo
   plano…"** na ficha, **"Enviar plano para a Lixeira…"** no painel do plano — plano na Lixeira
   continua aparecendo como "(na Lixeira)" —, **pesquisa por texto na Lixeira**).
@@ -181,11 +216,48 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   preenchido** (em branco nunca é ignorado); "Não aplicável" exige motivo e não conta.
 - **Parecer final e condição** (`regras/condicao.py`): parecer escolhido pelo usuário — **Aprovado** /
   **Orientação indicativa** / **Reprovado - Desativado** (reprovado não pode ser "Aprovado"). Condição
-  do instrumento: **Em uso / Orientação indicativa / Desativado**, mudada pelo parecer ou manualmente
+  do instrumento: **Em uso / Desativado** (orientação indicativa é marca: ver abaixo), mudada pelo parecer ou manualmente
   (desativar/reativar), sempre com **data** e **observação/motivo opcional**, guardada em histórico.
   Orientação indicativa **segue no cronograma**; desativado sai. Lixeira = registro por engano.
   Calibração enviada à Lixeira **desfaz** a mudança de condição que o parecer dela fez
   (restaurar refaz). Lista de instrumentos abre em **"Todos menos desativados"**.
+- **Orientação indicativa NÃO é condição** (2026-11-03, correção do usuário): é uma **marca a
+  mais**, como a Reserva — pode estar **Em uso** e ser orientação indicativa. Condição = só **Em
+  uso / Desativado**. A marca é o " - Orientação indicativa" da localização, com **caixa na ficha**
+  (ao lado de "Precisa de calibração" e "Reserva"); pôr/tirar entra no "Histórico de condição"
+  (tabela `marcas_indicativa`, esquema **v7**; origem "Ficha do instrumento" ou parecer). Parecer
+  "Orientação indicativa" = Em uso + põe a marca; **Aprovado não tira a marca**. Calibração na
+  Lixeira desfaz a marca que o parecer pôs (restaurar refaz), só se ninguém mexeu depois.
+- **Caixa "Reserva"** (2026-11-03): põe/tira " - Reserva" na localização, qualquer local; digitar à
+  mão também marca. Reserva + indicativa = "<local> - Reserva - Orientação indicativa"; **na tela**
+  aparece "Reserva" (azul) + "**IND.**" (vermelho no amarelo), texto inteiro na dica do mouse.
+- **Incerteza (U) na importação** (2026-11-03, corrigido): vale a calibração mais recente com
+  algo onde vai a U; **sem data** de calibração, vale a da direita (as trenas tinham 0,2 sem data).
+  **"-" ou "N/A" = U não se aplica** (ponto avaliado só pelo valor; marca `incerteza_nao_aplica` no
+  plano e na "foto", esquema **v9**; sem a marca, U ausente segue "não avaliado"). **Na trena**,
+  "-"/"N/A" = passou a ser **orientação indicativa** (ganha a marca; numéricos ficam com a última U
+  em número). **Trena com orientação indicativa calibra só os pontos qualitativos** (os numéricos
+  nem aparecem; só trenas — `regras.condicao.so_qualitativos`). Banco da entrega remontado da DQ05
+  em 2026-11-03 (o anterior ficou em `dados/entrega_antes_incertezas_2026-11-03.db`). Tudo
+  continua editável depois pela tela de edição.
+- **Aba Calibrar** (2026-11-03): abas **Instrumentos | Calibrar | Cronograma | Lixeira** (abre no
+  Cronograma). Calibrar = a mesma lista de instrumentos (`interface/lista_instrumentos.py`, usada
+  nas duas abas) + dados do instrumento só para ver + botão vermelho **NOVA CALIBRAÇÃO** + lista das
+  calibrações feitas; clicar numa calibração abre a janela **só de apresentação** com **EDITAR**
+  (abre a correção; some no modo consulta); "Ver calibração", "Gráfico de tendência" e "Enviar
+  para a Lixeira" embaixo. As calibrações **saíram** da aba Instrumentos (ficaram Plano e Histórico
+  de condição). Títulos das janelas: "Nova calibração" / "Editar calibração".
+- **Ficha e plano em janelas** (2026-11-03): ficha do instrumento **só para ver** (texto); **EDITAR**
+  (vermelho) / Novo instrumento abrem `janela_instrumento.JanelaEditarInstrumento` no meio da tela
+  (faixa amarela "Você está editando", SALVAR/Cancelar). Plano: na aba só o resumo (`ResumoPlano`)
+  com **VER PLANO** (janela só de apresentação, U "falta" em amarelo / "não se aplica") e **EDITAR
+  PLANO** (janela grande, um clique na célula já edita, coluna "U não se aplica", SALVAR PLANO fecha).
+  Código da lista em azul sublinhado (link); linha escolhida cinza com linhas brancas; caixinhas com
+  contorno branco e ✓ quando marcadas. Lista de correções do teste: `docs/correcoes_do_teste.md`.
+- **Programa de TESTE** (2026-11-03): mesmo programa + cópia do banco da entrega marcada
+  (`metadados.banco_de_teste`) → título "— TESTE" e faixa amarela. `empacotamento/montar_teste.py`
+  monta `dist/TESTE - Calibração` ("TESTE - Calibração de Instrumentos.exe") e confere por SHA-256
+  que a entrega não mudou. Fica numa pasta de teste na rede.
 - **Visual "orientação indicativa":** onde aparecer, essas palavras em **letra vermelha `#c62828`
   sobre fundo amarelo `#ffd54f`** (etiqueta física da MG) — exceção consciente à regra de cores.
 - **Corrigir calibração salva** (2026-10-30): pode corrigir **tudo menos a data** (data errada =
@@ -204,6 +276,11 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   informado; ele passa para a calibração (corrigível pelo Corrigir).
 - **Textos da tela** (2026-10-30): botões **sem reticências**; título das janelas de calibração só
   com o **código** do instrumento (sem o tipo entre parênteses).
+- **Roda do mouse só rola** (2026-10-30, achado no teste do `.exe`): nunca troca opção de lista,
+  data ou aba (`componentes.FiltroRodaDoMouse`, ligado para o programa inteiro). Vale para todos
+  os programas do usuário.
+- **Filtro de localização = só o local** (2026-10-30): "- Orientação indicativa" e "- Reserva" não
+  criam opção separada (`regras/localizacao.local_do_filtro`; "Laboratório" junta tudo).
 - **Visual "Reserva"** (2026-10-30): a palavra "Reserva" (ex.: "Laboratório - Reserva") em **fundo
   azul `#1565c0` com letra branca**, nos mesmos lugares da "orientação indicativa".
 - **Localização padronizada** (`regras/localizacao.py`): "Laboratório", "Laboratório - Reserva",

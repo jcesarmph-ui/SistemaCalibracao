@@ -13,6 +13,8 @@ Para não depender do relógio dos computadores estarem certos, a trava vence de
 import datetime
 
 INTERVALO_SINAL = datetime.timedelta(seconds=30)
+# Quem consulta relê os dados a cada 10 s (item 8 do teste, 2026-11-03).
+INTERVALO_CONSULTA = datetime.timedelta(seconds=10)
 SINAL_PARADO = datetime.timedelta(minutes=2)
 SINAL_ANTIGO = datetime.timedelta(minutes=10)
 # Quem edita e deixa o programa parado (sem mouse nem teclado) por 30 minutos libera a edição
