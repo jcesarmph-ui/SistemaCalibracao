@@ -22,9 +22,9 @@ e aprovada antes de seguir. Marcar `[x]` quando aprovado.
       preto: precisam de contorno branco.
 
 ### Trava de edição (dois PCs)
-- [ ] 6. **Botão para pedir a edição** no canto, junto do "Modo consulta - usuário - PC".
-- [ ] 7. Quem pediu recebe um **sinal verde (aceito) ou vermelho (recusado)**: contorno ou aviso na cor.
-- [ ] 8. Como aparecem as mudanças que o outro PC fez: hoje atualiza sozinho a cada ~30 s.
+- [x] 6. (botões "Pedir edição" e "Atualizar" pequenos, ao lado do texto do canto; só no modo consulta) **Botão para pedir a edição** no canto, junto do "Modo consulta - usuário - PC".
+- [x] 7. (aviso verde "Edição liberada" / vermelho "Pedido recusado" por 6 s + contorno do texto do canto: amarelo esperando, verde aceito, vermelho recusado) Quem pediu recebe um **sinal verde (aceito) ou vermelho (recusado)**: contorno ou aviso na cor.
+- [x] 8. (consulta relê a cada 10 s; botão "Atualizar" só quando outro PC edita) Como aparecem as mudanças que o outro PC fez: hoje atualiza sozinho a cada ~30 s.
       Decidir com o usuário se quer também um botão "Atualizar".
 
 ### Aba Instrumentos
