@@ -101,6 +101,8 @@ class Instrumento:
     observacoes: str | None = None
     custo_compra: float | None = None
     responsavel: str | None = None
+    # Quando fazer a 1ª calibração no programa (olhando a DQ05); depois dela não é mais usada.
+    primeira_prevista: datetime.date | None = None
     id: int | None = None
 
 
@@ -390,7 +392,18 @@ def _mudanca(linha: sqlite3.Row) -> MudancaCondicao:
 def _instrumento(linha: sqlite3.Row) -> Instrumento:
     dados = {campo: linha[campo] for campo in ["id", *_CAMPOS_INSTRUMENTO]}
     dados["exige_calibracao"] = bool(dados["exige_calibracao"])
+    dados["primeira_prevista"] = _data(dados["primeira_prevista"])
     return Instrumento(**dados)
+
+
+def _dados_instrumento(instrumento: Instrumento) -> dict:
+    """Campos como vão para o banco (código sem espaços, localização padronizada, data ISO)."""
+    dados = asdict(instrumento)
+    dados["codigo"] = dados["codigo"].strip()
+    dados["localizacao"] = padronizar_localizacao(dados["localizacao"])
+    if dados["primeira_prevista"] is not None:
+        dados["primeira_prevista"] = dados["primeira_prevista"].isoformat()
+    return dados
 
 
 class Repositorio:
@@ -586,9 +599,7 @@ class Repositorio:
     def incluir_instrumento(self, instrumento: Instrumento,
                             hoje: datetime.date | None = None) -> int:
         self._validar_instrumento(instrumento)
-        dados = asdict(instrumento)
-        dados["codigo"] = dados["codigo"].strip()
-        dados["localizacao"] = padronizar_localizacao(dados["localizacao"])
+        dados = _dados_instrumento(instrumento)
         with self._conexao:
             cursor = self._conexao.execute(
                 f"INSERT INTO instrumentos ({', '.join(_CAMPOS_INSTRUMENTO)}) "
@@ -607,9 +618,7 @@ class Repositorio:
         if instrumento.id is None:
             raise ValueError("Instrumento sem id: use incluir_instrumento.")
         self._validar_instrumento(instrumento)
-        dados = asdict(instrumento)
-        dados["codigo"] = dados["codigo"].strip()
-        dados["localizacao"] = padronizar_localizacao(dados["localizacao"])
+        dados = _dados_instrumento(instrumento)
         antes = self._conexao.execute("SELECT localizacao FROM instrumentos WHERE id = ?",
                                       (instrumento.id,)).fetchone()[0]
         with self._conexao:
@@ -1149,7 +1158,9 @@ class Repositorio:
             if not instrumento.exige_calibracao:
                 continue
             calibracoes = self.listar_calibracoes(instrumento.id)
-            previstas = [
+            # sem calibração no programa, vale a 1ª calibração prevista digitada na ficha
+            previstas = [instrumento.primeira_prevista] if instrumento.primeira_prevista else []
+            previstas += [
                 c.data_proxima or proxima_calibracao(c.data_calibracao,
                                                      instrumento.periodicidade_meses)
                 for c in calibracoes
@@ -1187,7 +1198,7 @@ class Repositorio:
             condicao = condicoes.get(instrumento.id)
             ativo = condicao is None or condicao.condicao != Condicao.DESATIVADO
             for prevista in previstas_no_mes(resumo, instrumento.periodicidade_meses, mes, hoje,
-                                             ativo):
+                                             ativo, instrumento.primeira_prevista):
                 if prevista.situacao == SituacaoNoMes.VENCIDA:
                     prevista = dataclasses.replace(prevista,
                                                    motivo_atraso=motivos.get(instrumento.id))
@@ -1199,7 +1210,7 @@ class Repositorio:
         """Data prevista para a próxima calibração (a partir da última registrada)."""
         calibracoes = self.listar_calibracoes(instrumento_id)
         if not calibracoes:
-            return None
+            return self.obter_instrumento(instrumento_id).primeira_prevista
         ultima = calibracoes[-1]
         return ultima.data_proxima or proxima_calibracao(
             ultima.data_calibracao, self.obter_instrumento(instrumento_id).periodicidade_meses)

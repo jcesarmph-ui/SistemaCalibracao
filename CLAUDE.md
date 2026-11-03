@@ -50,11 +50,14 @@ tendência; lixeira com exclusão lógica. Detalhes do comportamento atual: `REA
   numéricos e qualitativos**, tolerâncias/critérios e demais informações necessárias.
 - **Calibrações já feitas NÃO entram no programa.** Ele começa **sem nenhuma calibração** quando for
   implantado; o histórico anterior à implantação fica só na planilha, para consulta.
-- **Começa "vazio de inputs"**: nenhuma data de última/próxima calibração vem da planilha; o
-  cronograma começa vazio. Transição: nos primeiros meses o usuário olha na planilha quando calibrar
-  cada instrumento, registra a calibração no programa e, daí em diante, o programa calcula a próxima.
-  Quando todos os instrumentos tiverem sido calibrados ao menos uma vez no programa, a planilha deixa
-  de ser acompanhada (só consulta de histórico antigo).
+- **Começa "vazio de inputs"**, mas com a **1ª calibração prevista** (mudança do usuário em
+  2026-11-03, no lugar da transição antiga): cada instrumento tem o campo **"1ª calibração
+  prevista"** na ficha; o usuário olha a próxima calibração na DQ05 uma vez e digita. Com a data, o
+  instrumento **já entra no cronograma** (mês, painéis, Vencida, projeção); sem data fica "Sem
+  calibração no programa". Depois da 1ª calibração registrada, as datas vêm dela (campo só
+  consulta) e o mês previsto aparece "Feita". **Nenhuma calibração antiga da planilha entra no
+  programa**; a DQ05 passa a ser só consulta de histórico. Esquema **v8**
+  (`instrumentos.primeira_prevista`).
 - **Cada instrumento já vem com tudo indicado no plano**: pontos, tolerâncias/critérios **e incerteza
   (U)**. Quando um valor mudou ao longo das calibrações da planilha, vale o da **última calibração**
   (é o atual). Se mudar no futuro, o usuário altera pela tela de edição de planos/pontos (já existe no
@@ -208,7 +211,7 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   preenchido** (em branco nunca é ignorado); "Não aplicável" exige motivo e não conta.
 - **Parecer final e condição** (`regras/condicao.py`): parecer escolhido pelo usuário — **Aprovado** /
   **Orientação indicativa** / **Reprovado - Desativado** (reprovado não pode ser "Aprovado"). Condição
-  do instrumento: **Em uso / Orientação indicativa / Desativado**, mudada pelo parecer ou manualmente
+  do instrumento: **Em uso / Desativado** (orientação indicativa é marca: ver abaixo), mudada pelo parecer ou manualmente
   (desativar/reativar), sempre com **data** e **observação/motivo opcional**, guardada em histórico.
   Orientação indicativa **segue no cronograma**; desativado sai. Lixeira = registro por engano.
   Calibração enviada à Lixeira **desfaz** a mudança de condição que o parecer dela fez

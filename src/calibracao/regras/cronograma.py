@@ -49,10 +49,11 @@ def situacao(ultima: datetime.date | None, proxima: datetime.date | None,
     """Situação do instrumento.
 
     `ultima`: data da última calibração **visível** (fora da Lixeira); `proxima`: a data prevista a
-    partir dela; `prevista_anterior`: a data que estava prevista antes dessa última calibração (para
-    saber se ela foi a calibração prevista para este mês).
+    partir dela (sem calibração no programa: a 1ª calibração prevista, digitada na ficha);
+    `prevista_anterior`: a data que estava prevista antes dessa última calibração (para saber se
+    ela foi a calibração prevista para este mês).
     """
-    if ultima is None:
+    if ultima is None and proxima is None:
         return Situacao.SEM_CALIBRACAO
     if mesmo_mes(ultima, hoje) and mesmo_mes(prevista_anterior, hoje):
         return Situacao.FEITA_MES
@@ -113,7 +114,8 @@ def meses_do_seletor(hoje: datetime.date) -> list[datetime.date]:
 
 def previstas_no_mes(calibracoes: list[CalibracaoResumo], periodicidade_meses: int | None,
                      mes: datetime.date, hoje: datetime.date,
-                     ativo: bool = True) -> list[PrevistaNoMes]:
+                     ativo: bool = True,
+                     primeira_prevista: datetime.date | None = None) -> list[PrevistaNoMes]:
     """Calibrações previstas para o mês de `mes` de um instrumento.
 
     - Prevista de uma calibração que já teve a seguinte registrada → "Feita" (com a data em que foi
@@ -122,7 +124,11 @@ def previstas_no_mes(calibracoes: list[CalibracaoResumo], periodicidade_meses: i
       mês ou Prevista.
     - Meses depois dela: projeção repetindo a periodicidade, só de este mês em diante.
     Instrumento desativado (`ativo=False`) mostra só o que já foi feito.
+    `primeira_prevista` (digitada na ficha, pedido de 2026-11-03) faz o papel da prevista antes da
+    primeira calibração do programa.
     """
+    if primeira_prevista is not None:
+        calibracoes = [CalibracaoResumo(primeira_prevista, primeira_prevista), *calibracoes]
     if not calibracoes:
         return []
     este_mes = hoje.replace(day=1)

@@ -398,3 +398,19 @@ def test_caixa_orientacao_indicativa_entra_no_historico(janela):
     aba.salvar_instrumento()
     assert aba.campos["localizacao"].text() == "Expedição - Reserva"
     assert aba.tabela_historico.item(0, 1).text() == "Deixou de ser orientação indicativa"
+
+
+def test_ficha_primeira_calibracao_prevista(janela):
+    aba = janela.aba_instrumentos
+    escolher(aba, "TRE-904")  # sem calibração no programa
+    assert not aba.primeira.isReadOnly()
+    aba.primeira.setText("31/02/2027")
+    aba.salvar_instrumento()
+    assert "dd/mm/aaaa" in aba.avisos.text()
+    aba.primeira.setText("20/11/2026")
+    aba.salvar_instrumento()
+    assert janela.repo.obter_instrumento(aba.atual.id).primeira_prevista == date(2026, 11, 20)
+    assert "2 pendentes" not in texto(janela.valores_indicadores["mes"])
+    assert texto(janela.valores_indicadores["proximo_mes"]) == "2"  # TRE-902 e TRE-904
+    escolher(aba, "TRE-901")  # já calibrado: a data fica só para consulta
+    assert aba.primeira.isReadOnly()

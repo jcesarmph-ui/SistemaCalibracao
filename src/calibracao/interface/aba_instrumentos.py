@@ -74,6 +74,17 @@ def _texto(campo: QLineEdit) -> str | None:
     return campo.text().strip() or None
 
 
+def _data_digitada(texto: str) -> datetime.date | None:
+    """dd/mm/aaaa (vazio = None); ValueError se não for uma data."""
+    texto = texto.strip()
+    return datetime.datetime.strptime(texto, "%d/%m/%Y").date() if texto else None
+
+
+DICA_PRIMEIRA = ("Quando fazer a primeira calibração no programa (olhe a próxima calibração na "
+                 "planilha DQ05). Com ela o instrumento já entra no cronograma; depois da 1ª "
+                 "calibração registrada, as datas seguintes vêm dela.")
+
+
 def _data_qt(data: datetime.date) -> QDate:
     return QDate(data.year, data.month, data.day)
 
@@ -228,6 +239,12 @@ class AbaInstrumentos(QWidget):
         self.exige.setToolTip("Desmarque para instrumentos que não precisam de calibração: "
                               "eles saem do cronograma.")
         self.observacoes = QLineEdit()
+        # 1ª calibração prevista (pedido de 2026-11-03): no lugar do histórico da DQ05.
+        self.primeira = QLineEdit(placeholderText="dd/mm/aaaa")
+        self.primeira.setToolTip(DICA_PRIMEIRA)
+        self.dica_primeira = QLabel("Só até a 1ª calibração registrada no programa",
+                                    objectName="dica")
+        self.dica_primeira.setToolTip(DICA_PRIMEIRA)
         # Caixa "Reserva" (pedido de 2026-11-03): marcar põe " - Reserva" na localização e
         # desmarcar tira; digitar "Reserva" no campo também marca a caixa.
         self.reserva = QCheckBox("Reserva")
@@ -257,11 +274,16 @@ class AbaInstrumentos(QWidget):
         self.novo_plano.setToolTip("Cria um plano vazio; depois inclua os pontos na sub-aba "
                                    "Plano de calibração.")
         self.novo_plano.clicked.connect(self.pedir_nome_do_plano)
-        grade.addWidget(QLabel("Plano"), 5, 0)
-        grade.addWidget(self.plano, 5, 1, 1, 2)
-        grade.addWidget(self.novo_plano, 5, 3)
-        grade.addWidget(QLabel("Observações"), 6, 0)
-        grade.addWidget(self.observacoes, 6, 1, 1, 3)
+        rotulo_primeira = QLabel("1ª calibração prevista")
+        rotulo_primeira.setToolTip(DICA_PRIMEIRA)
+        grade.addWidget(rotulo_primeira, 5, 0)
+        grade.addWidget(self.primeira, 5, 1)
+        grade.addWidget(self.dica_primeira, 5, 2, 1, 2)
+        grade.addWidget(QLabel("Plano"), 6, 0)
+        grade.addWidget(self.plano, 6, 1, 1, 2)
+        grade.addWidget(self.novo_plano, 6, 3)
+        grade.addWidget(QLabel("Observações"), 7, 0)
+        grade.addWidget(self.observacoes, 7, 1, 1, 3)
         caixas = QHBoxLayout()
         for caixa in (self.exige, self.reserva, self.indicativa):
             caixas.addWidget(caixa)
@@ -269,15 +291,14 @@ class AbaInstrumentos(QWidget):
         caixas.addStretch(1)
         self.condicao_atual = QLabel()
         caixas.addWidget(self.condicao_atual)
-        grade.addLayout(caixas, 7, 1, 1, 3)
+        grade.addLayout(caixas, 8, 1, 1, 3)
 
         self.novo = QPushButton("Novo instrumento")
         self.novo.clicked.connect(self.novo_instrumento)
         self.salvar = QPushButton("SALVAR", objectName="principal")
         self.salvar.clicked.connect(self.salvar_instrumento)
         self.mudar_condicao = QPushButton("Mudar condição")
-        self.mudar_condicao.setToolTip("Desativar, voltar a usar ou marcar como orientação "
-                                       "indicativa, com data e observação.")
+        self.mudar_condicao.setToolTip("Desativar ou voltar a usar, com data e observação.")
         self.mudar_condicao.clicked.connect(self.mudar_condicao_instrumento)
         self.lixeira = QPushButton("Enviar para a Lixeira")
         self.lixeira.clicked.connect(self.enviar_para_lixeira)
@@ -396,6 +417,14 @@ class AbaInstrumentos(QWidget):
             self.plano.addItem(f"{nome} (na Lixeira)", dados.plano_id)
         self.plano.setCurrentIndex(max(self.plano.findData(dados.plano_id), 0))
         self.exige.setChecked(dados.exige_calibracao)
+        self.primeira.setText(formatar_data(dados.primeira_prevista)
+                              if dados.primeira_prevista else "")
+        # Depois da 1ª calibração registrada, a data não é mais usada: fica só para consulta.
+        ja_calibrado = bool(instrumento and self.repo.listar_calibracoes(instrumento.id))
+        self.primeira.setReadOnly(not self.pode_editar or ja_calibrado)
+        self.dica_primeira.setText(
+            "Não é mais usada: já há calibração no programa" if ja_calibrado
+            else "Só até a 1ª calibração registrada no programa")
         self.observacoes.setText(dados.observacoes or "")
         if not self.pode_editar:
             self.titulo_dados.setText(f"Consultando {dados.codigo}" if instrumento else "")
@@ -442,7 +471,7 @@ class AbaInstrumentos(QWidget):
         """Modo consulta: botões de mudar somem e os campos não aceitam digitação."""
         for botao in (self.novo, self.salvar, self.mudar_condicao, self.lixeira):
             botao.setVisible(pode)
-        for campo in (*self.campos.values(), self.observacoes):
+        for campo in (*self.campos.values(), self.observacoes, self.primeira):
             campo.setReadOnly(not pode)
         self.plano.setEnabled(pode)
         self.novo_plano.setVisible(pode)
@@ -475,6 +504,9 @@ class AbaInstrumentos(QWidget):
                      else "" if valor is None else str(valor))
             if campo.text().strip() != salvo.strip():
                 return True
+        primeira = formatar_data(dados.primeira_prevista) if dados.primeira_prevista else ""
+        if self.primeira.text().strip() != primeira:
+            return True
         return ((self.observacoes.text().strip() != (dados.observacoes or "").strip())
                 or (self.atual is not None and (self.plano.currentData() != dados.plano_id
                                                 or self.exige.isChecked()
@@ -530,6 +562,11 @@ class AbaInstrumentos(QWidget):
         except ValueError:
             self._aviso("✖ O custo de compra deve ser um número (ex.: 350,00).", erro=True)
             return
+        try:
+            primeira = _data_digitada(self.primeira.text())
+        except ValueError:
+            self._aviso("✖ A 1ª calibração prevista deve ser uma data (dd/mm/aaaa).", erro=True)
+            return
         instrumento = Instrumento(
             codigo=self.campos["codigo"].text().strip(),
             tipo=self.campos["tipo"].text().strip(),
@@ -544,6 +581,7 @@ class AbaInstrumentos(QWidget):
             observacoes=_texto(self.observacoes),
             custo_compra=custo,
             responsavel=_texto(self.campos["responsavel"]),
+            primeira_prevista=primeira,
             id=self.atual.id if self.atual else None,
         )
         try:

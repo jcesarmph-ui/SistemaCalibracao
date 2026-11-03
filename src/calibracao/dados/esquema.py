@@ -11,6 +11,8 @@ Versão 4: trava de edição para uso em rede (uma linha só: quem está editand
 Versão 5: registro das correções de calibrações. Versão 6: motivo do atraso.
 Versão 7: orientação indicativa deixa de ser condição (pedido de 2026-11-03): vira marca na
 localização, com histórico próprio (`marcas_indicativa`).
+Versão 8: data prevista da 1ª calibração no programa, digitada na ficha olhando a DQ05 (pedido de
+2026-11-03): o programa não guarda as calibrações antigas da planilha, só essa data.
 """
 
 import sqlite3
@@ -18,7 +20,7 @@ from pathlib import Path
 
 from calibracao.regras.localizacao import com_marcas
 
-VERSAO_ESQUEMA = 7
+VERSAO_ESQUEMA = 8
 
 TABELAS = """
 CREATE TABLE IF NOT EXISTS metadados (
@@ -253,6 +255,8 @@ def criar_tabelas(conexao: sqlite3.Connection) -> None:
     if "motivo_atraso_pendente" not in _colunas(conexao, "instrumentos"):
         conexao.execute("ALTER TABLE instrumentos ADD COLUMN motivo_atraso_pendente TEXT")
     conexao.executescript(TABELAS_V7)
+    if "primeira_prevista" not in _colunas(conexao, "instrumentos"):
+        conexao.execute("ALTER TABLE instrumentos ADD COLUMN primeira_prevista TEXT")
     _migrar_condicao_indicativa(conexao)
     conexao.execute(
         "INSERT OR REPLACE INTO metadados (chave, valor) VALUES ('versao_esquema', ?)",
