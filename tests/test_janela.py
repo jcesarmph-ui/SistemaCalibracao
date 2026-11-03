@@ -196,7 +196,7 @@ def plano_da_trena(janela):
     repo.incluir_ponto(PontoPlano(plano_id, "NUMERICO", "300", valor_nominal=300.0,
                                   tolerancia_inferior=-0.5, tolerancia_superior=0.5))
     escolher(aba, "TRE-901")
-    return aba.painel_plano, plano_id
+    return aba.painel_plano.criar_janela_edicao().painel, plano_id  # EDITAR PLANO
 
 
 def test_plano_avisa_e_aceita_a_incerteza(janela, plano_da_trena):
@@ -237,7 +237,7 @@ def test_salvar_plano_mantem_o_numero_original_da_planilha(janela):
                                   valor_nominal=300.0, tolerancia_inferior=-0.5,
                                   tolerancia_superior=0.5))
     escolher(aba, "TRE-902")
-    painel = aba.painel_plano
+    painel = aba.painel_plano.criar_janela_edicao().painel
     assert not painel.tem_alteracao()
     painel.tabela.item(painel.tabela.rowCount() - 1, 12).setText("0,2")
     assert painel.tem_alteracao()
@@ -471,3 +471,35 @@ def test_codigo_da_lista_tem_cara_de_botao(janela):
     assert item.foreground().color().name() == "#64b5f6"
     assert item.font().underline()
     assert "Clique para abrir" in item.toolTip()
+
+
+def test_ver_plano_e_editar_plano_em_janelas(janela, plano_da_trena):
+    """Item 12 do teste (2026-11-03): o plano abre em janelas grandes."""
+    _, plano_id = plano_da_trena
+    resumo = janela.aba_instrumentos.painel_plano
+    assert "ponto(s)" in resumo.titulo.text() and "sem Incerteza" in resumo.avisos.text()
+    ver = resumo.criar_janela_ver()
+    ultima = ver.tabela.rowCount() - 1
+    assert ver.tabela.item(ultima, 5).text() == "falta"           # U que falta, em amarelo
+    assert ver.tabela.item(ultima, 4).text() == "300, tolerância ± 0,5"
+    ver.editar.click()
+    assert ver.result() == ver.EDITAR
+    edicao = resumo.criar_janela_edicao()
+    assert "EDITAR PLANO" in edicao.findChild(type(resumo.titulo), "titulo").text()
+    painel = edicao.painel
+    linha = painel.tabela.rowCount() - 1
+    painel.tabela.item(linha, 13).setCheckState(Qt.Checked)        # U não se aplica
+    assert resumo.tem_alteracao()
+    painel.salvar_plano()
+    assert edicao.result()                                          # salvou e fechou
+    assert janela.repo.listar_pontos(plano_id)[-1].incerteza_nao_aplica is True
+    assert resumo.avisos.text().startswith("✔ Plano salvo")
+    assert janela.aba_instrumentos.painel_plano.criar_janela_ver().tabela.item(
+        ultima, 5).text() == "não se aplica"
+
+
+def test_modo_consulta_so_ver_plano(janela, plano_da_trena):
+    resumo = janela.aba_instrumentos.painel_plano
+    resumo.definir_edicao(False)
+    assert resumo.editar.isHidden() and not resumo.ver.isHidden()
+    assert resumo.criar_janela_ver().editar.isHidden()

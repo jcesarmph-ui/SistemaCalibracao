@@ -242,6 +242,13 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   (abre a correção; some no modo consulta); "Ver calibração", "Gráfico de tendência" e "Enviar
   para a Lixeira" embaixo. As calibrações **saíram** da aba Instrumentos (ficaram Plano e Histórico
   de condição). Títulos das janelas: "Nova calibração" / "Editar calibração".
+- **Ficha e plano em janelas** (2026-11-03): ficha do instrumento **só para ver** (texto); **EDITAR**
+  (vermelho) / Novo instrumento abrem `janela_instrumento.JanelaEditarInstrumento` no meio da tela
+  (faixa amarela "Você está editando", SALVAR/Cancelar). Plano: na aba só o resumo (`ResumoPlano`)
+  com **VER PLANO** (janela só de apresentação, U "falta" em amarelo / "não se aplica") e **EDITAR
+  PLANO** (janela grande, um clique na célula já edita, coluna "U não se aplica", SALVAR PLANO fecha).
+  Código da lista em azul sublinhado (link); linha escolhida cinza com linhas brancas; caixinhas com
+  contorno branco e ✓ quando marcadas. Lista de correções do teste: `docs/correcoes_do_teste.md`.
 - **Programa de TESTE** (2026-11-03): mesmo programa + cópia do banco da entrega marcada
   (`metadados.banco_de_teste`) → título "— TESTE" e faixa amarela. `empacotamento/montar_teste.py`
   monta `dist/TESTE - Calibração` ("TESTE - Calibração de Instrumentos.exe") e confere por SHA-256

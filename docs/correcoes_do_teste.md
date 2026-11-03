@@ -35,7 +35,7 @@ e aprovada antes de seguir. Marcar `[x]` quando aprovado.
 - [x] 11. (a ficha virou texto; a janela de edição é larga) Campos da ficha **estreitos demais**: o texto aparece cortado (só a metade de cima).
 
 ### Plano de calibração
-- [ ] 12. Não deu para editar o plano ("clicar duas vezes" não ficou claro) e o painel é **estreito,
+- [x] 12. (resumo na aba + janelas VER PLANO e EDITAR PLANO; um clique já edita; coluna "U não se aplica") Não deu para editar o plano ("clicar duas vezes" não ficou claro) e o painel é **estreito,
       com scroll horizontal**. Quero:
       - botão **VER PLANO** → janela grande, só apresentação, com o plano completo;
       - botão chamativo de **editar plano** → janela grande onde se edita, deixando claro que é edição.

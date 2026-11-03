@@ -48,7 +48,7 @@ def test_quem_abre_depois_so_consulta(duas_janelas):
     assert "SOMENTE CONSULTA" in b.windowTitle()
     aba = b.aba_instrumentos
     for botao in (aba.novo, aba.editar, aba.mudar_condicao, aba.lixeira,
-                  aba.painel_plano.salvar, b.aba_calibrar.painel_calibracoes.registrar,
+                  aba.painel_plano.editar, b.aba_calibrar.painel_calibracoes.registrar,
                   b.aba_lixeira.restaurar):
         assert not visivel(botao)
     aba.tabela.selectRow(0)

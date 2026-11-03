@@ -41,7 +41,7 @@ from calibracao.interface.componentes import (
 from calibracao.interface.estilo import CORES_CONDICAO, destacar, tem_destaque
 from calibracao.interface.janela_instrumento import JanelaEditarInstrumento
 from calibracao.interface.lista_instrumentos import ListaInstrumentos
-from calibracao.interface.painel_plano import PainelPlano, numero_em_texto
+from calibracao.interface.painel_plano import ResumoPlano, numero_em_texto
 from calibracao.regras.condicao import Condicao
 from calibracao.regras.lixeira import Tipo
 
@@ -142,7 +142,8 @@ class AbaInstrumentos(QWidget):
         self.pode_editar = True
         self.janela_edicao: JanelaEditarInstrumento | None = None
 
-        self.painel_plano = PainelPlano(repositorio)
+        # Só o resumo do plano; VER PLANO e EDITAR PLANO abrem janelas grandes (item 12).
+        self.painel_plano = ResumoPlano(repositorio)
         self.painel_plano.alterado.connect(self.alterado)
         self.painel_plano.plano_descartado.connect(self.recarregar_atual)
         self.tabela_historico = tabela_somente_leitura(
