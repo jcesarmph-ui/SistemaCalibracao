@@ -48,13 +48,13 @@ def test_quem_abre_depois_so_consulta(duas_janelas):
     assert "SOMENTE CONSULTA" in b.windowTitle()
     aba = b.aba_instrumentos
     for botao in (aba.novo, aba.salvar, aba.mudar_condicao, aba.lixeira,
-                  aba.painel_plano.salvar, aba.painel_calibracoes.registrar,
+                  aba.painel_plano.salvar, b.aba_calibrar.painel_calibracoes.registrar,
                   b.aba_lixeira.restaurar):
         assert not visivel(botao)
     assert aba.campos["codigo"].isReadOnly()
     aba.tabela.selectRow(0)
     assert aba.titulo_dados.text() == "Consultando TRE-901"
-    assert visivel(aba.painel_calibracoes.grafico)  # consultar continua liberado
+    assert visivel(b.aba_calibrar.painel_calibracoes.grafico)  # consultar continua liberado
     assert visivel(a.aba_instrumentos.salvar)
 
 

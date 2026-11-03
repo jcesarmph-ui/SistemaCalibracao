@@ -285,7 +285,7 @@ def test_cronograma_de_um_mes_futuro_com_custo_estimado(janela):
 
 
 def test_informar_motivo_do_atraso_da_vencida(janela):
-    janela.abas.setCurrentIndex(1)
+    janela.abas.setCurrentWidget(janela.aba_cronograma)
     janela.filtro_cronograma.setCurrentText("Vencida")
     assert codigos_do_cronograma(janela) == ["TRE-903"]
     assert not janela.informar_motivo.isEnabled()  # nada escolhido
@@ -414,3 +414,24 @@ def test_ficha_primeira_calibracao_prevista(janela):
     assert texto(janela.valores_indicadores["proximo_mes"]) == "2"  # TRE-902 e TRE-904
     escolher(aba, "TRE-901")  # já calibrado: a data fica só para consulta
     assert aba.primeira.isReadOnly()
+
+
+def test_aba_calibrar_tem_nova_calibracao(janela):
+    """Pedido de 2026-11-03: aba Calibrar com a lista e o botão NOVA CALIBRAÇÃO."""
+    nomes = [janela.abas.tabText(n) for n in range(janela.abas.count())]
+    assert nomes == ["Instrumentos", "Calibrar", "Cronograma", "Lixeira"]
+    assert janela.abas.currentWidget() is janela.aba_cronograma  # abre no Cronograma
+    aba = janela.aba_calibrar
+    painel = aba.painel_calibracoes
+    assert painel.registrar.text() == "NOVA CALIBRAÇÃO"
+    assert not painel.registrar.isEnabled()  # nada escolhido
+    escolher(aba.lista, "TRE-901")
+    assert aba.atual.codigo == "TRE-901"
+    assert painel.registrar.isEnabled()
+    assert aba.valores["codigo"].text() == "<b>TRE-901</b>"
+    assert painel.tabela.rowCount() == 1  # a calibração já feita
+    assert "TRE-901" in aba.caixa_calibracoes.title()
+    # as calibrações saíram da aba Instrumentos
+    subabas = janela.aba_instrumentos.subabas
+    assert [subabas.tabText(n) for n in range(subabas.count())] == [
+        "Plano de calibração", "Histórico de condição"]

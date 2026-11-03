@@ -3,7 +3,7 @@
 Registrar abre uma janela maximizada com os pontos do plano: o resultado de cada ponto aparece
 enquanto se digita (verde/vermelho/amarelo) e, no fim, quem analisa escolhe o parecer final —
 que muda a condição do instrumento (ver `calibracao.regras.condicao`). A mesma janela corrige uma
-calibração salva (tudo menos a data); cada correção fica registrada e aparece em "Ver pontos".
+calibração salva (tudo menos a data); cada correção fica registrada e aparece em "Ver calibração".
 """
 
 import datetime
@@ -106,6 +106,11 @@ def _maximizar(janela: QDialog) -> None:
     janela.setWindowState(Qt.WindowMaximized)
 
 
+NAO_SE_APLICA = "não se aplica"
+DICA_NAO_SE_APLICA = ("Incerteza não se aplica a este ponto: ele é avaliado só pelo valor "
+                      "medido (dá para mudar na edição do plano).")
+
+
 class JanelaNovaCalibracao(QDialog):
     """Registrar calibração: dados do certificado, pontos medidos e parecer final.
 
@@ -130,7 +135,7 @@ class JanelaNovaCalibracao(QDialog):
         self.pontos: list[PontoPlano] | list[PontoRegistrado] = (
             repositorio.pontos_da_calibracao(corrigir.id) if corrigir
             else repositorio.pontos_para_calibrar(instrumento))
-        acao = "Corrigir" if corrigir else "Registrar"
+        acao = "Editar" if corrigir else "Nova"  # o mesmo nome dos botões EDITAR e NOVA CALIBRAÇÃO
         self.setWindowTitle(f"{acao} calibração — {instrumento.codigo}")
         _maximizar(self)
 
@@ -272,7 +277,11 @@ class JanelaNovaCalibracao(QDialog):
         self._fixo(linha, self.REFERENCIA, referencia(ponto))
         if ponto.tipo in NUMERICOS:
             self._editavel(linha, self.MEDIDO)
-            self._editavel(linha, self.INCERTEZA, numero_em_texto(ponto.incerteza))
+            if ponto.incerteza_nao_aplica:  # "-" ou "N/A" na DQ05: avaliado só pelo valor
+                self._fixo(linha, self.INCERTEZA, NAO_SE_APLICA)
+                self.tabela.item(linha, self.INCERTEZA).setToolTip(DICA_NAO_SE_APLICA)
+            else:
+                self._editavel(linha, self.INCERTEZA, numero_em_texto(ponto.incerteza))
             if ponto.tipo == "NUMERICO" and ponto.valor_nominal is None:
                 self.tabela.item(linha, self.MEDIDO).setToolTip(DICA_SEM_NOMINAL)
                 self._editavel(linha, self.PADRAO)
@@ -498,10 +507,16 @@ class JanelaNovaCalibracao(QDialog):
 
 
 class JanelaVerCalibracao(QDialog):
-    """Uma calibração já registrada: dados e os pontos como ficaram guardados."""
+    """Uma calibração já registrada: dados e os pontos como ficaram guardados — só apresentação.
+
+    Para mexer, o botão EDITAR (só no modo edição) fecha esta janela com `EDITAR` e quem abriu
+    abre a janela de correção (pedido do usuário em 2026-11-03).
+    """
+
+    EDITAR = 2
 
     def __init__(self, repositorio: Repositorio, instrumento: Instrumento,
-                 calibracao: Calibracao, parent=None) -> None:
+                 calibracao: Calibracao, parent=None, pode_editar: bool = False) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"Calibração de {instrumento.codigo} em "
                             f"{formatar_data(calibracao.data_calibracao)}")
@@ -538,7 +553,8 @@ class JanelaVerCalibracao(QDialog):
                       else "—") or "—"
             itens = [celula(str(ponto.ordem)), celula(ponto.secao or ""),
                      celula(ponto.descricao), celula(referencia(ponto)), celula(medido),
-                     celula(numero_em_texto(ponto.incerteza) or "—"),
+                     celula(NAO_SE_APLICA if ponto.incerteza_nao_aplica
+                            else numero_em_texto(ponto.incerteza) or "—"),
                      celula(numero_em_texto(ponto.valor_padrao) or "—"),
                      celula(numero_em_texto(ponto.valor_medido) or "—"),
                      celula_resultado(ponto.resultado), celula(ponto.observacao or "")]
@@ -562,14 +578,22 @@ class JanelaVerCalibracao(QDialog):
         QVBoxLayout(caixa_correcoes).addWidget(self.tabela_correcoes)
         caixa_correcoes.setVisible(bool(correcoes))
 
+        self.editar = QPushButton("EDITAR")
+        self.editar.setToolTip("Corrigir valores, U, parecer ou dados do certificado desta "
+                               "calibração (a data não muda). A correção fica registrada.")
+        self.editar.clicked.connect(lambda: self.done(self.EDITAR))
+        self.editar.setVisible(pode_editar)
         fechar = QPushButton("Fechar")
         fechar.clicked.connect(self.accept)
         rodape = QHBoxLayout()
-        rodape.addStretch(3)
+        rodape.addStretch(2)
+        rodape.addWidget(self.editar, 1)
         rodape.addWidget(fechar, 1)
         coluna = QVBoxLayout(self)
         coluna.addWidget(QLabel(f"CALIBRAÇÃO — {instrumento.codigo}",
                                 objectName="titulo", alignment=Qt.AlignCenter))
+        coluna.addWidget(QLabel("Só para ver. Para mudar algo, clique em EDITAR.",
+                                objectName="dica", alignment=Qt.AlignCenter))
         coluna.addWidget(caixa_dados)
         coluna.addWidget(caixa_pontos, 3)
         coluna.addWidget(caixa_correcoes, 1)
@@ -577,11 +601,12 @@ class JanelaVerCalibracao(QDialog):
 
 
 class PainelCalibracoes(QWidget):
-    """Conteúdo da sub-aba Calibrações do instrumento escolhido."""
+    """Calibrações do instrumento escolhido (aba Calibrar): NOVA CALIBRAÇÃO em cima, a lista das
+    feitas e, ao clicar numa delas, a janela só de apresentação (com EDITAR)."""
 
     alterado = Signal()
 
-    # Laboratório, responsável e observações aparecem em "Ver pontos".
+    # Laboratório, responsável e observações aparecem em "Ver calibração".
     COLUNAS = ["Data", "Próxima", "Pelos pontos", "Parecer final", "Certificado", "Custo"]
 
     def __init__(self, repositorio: Repositorio, hoje: datetime.date) -> None:
@@ -599,18 +624,15 @@ class PainelCalibracoes(QWidget):
         self.tabela.setSelectionMode(QAbstractItemView.SingleSelection)
         self.tabela.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.tabela.horizontalHeader().setStretchLastSection(True)
-        self.tabela.doubleClicked.connect(self.ver_calibracao)
+        self.tabela.clicked.connect(self.ver_calibracao)
         self.avisos = QLabel(wordWrap=True, objectName="avisos")
 
-        self.registrar = QPushButton("Registrar calibração")
+        self.registrar = QPushButton("NOVA CALIBRAÇÃO", objectName="principal")
         self.registrar.clicked.connect(self.registrar_calibracao)
-        self.ver = QPushButton("Ver pontos")
+        self.ver = QPushButton("Ver calibração")
+        self.ver.setToolTip("Abre a calibração escolhida (a mais recente, se nenhuma estiver "
+                            "escolhida). Também abre clicando na linha.")
         self.ver.clicked.connect(self.ver_calibracao)
-        self.corrigir = QPushButton("Corrigir")
-        self.corrigir.setToolTip("Corrigir valores, U, parecer ou dados do certificado da "
-                                 "calibração escolhida (a data não muda). A correção fica "
-                                 "registrada.")
-        self.corrigir.clicked.connect(self.corrigir_calibracao)
         self.grafico = QPushButton("Gráfico de tendência")
         self.grafico.setToolTip("Erro de cada ponto ao longo das calibrações, com a Incerteza "
                                 "(U) e a tolerância.")
@@ -620,10 +642,12 @@ class PainelCalibracoes(QWidget):
                                 "que ela fez é desfeita.")
         self.lixeira.clicked.connect(self.enviar_para_lixeira)
         botoes = QHBoxLayout()
-        for botao in (self.registrar, self.ver, self.corrigir, self.grafico, self.lixeira):
+        for botao in (self.ver, self.grafico, self.lixeira):
             botoes.addWidget(botao, 1)
 
         coluna = QVBoxLayout(self)
+        coluna.setContentsMargins(0, 0, 0, 0)
+        coluna.addWidget(self.registrar)
         coluna.addWidget(self.titulo)
         coluna.addWidget(self.tabela, 1)
         coluna.addWidget(self.avisos)
@@ -650,14 +674,14 @@ class PainelCalibracoes(QWidget):
         bloqueio = self._bloqueio_registrar()
         self.registrar.setEnabled(bloqueio is None)
         self.registrar.setToolTip(bloqueio or "Preencher os pontos do plano e o parecer final.")
-        for botao in (self.ver, self.corrigir, self.lixeira):
+        for botao in (self.ver, self.lixeira):
             botao.setEnabled(bool(self.calibracoes))
         self.grafico.setEnabled(bool(self.calibracoes))
         if instrumento is None:
             self.titulo.setText("Escolha um instrumento na lista.")
         elif self.calibracoes:
             self.titulo.setText(f"{len(self.calibracoes)} calibração(ões) registrada(s) no "
-                                "programa. Clique duas vezes numa linha para ver os pontos.")
+                                "programa. Clique numa linha para ver a calibração.")
         else:
             self.titulo.setText("Nenhuma calibração registrada no programa ainda.")
         self._aviso(f"⚠ {bloqueio}" if bloqueio and instrumento and self.pode_editar
@@ -667,9 +691,10 @@ class PainelCalibracoes(QWidget):
         if self.instrumento is None:
             return "Escolha um instrumento."
         if self.instrumento.plano_id is None:
-            return "Instrumento sem plano de calibração: escolha um plano nos dados acima."
+            return ("Instrumento sem plano de calibração: escolha um plano na aba "
+                    "Instrumentos.")
         if not self.repo.listar_pontos(self.instrumento.plano_id):
-            return "O plano não tem pontos: inclua os pontos na sub-aba Plano de calibração."
+            return "O plano não tem pontos: inclua os pontos na aba Instrumentos."
         if self.repo.esta_desativado(self.instrumento.id):
             return "Instrumento desativado: mude a condição para voltar a usar antes de calibrar."
         return None
@@ -690,11 +715,15 @@ class PainelCalibracoes(QWidget):
 
     def ver_calibracao(self) -> None:
         calibracao = self.selecionada()
-        if calibracao is not None:
-            JanelaVerCalibracao(self.repo, self.instrumento, calibracao, parent=self).exec()
+        if calibracao is None:
+            return
+        janela = JanelaVerCalibracao(self.repo, self.instrumento, calibracao, parent=self,
+                                     pode_editar=self.pode_editar)
+        if janela.exec() == JanelaVerCalibracao.EDITAR:
+            self.corrigir_calibracao(calibracao)
 
-    def corrigir_calibracao(self) -> None:
-        calibracao = self.selecionada()
+    def corrigir_calibracao(self, calibracao: Calibracao | None = None) -> None:
+        calibracao = calibracao or self.selecionada()
         if calibracao is None:
             return
         janela = JanelaNovaCalibracao(self.repo, self.instrumento, self.hoje, parent=self,
@@ -703,7 +732,7 @@ class PainelCalibracoes(QWidget):
             self.alterado.emit()
             self._aviso(f"✔ Calibração de {formatar_data(calibracao.data_calibracao)} "
                         f"corrigida ({len(janela.mudancas)} mudança(s), registradas em "
-                        "\"Ver pontos\").", certo=True)
+                        "\"Ver calibração\").", certo=True)
 
     def abrir_grafico(self) -> None:
         from calibracao.interface.grafico_tendencia import JanelaTendencia  # carrega o Matplotlib
@@ -736,8 +765,9 @@ class PainelCalibracoes(QWidget):
                     "para a Lixeira.", certo=True)
 
     def definir_edicao(self, pode: bool) -> None:
-        """Modo consulta: só ver os pontos e o gráfico; sem registrar, corrigir nem descartar."""
-        for botao in (self.registrar, self.corrigir, self.lixeira):
+        """Modo consulta: só ver as calibrações e o gráfico; sem registrar, editar nem
+        descartar (o EDITAR some da janela de ver)."""
+        for botao in (self.registrar, self.lixeira):
             botao.setVisible(pode)
         self.pode_editar = pode
         self.mostrar(self.instrumento)

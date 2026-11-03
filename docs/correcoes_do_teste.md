@@ -41,7 +41,7 @@ e aprovada antes de seguir. Marcar `[x]` quando aprovado.
       - botão chamativo de **editar plano** → janela grande onde se edita, deixando claro que é edição.
 
 ### Calibrar (o mais importante)
-- [ ] 13. **Não achei onde fazer uma calibração.** Quero uma **aba nova "CALIBRAR"** (além de
+- [x] 13. (feito em 2026-11-03, aguardando aprovação por foto) **Não achei onde fazer uma calibração.** Quero uma **aba nova "CALIBRAR"** (além de
       Instrumentos, Cronograma e Lixeira), com a lista de instrumentos igual à primeira e, ao lado,
       o botão chamativo **NOVA CALIBRAÇÃO**:
       - abre a janela com os pontos e os campos para digitar os desvios etc.;
@@ -49,7 +49,7 @@ e aprovada antes de seguir. Marcar `[x]` quando aprovado.
         todos os dados;
       - clicar numa calibração feita → mostra o plano com os valores, **só apresentação**; para
         mexer, botão **EDITAR**.
-- [ ] 14. **Botão do gráfico de tendência** não foi encontrado (provavelmente estava escondido
+- [x] 14. (fica na aba Calibrar, embaixo das calibrações) **Botão do gráfico de tendência** não foi encontrado (provavelmente estava escondido
       pela barra do Windows — conferir depois do item 1).
 
 ### Lixeira

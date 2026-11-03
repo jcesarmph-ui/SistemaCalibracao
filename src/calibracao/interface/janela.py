@@ -46,6 +46,7 @@ from calibracao.dados.repositorio import (
     Trava,
 )
 from calibracao.interface.aba_calibracoes import dinheiro
+from calibracao.interface.aba_calibrar import AbaCalibrar
 from calibracao.interface.aba_instrumentos import AbaInstrumentos
 from calibracao.interface.aba_lixeira import AbaLixeira
 from calibracao.interface.componentes import (
@@ -138,11 +139,16 @@ class JanelaPrincipal(QMainWindow):
         self.aba_instrumentos = AbaInstrumentos(repositorio, self.hoje)
         self.aba_instrumentos.alterado.connect(self.atualizar)
         self.abas.addTab(self.aba_instrumentos, "Instrumentos")
-        self.abas.addTab(self._aba_cronograma(), "Cronograma")
+        # Aba Calibrar (pedido de 2026-11-03): onde se faz a calibração.
+        self.aba_calibrar = AbaCalibrar(repositorio, self.hoje)
+        self.aba_calibrar.alterado.connect(self._calibracoes_mudaram)
+        self.abas.addTab(self.aba_calibrar, "Calibrar")
+        self.aba_cronograma = self._aba_cronograma()
+        self.abas.addTab(self.aba_cronograma, "Cronograma")
         self.aba_lixeira = AbaLixeira(repositorio)
         self.aba_lixeira.alterado.connect(self._lixeira_mudou)
         self.abas.addTab(self.aba_lixeira, "Lixeira")
-        self.abas.setCurrentIndex(1)
+        self.abas.setCurrentWidget(self.aba_cronograma)  # abre no Cronograma
 
         tela = QVBoxLayout()
         tela.addLayout(self._cabecalho())
@@ -193,7 +199,7 @@ class JanelaPrincipal(QMainWindow):
         self.copia_de = copia_de
         if identidade is not None:
             # quem corrige uma calibração fica registrado como "usuário - PC"
-            self.aba_instrumentos.painel_calibracoes.usuario = " - ".join(identidade)
+            self.aba_calibrar.painel_calibracoes.usuario = " - ".join(identidade)
         if copia_de is not None:
             # Cópia: a trava daqui não vale para ninguém, então nunca edita.
             self.repo.modo_consulta = True
@@ -319,8 +325,9 @@ class JanelaPrincipal(QMainWindow):
         for chave, texto in textos.items():
             self.valores_indicadores[chave].setText(texto)
         self._preencher_cronograma()
-        self.aba_instrumentos.atualizar(
-            {linha.instrumento.id: linha.situacao for linha in self._cronograma})
+        situacoes = {linha.instrumento.id: linha.situacao for linha in self._cronograma}
+        self.aba_instrumentos.atualizar(situacoes)
+        self.aba_calibrar.atualizar(situacoes)
         self.aba_lixeira.atualizar()
 
     # --- Trava de edição ---------------------------------------------------------------------
@@ -340,7 +347,7 @@ class JanelaPrincipal(QMainWindow):
     def aplicar_modo(self, dono: Trava | None) -> None:
         """dono None = esta janela edita; senão, modo consulta mostrando quem edita."""
         pode = dono is None and not self.repo.modo_consulta
-        for aba in (self.aba_instrumentos, self.aba_lixeira):
+        for aba in (self.aba_instrumentos, self.aba_calibrar, self.aba_lixeira):
             aba.definir_edicao(pode)
         self._pode_editar = pode
         self._ligar_informar_motivo()
@@ -499,6 +506,12 @@ class JanelaPrincipal(QMainWindow):
         if self.identidade is not None and not self.repo.modo_consulta:
             self.repo.liberar_trava()
         super().closeEvent(evento)
+
+    def _calibracoes_mudaram(self) -> None:
+        """Calibração registrada, corrigida ou na Lixeira: muda cronograma, condição e
+        histórico do instrumento."""
+        self.atualizar()
+        self.aba_instrumentos.recarregar_atual()
 
     def _lixeira_mudou(self) -> None:
         self.atualizar()

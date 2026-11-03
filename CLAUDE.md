@@ -235,6 +235,13 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   nem aparecem; só trenas — `regras.condicao.so_qualitativos`). Banco da entrega remontado da DQ05
   em 2026-11-03 (o anterior ficou em `dados/entrega_antes_incertezas_2026-11-03.db`). Tudo
   continua editável depois pela tela de edição.
+- **Aba Calibrar** (2026-11-03): abas **Instrumentos | Calibrar | Cronograma | Lixeira** (abre no
+  Cronograma). Calibrar = a mesma lista de instrumentos (`interface/lista_instrumentos.py`, usada
+  nas duas abas) + dados do instrumento só para ver + botão vermelho **NOVA CALIBRAÇÃO** + lista das
+  calibrações feitas; clicar numa calibração abre a janela **só de apresentação** com **EDITAR**
+  (abre a correção; some no modo consulta); "Ver calibração", "Gráfico de tendência" e "Enviar
+  para a Lixeira" embaixo. As calibrações **saíram** da aba Instrumentos (ficaram Plano e Histórico
+  de condição). Títulos das janelas: "Nova calibração" / "Editar calibração".
 - **Programa de TESTE** (2026-11-03): mesmo programa + cópia do banco da entrega marcada
   (`metadados.banco_de_teste`) → título "— TESTE" e faixa amarela. `empacotamento/montar_teste.py`
   monta `dist/TESTE - Calibração` ("TESTE - Calibração de Instrumentos.exe") e confere por SHA-256
