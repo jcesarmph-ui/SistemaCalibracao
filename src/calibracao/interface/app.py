@@ -1,6 +1,7 @@
 """Abre o programa: banco da pasta de dados (com o backup do dia) e a janela em tela cheia."""
 
 import ctypes
+import datetime
 import getpass
 import os
 import platform
@@ -51,8 +52,11 @@ def abrir_banco(pasta: Path) -> tuple[Repositorio, str | None]:
     oficial = repositorio.pasta_oficial()
     if oficial is None:
         repositorio.marcar_pasta_oficial(local_do_banco(banco))
-        return repositorio, None
-    return repositorio, oficial if eh_copia(banco, oficial) else None
+        oficial = local_do_banco(banco)
+    if eh_copia(banco, oficial):
+        return repositorio, oficial
+    repositorio.marcar_implantacao(datetime.date.today())  # só grava da primeira vez
+    return repositorio, None
 
 
 def main() -> int:

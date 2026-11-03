@@ -297,13 +297,14 @@ class JanelaPrincipal(QMainWindow):
         return faixa
 
     def _aba_cronograma(self) -> QWidget:
-        """Hoje (todos os instrumentos, com a situação) ou um mês de 12 para trás a 24 para a
-        frente: o que estava previsto, o que foi feito e o custo estimado."""
+        """Hoje (todos os instrumentos, com a situação) ou um mês — o atual e 24 para a frente;
+        embaixo, os que já passaram desde a implantação: o que estava previsto, o que foi feito
+        e o custo estimado."""
         self.mes_cronograma = QComboBox()
         self.mes_cronograma.setToolTip("Escolha um mês para ver o que está previsto nele (meses "
                                        "futuros repetem a periodicidade de cada instrumento).")
         self.mes_cronograma.addItem(HOJE_TODOS, None)
-        for mes in meses_do_seletor(self.hoje):
+        for mes in meses_do_seletor(self.hoje, self.repo.data_implantacao()):
             self.mes_cronograma.addItem(f"{MESES[mes.month - 1]}/{mes.year}", mes)
         self.mes_cronograma.currentIndexChanged.connect(lambda _: self._preencher_cronograma())
         self.filtro_cronograma = QComboBox()

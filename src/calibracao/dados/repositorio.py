@@ -458,6 +458,20 @@ class Repositorio:
                 "INSERT OR REPLACE INTO metadados (chave, valor) VALUES ('pasta_oficial', ?)",
                 (caminho,))
 
+    def data_implantacao(self) -> datetime.date | None:
+        """Dia em que o banco foi aberto pela 1ª vez no lugar oficial: o programa começou a ser
+        usado (o seletor de meses do cronograma não volta antes disso — item 18 do teste)."""
+        linha = self._conexao.execute(
+            "SELECT valor FROM metadados WHERE chave = 'implantado_em'").fetchone()
+        return datetime.date.fromisoformat(linha[0]) if linha else None
+
+    def marcar_implantacao(self, dia: datetime.date) -> None:
+        """Grava o dia da implantação só da primeira vez (depois nunca muda)."""
+        with self._conexao:
+            self._conexao.execute(
+                "INSERT OR IGNORE INTO metadados (chave, valor) VALUES ('implantado_em', ?)",
+                (dia.isoformat(),))
+
     # ---------------------------------------------------------------- banco de teste
 
     def banco_de_teste(self) -> bool:

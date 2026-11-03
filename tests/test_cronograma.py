@@ -97,9 +97,16 @@ def _c(data, proxima, custo=None, motivo=None):
     return CalibracaoResumo(data, proxima, custo, motivo)
 
 
-def test_seletor_vai_de_12_meses_atras_a_24_para_frente():
+def test_seletor_sem_implantacao_comeca_no_mes_atual():
     meses = meses_do_seletor(date(2026, 10, 30))
-    assert (meses[0], meses[-1], len(meses)) == (date(2025, 10, 1), date(2028, 10, 1), 37)
+    assert (meses[0], meses[-1], len(meses)) == (date(2026, 10, 1), date(2028, 10, 1), 25)
+
+
+def test_seletor_meses_passados_embaixo_ate_a_implantacao():
+    meses = meses_do_seletor(date(2027, 2, 10), implantacao=date(2026, 11, 20))
+    assert meses[0] == date(2027, 2, 1)                       # em cima: o mês atual
+    assert meses[24] == date(2029, 2, 1)                      # e os próximos 24
+    assert meses[25:] == [date(2027, 1, 1), date(2026, 12, 1), date(2026, 11, 1)]
 
 
 def test_mes_passado_feita_mesmo_com_atraso_guarda_o_motivo():
