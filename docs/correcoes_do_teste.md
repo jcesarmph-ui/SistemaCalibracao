@@ -28,7 +28,7 @@ e aprovada antes de seguir. Marcar `[x]` quando aprovado.
       Decidir com o usuário se quer também um botão "Atualizar".
 
 ### Aba Instrumentos
-- [ ] 9. Na lista, deixar claro que o **código é um botão** que abre os dados, e **destacar o
+- [ ] 9. (metade feita: linha escolhida em cinza com linhas brancas, no programa todo; falta o código parecer botão) Na lista, deixar claro que o **código é um botão** que abre os dados, e **destacar o
       instrumento aberto** (contorno ou cor), para não ter que comparar a lista com a ficha.
 - [ ] 10. **Ficha só de apresentação**; para editar, botão **EDITAR** que abre a ficha numa janela no
       meio da tela (como o aviso de pedido de edição), deixando claro que ali se edita.
@@ -53,7 +53,7 @@ e aprovada antes de seguir. Marcar `[x]` quando aprovado.
       pela barra do Windows — conferir depois do item 1).
 
 ### Lixeira
-- [ ] 15. **Sem o botão RESTAURAR** (provavelmente escondido pela barra do Windows — conferir
+- [x] 15. (estava sob a barra do Windows e some no modo consulta, de propósito; agora fica logo abaixo da lista, com dica) **Sem o botão RESTAURAR** (provavelmente escondido pela barra do Windows — conferir
       depois do item 1).
 
 ### Dados

@@ -41,6 +41,9 @@ QTabBar::tab:selected {{ background: {caixa}; border: 1px solid {borda}; border-
                          font-weight: bold; color: {titulo}; }}
 QTableWidget {{ background: {caixa}; gridline-color: {campo_borda}; border: none;
                 selection-background-color: {selecao}; selection-color: #ffffff; }}
+QTableView::item:selected, QTableView::item:selected:!active {{
+    background: {selecao}; color: #ffffff;
+    border-top: 2px solid #ffffff; border-bottom: 2px solid #ffffff; }}
 QHeaderView::section {{ background: {campo}; color: {titulo}; font-weight: bold; padding: 6px;
                         border: none; border-right: 1px solid {campo_borda};
                         border-bottom: 1px solid {borda}; }}

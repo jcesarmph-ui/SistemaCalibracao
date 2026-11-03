@@ -172,3 +172,16 @@ class ListaFlutuante(QFrame):
         posicao.setX(min(posicao.x(), tela.right() - self.width()))  # não sai da tela à direita
         self.move(posicao)
         self.show()
+
+
+def altura_do_conteudo(tabela: QTableWidget, linhas_minimas: int = 3) -> None:
+    """A tabela fica da altura das linhas que tem (no mínimo `linhas_minimas`), para o que vem
+    logo abaixo dela — ex.: os botões da Lixeira — ficar perto (pedido de 2026-11-03). Com
+    muitas linhas, cresce até o espaço da tela e rola."""
+    linhas = max(tabela.rowCount(), linhas_minimas)
+    altura = tabela.horizontalHeader().height() + 4
+    altura += sum(tabela.rowHeight(n) for n in range(tabela.rowCount()))
+    altura += (linhas - tabela.rowCount()) * tabela.verticalHeader().defaultSectionSize()
+    if tabela.horizontalScrollBar().isVisible():
+        altura += tabela.horizontalScrollBar().height()
+    tabela.setMaximumHeight(altura)

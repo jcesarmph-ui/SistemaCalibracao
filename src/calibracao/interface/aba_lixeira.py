@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from calibracao.dados.repositorio import ErroDeValidacao, ItemLixeira, Repositorio
-from calibracao.interface.componentes import celula, tabela_somente_leitura
+from calibracao.interface.componentes import altura_do_conteudo, celula, tabela_somente_leitura
 from calibracao.interface.estilo import CORES
 from calibracao.regras.lixeira import CONFIRMACAO_EXCLUSAO, Tipo
 
@@ -97,15 +97,20 @@ class AbaLixeira(QWidget):
         self.excluir = QPushButton("Excluir permanentemente")
         self.excluir.setToolTip(f"Apaga para sempre (pede para digitar {CONFIRMACAO_EXCLUSAO}).")
         self.excluir.clicked.connect(self.excluir_item)
+        # Botões logo abaixo da lista, com a dica (pedido de 2026-11-03).
+        self.dica_botoes = QLabel("Escolha um item na lista e clique em Restaurar (ou em "
+                                  "Excluir permanentemente).", objectName="dica")
         botoes = QHBoxLayout()
-        botoes.addWidget(self.avisos, 2)
+        botoes.addWidget(self.dica_botoes, 2)
         botoes.addWidget(self.restaurar, 1)
         botoes.addWidget(self.excluir, 1)
 
         coluna = QVBoxLayout(self)
         coluna.addLayout(topo)
-        coluna.addWidget(self.tabela, 1)
+        coluna.addWidget(self.tabela, 100)
         coluna.addLayout(botoes)
+        coluna.addWidget(self.avisos)
+        coluna.addStretch(1)
         self._habilitar()
 
     def atualizar(self) -> None:
@@ -129,6 +134,7 @@ class AbaLixeira(QWidget):
             for coluna, valor in enumerate(valores):
                 self.tabela.setItem(linha, coluna, valor)
         self.contagem.setText(f"{len(visiveis)} item(ns)")
+        altura_do_conteudo(self.tabela)
         self._habilitar()
 
     def selecionado(self) -> ItemLixeira | None:
