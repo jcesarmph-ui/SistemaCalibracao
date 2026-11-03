@@ -164,3 +164,47 @@ def test_ninguem_editando_clicar_ja_passa_para_edicao(duas_janelas):
     a.close()
     b.pedir_edicao()
     assert b.rotulo_modo.text() == "Modo edição"
+
+
+def test_botoes_do_canto_so_no_modo_consulta(duas_janelas):
+    a, b = duas_janelas
+    assert not visivel(a.botao_pedir) and not visivel(a.botao_atualizar)
+    assert visivel(b.botao_pedir) and visivel(b.botao_atualizar)
+    b.botao_pedir.click()                  # o botão faz o mesmo que clicar no texto
+    assert b.rotulo_modo.text().endswith("pedido enviado")
+    assert b.botao_pedir.text() == "Pedido enviado" and not b.botao_pedir.isEnabled()
+    assert "#ffd54f" in b.rotulo_modo.styleSheet()  # amarelo: esperando resposta
+
+
+def test_pedido_aceito_fica_verde(duas_janelas):
+    a, b = duas_janelas
+    b.pedir_edicao()
+    a.verificar_pedido()
+    a.responder_pedido(liberar=True)
+    b.verificar_pedido()
+    assert b.aviso_salvo.text() == "✔ Edição liberada: agora você pode editar"
+    assert "#43a047" in b.rotulo_modo.styleSheet()
+    assert not visivel(b.botao_pedir) and not visivel(b.botao_atualizar)
+    b.relogio_salvo.timeout.emit()         # passou o tempo: o verde some
+    assert b.rotulo_modo.styleSheet() == ""
+
+
+def test_pedido_recusado_fica_vermelho_e_pode_pedir_de_novo(duas_janelas):
+    a, b = duas_janelas
+    b.pedir_edicao()
+    a.verificar_pedido()
+    a.responder_pedido(liberar=False)
+    b.verificar_pedido()
+    assert b.aviso_salvo.text() == "✖ Pedido recusado: ana continua editando"
+    assert "#c62828" in b.rotulo_modo.styleSheet()
+    assert b.botao_pedir.isEnabled() and b.botao_pedir.text() == "Pedir edição"
+
+
+def test_consulta_relê_a_cada_10_segundos(duas_janelas):
+    a, b = duas_janelas
+    assert a.relogio.interval() == 30_000
+    assert b.relogio.interval() == 10_000
+    a.repo.incluir_instrumento(Instrumento("TRE-903", "Trena"))
+    b.botao_atualizar.click()
+    assert b.valores_indicadores["instrumentos"].text() == "2"
+    assert b.aviso_salvo.text() == "↻ Atualizado"

@@ -69,7 +69,12 @@ from calibracao.interface.estilo import (
 )
 from calibracao.interface.recursos import recurso
 from calibracao.regras.cronograma import Situacao, SituacaoNoMes, meses_do_seletor, somar_meses
-from calibracao.regras.trava import INTERVALO_SINAL, TEMPO_PARADO, ObservadorDeSinal
+from calibracao.regras.trava import (
+    INTERVALO_CONSULTA,
+    INTERVALO_SINAL,
+    TEMPO_PARADO,
+    ObservadorDeSinal,
+)
 
 TITULO = "CALIBRAÇÃO DE INSTRUMENTOS"
 
@@ -183,13 +188,12 @@ class JanelaPrincipal(QMainWindow):
 
         # "✔ Salvo" por cima, no alto, a cada gravação que deu certo (item 3 do teste,
         # 2026-11-03); some sozinho.
+        # O mesmo lugar mostra a resposta do pedido de edição (verde/vermelho, item 7) e o
+        # "Atualizado" do botão Atualizar (item 8).
         self.aviso_salvo = QLabel("✔ Salvo", self, objectName="aviso_salvo")
-        self.aviso_salvo.setStyleSheet(f"background: {CORES['dentro']}; color: #ffffff; "
-                                       "font-size: 16pt; font-weight: bold; padding: 8px 40px; "
-                                       f"border: 2px solid {CORES['certo']}; border-radius: 6px;")
         self.aviso_salvo.hide()
         self.relogio_salvo = QTimer(self, singleShot=True, interval=3500)
-        self.relogio_salvo.timeout.connect(self.aviso_salvo.hide)
+        self.relogio_salvo.timeout.connect(self._apagar_aviso)
         self.repo.ao_gravar = self.mostrar_salvo
 
         # Trava de edição (só quando a janela sabe quem está usando: no programa de verdade).
@@ -203,7 +207,7 @@ class JanelaPrincipal(QMainWindow):
         self.relogio_pedido.setInterval(5000)
         self.relogio_pedido.timeout.connect(self.verificar_pedido)
         self.pedido_enviado = False
-        self.situacao_pedido = ""          # " - pedido enviado" / " - pedido recusado"
+        self.situacao_pedido = ""          # "" / "enviado" / "aceito" / "recusado"
         self.caixa_pedido: QMessageBox | None = None
         self._pedido_mostrado = None
         self.ultima_atividade = self.agora()
@@ -247,10 +251,26 @@ class JanelaPrincipal(QMainWindow):
         grade.addWidget(QLabel(titulo, objectName="titulo"), 0, 1)
         grade.addWidget(QLabel(f"versão {__version__}", objectName="dica"), 0, 2,
                         Qt.AlignRight | Qt.AlignBottom)
-        # "Modo edição" ou "Modo consulta - usuário - PC": pequeno, branco, discreto.
+        # "Modo edição" ou "Modo consulta - usuário - PC": pequeno, branco, discreto. No modo
+        # consulta, ao lado, os botões "Atualizar" e "Pedir edição" (itens 6 e 8 do teste).
         self.rotulo_modo = RotuloClicavel("Modo edição", objectName="modo")
         self.rotulo_modo.clicado.connect(self.pedir_edicao)
-        grade.addWidget(self.rotulo_modo, 0, 2, Qt.AlignRight | Qt.AlignTop)
+        self.botao_atualizar = QPushButton("Atualizar", objectName="canto")
+        self.botao_atualizar.setToolTip("Mostra agora o que o outro computador mudou "
+                                        "(sozinho, a tela se atualiza a cada 10 segundos).")
+        self.botao_atualizar.clicked.connect(self.atualizar_agora)
+        self.botao_pedir = QPushButton("Pedir edição", objectName="canto")
+        self.botao_pedir.setToolTip("Pede para quem está editando liberar a edição para você.")
+        self.botao_pedir.clicked.connect(self.pedir_edicao)
+        for botao in (self.botao_atualizar, self.botao_pedir):
+            botao.setCursor(Qt.PointingHandCursor)
+            botao.hide()
+        canto = QHBoxLayout()
+        canto.setSpacing(8)
+        canto.addWidget(self.botao_atualizar)
+        canto.addWidget(self.botao_pedir)
+        canto.addWidget(self.rotulo_modo)
+        grade.addLayout(canto, 0, 2, Qt.AlignRight | Qt.AlignTop)
         grade.setColumnStretch(0, 1)
         grade.setColumnStretch(2, 1)  # coluna do mesmo tamanho da do logo → título no centro
         return grade
@@ -345,6 +365,14 @@ class JanelaPrincipal(QMainWindow):
     # --- Trava de edição ---------------------------------------------------------------------
 
     def mostrar_salvo(self) -> None:
+        self.mostrar_aviso("✔ Salvo", CORES["dentro"], CORES["certo"])
+
+    def mostrar_aviso(self, texto: str, fundo: str, borda: str, ms: int = 3500) -> None:
+        self.aviso_salvo.setText(texto)
+        self.aviso_salvo.setStyleSheet(f"background: {fundo}; color: #ffffff; "
+                                       "font-size: 16pt; font-weight: bold; padding: 8px 40px; "
+                                       f"border: 2px solid {borda}; border-radius: 6px;")
+        self.relogio_salvo.setInterval(ms)
         self.aviso_salvo.adjustSize()
         # Na linha das abas, à direita (espaço vazio: não cobre nada).
         barra = self.abas.tabBar()
@@ -356,6 +384,20 @@ class JanelaPrincipal(QMainWindow):
         self.relogio_salvo.stop()
         # Conta os 3,5 s só depois que a tela terminar de se atualizar (a gravação vem antes).
         QTimer.singleShot(0, self.relogio_salvo.start)
+
+    def _apagar_aviso(self) -> None:
+        self.aviso_salvo.hide()
+        if self.situacao_pedido == "aceito":  # o contorno verde do canto some junto
+            self.situacao_pedido = ""
+            self._contorno_do_modo()
+
+    def _contorno_do_modo(self) -> None:
+        """Contorno do texto do canto: amarelo = pedido esperando resposta; verde = aceito;
+        vermelho = recusado (item 7 do teste)."""
+        cor = {"enviado": CORES["aviso"], "aceito": CORES["certo"],
+               "recusado": CORES["botao"]}.get(self.situacao_pedido)
+        self.rotulo_modo.setStyleSheet(f"border: 2px solid {cor}; border-radius: 3px;"
+                                       if cor else "")
 
     @staticmethod
     def agora() -> datetime.datetime:
@@ -372,18 +414,36 @@ class JanelaPrincipal(QMainWindow):
     def aplicar_modo(self, dono: Trava | None) -> None:
         """dono None = esta janela edita; senão, modo consulta mostrando quem edita."""
         pode = dono is None and not self.repo.modo_consulta
+        estava_consultando = not self._pode_editar
         for aba in (self.aba_instrumentos, self.aba_calibrar, self.aba_lixeira):
             aba.definir_edicao(pode)
         self._pode_editar = pode
         self._ligar_informar_motivo()
         self.setWindowTitle(self.titulo_janela if pode
                             else f"{self.titulo_janela} — SOMENTE CONSULTA")
+        # Quem consulta relê os dados a cada 10 s; quem edita dá sinal a cada 30 s (item 8).
+        self.relogio.setInterval(int((INTERVALO_SINAL if pode else INTERVALO_CONSULTA)
+                                     .total_seconds() * 1000))
+        pede = not pode and self.copia_de is None and self.identidade is not None
+        self.botao_pedir.setVisible(pede)
+        self.botao_pedir.setEnabled(not self.pedido_enviado)
+        self.botao_pedir.setText("Pedido enviado" if self.pedido_enviado else "Pedir edição")
+        self.botao_atualizar.setVisible(pede and dono is not None)  # só se outro PC edita
         if pode:
-            self.pedido_enviado, self.situacao_pedido = False, ""
+            if estava_consultando and self.identidade is not None:
+                # Verde: liberou o pedido ou quem editava saiu (item 7 do teste).
+                self.situacao_pedido = "aceito"
+                self.mostrar_aviso("✔ Edição liberada: agora você pode editar",
+                                   CORES["dentro"], CORES["certo"], 6000)
+            self.pedido_enviado = False
             self.rotulo_modo.setText("Modo edição")
             self.rotulo_modo.setCursor(Qt.ArrowCursor)
             self.rotulo_modo.setToolTip("")
+            self._contorno_do_modo()
             return
+        if self.situacao_pedido == "aceito":
+            self.situacao_pedido = ""
+        self._contorno_do_modo()
         self.observador.ver(dono.sinal if dono else None, self.agora())
         if self.copia_de is not None:
             self.rotulo_modo.setText("Modo consulta - cópia do banco")
@@ -391,7 +451,9 @@ class JanelaPrincipal(QMainWindow):
             self.rotulo_modo.setToolTip("Este banco é uma cópia: veja o aviso amarelo.")
             return
         texto = f"Modo consulta - {dono.usuario} - {dono.computador}" if dono else "Modo consulta"
-        self.rotulo_modo.setText(texto + self.situacao_pedido)
+        if self.situacao_pedido in ("enviado", "recusado"):
+            texto += f" - pedido {self.situacao_pedido}"
+        self.rotulo_modo.setText(texto)
         self.rotulo_modo.setCursor(Qt.PointingHandCursor)
         self.rotulo_modo.setToolTip("Outra pessoa está editando; aqui só se vê. Clique para pedir "
                                     "que ela libere a edição.")
@@ -435,7 +497,7 @@ class JanelaPrincipal(QMainWindow):
         if not enviado:  # ninguém editando: já passa para edição
             self.tentar_editar()
             return
-        self.pedido_enviado, self.situacao_pedido = True, " - pedido enviado"
+        self.pedido_enviado, self.situacao_pedido = True, "enviado"
         self.aplicar_modo(self.repo.obter_trava())
 
     def verificar_pedido(self) -> None:
@@ -453,8 +515,10 @@ class JanelaPrincipal(QMainWindow):
         if trava is None:
             self.tentar_editar()  # liberou: passa para edição
         elif trava.pedido_usuario is None:
-            self.pedido_enviado, self.situacao_pedido = False, " - pedido recusado"
+            self.pedido_enviado, self.situacao_pedido = False, "recusado"
             self.aplicar_modo(trava)
+            self.mostrar_aviso(f"✖ Pedido recusado: {trava.usuario} continua editando",
+                               CORES["fora"], CORES["botao"], 6000)
 
     def _mostrar_pedido(self, trava: Trava) -> None:
         texto = (f"{trava.pedido_usuario} ({trava.pedido_computador}) pediu para editar o "
@@ -496,7 +560,8 @@ class JanelaPrincipal(QMainWindow):
         return not janela_aberta and not self.aba_instrumentos.tem_alteracao()
 
     def a_cada_sinal(self) -> None:
-        """A cada 30 s: quem edita avisa que continua; quem consulta relê os dados e passa
+        """Quem edita (a cada 30 s) avisa que continua; quem consulta (a cada 10 s) relê os
+        dados e passa
         sozinho para edição quando ninguém mais estiver editando (pedido de 2026-10-29: sem
         faixa nem botão, só o texto do modo no canto)."""
         agora = self.agora()
@@ -524,6 +589,12 @@ class JanelaPrincipal(QMainWindow):
             self.liberou_parado_em = None
         self.atualizar()
         self.aba_instrumentos.recarregar_atual()
+
+    def atualizar_agora(self) -> None:
+        """Botão "Atualizar" do modo consulta: o mesmo que acontece sozinho a cada 10 s."""
+        self.a_cada_sinal()
+        if self.repo.modo_consulta:
+            self.mostrar_aviso("↻ Atualizado", CORES["selecao"], CORES["borda"], 1500)
 
     def closeEvent(self, evento) -> None:  # noqa: N802 — nome exigido pelo Qt
         self.relogio.stop()

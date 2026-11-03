@@ -19,6 +19,7 @@ CORES = {
     # Passar o mouse no que é clicável clareia (pedido de 2026-11-03, item 2 do teste).
     "mouse": "#2e2e2e", "mouse_tabela": "#1e1e1e", "mouse_painel": "#161616",
     "certo": "#43a047", "aviso": "#ffd54f", "erro": "#ef5350", "dentro": "#1b5e20",
+    "fora": "#b71c1c",
 }
 
 ESTILO = """
@@ -76,6 +77,7 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
 #avisos {{ color: {aviso}; }}
 #erro {{ color: {erro}; }}
 #modo {{ color: #ffffff; font-size: 10pt; padding: 1px 4px; }}
+#canto {{ font-size: 10pt; padding: 2px 12px; border-radius: 4px; }}
 RotuloClicavel#modo:hover {{ background: {mouse}; border-radius: 3px; }}
 PainelClicavel:hover {{ background: {mouse_painel}; }}
 """
