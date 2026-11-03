@@ -349,3 +349,30 @@ def test_banco_de_teste_mostra_titulo_e_faixa(app, tmp_path):
     finally:
         tela.close()
         repo.fechar()
+
+
+def test_caixa_reserva_poe_e_tira_da_localizacao(janela):
+    """Pedido de 2026-11-03: caixa "Reserva" ao lado da localização."""
+    aba = janela.aba_instrumentos
+    escolher(aba, "TRE-901")
+    campo = aba.campos["localizacao"]
+    assert not aba.reserva.isChecked()
+    aba.reserva.click()
+    assert campo.text() == "Expedição - Reserva"
+    aba.salvar_instrumento()
+    assert janela.repo.obter_instrumento(aba.atual.id).localizacao == "Expedição - Reserva"
+    aba.reserva.click()
+    assert campo.text() == "Expedição"
+    # digitar à mão também marca a caixa
+    campo.setText("Expedição - Reserva")
+    assert aba.reserva.isChecked()
+    campo.setText("Expedição")
+    assert not aba.reserva.isChecked()
+
+
+def test_caixa_reserva_travada_no_modo_consulta(janela):
+    aba = janela.aba_instrumentos
+    aba.definir_edicao(False)
+    assert not aba.reserva.isEnabled()
+    aba.definir_edicao(True)
+    assert aba.reserva.isEnabled()

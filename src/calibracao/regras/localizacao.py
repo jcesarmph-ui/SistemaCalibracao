@@ -49,3 +49,28 @@ def local_do_filtro(localizacao: str | None) -> str | None:
     while _SUFIXO.search(local):
         local = _SUFIXO.sub("", local)
     return local or localizacao
+
+
+RESERVA = "Reserva"
+_RESERVA_COM_TRACO = re.compile(r"\s*[-–]?\s*\breserva\b\s*[-–]?\s*", re.IGNORECASE)
+
+
+def eh_reserva(localizacao: str | None) -> bool:
+    """True se a localização diz que o instrumento é reserva (a caixa "Reserva" fica marcada)."""
+    return bool(localizacao and _RESERVA.search(localizacao))
+
+
+def com_reserva(localizacao: str | None, reserva: bool) -> str | None:
+    """Localização com ou sem " - Reserva" (caixa "Reserva" da ficha, pedido de 2026-11-03).
+
+    Vale para qualquer local ("CT-01 - Reserva"). Sendo também orientação indicativa, a reserva
+    vem antes: "Laboratório - Reserva - Orientação indicativa". Sem reserva, a palavra sai inteira.
+    """
+    local = " ".join((localizacao or "").split())
+    indicativa = bool(_INDICATIVA.search(local))
+    if indicativa:
+        local = _INDICATIVA.sub("", local).strip(" -–")
+    local = _RESERVA_COM_TRACO.sub(" - ", local).strip(" -–")
+    partes = [p for p in (local, RESERVA if reserva else "",
+                          ORIENTACAO_INDICATIVA if indicativa else "") if p]
+    return " - ".join(partes) or None

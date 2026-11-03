@@ -46,7 +46,7 @@ from calibracao.interface.estilo import CORES_CONDICAO, CORES_SITUACAO
 from calibracao.interface.painel_plano import PainelPlano, numero, numero_em_texto
 from calibracao.regras.condicao import Condicao
 from calibracao.regras.lixeira import Tipo
-from calibracao.regras.localizacao import local_do_filtro
+from calibracao.regras.localizacao import com_reserva, eh_reserva, local_do_filtro
 
 # Filtro "Condição" da lista: condições mostradas em cada opção (pedido do usuário em 2026-10-29).
 # A lista abre na primeira; os desativados só aparecem escolhendo o filtro.
@@ -228,6 +228,14 @@ class AbaInstrumentos(QWidget):
         self.exige.setToolTip("Desmarque para instrumentos que não precisam de calibração: "
                               "eles saem do cronograma.")
         self.observacoes = QLineEdit()
+        # Caixa "Reserva" (pedido de 2026-11-03): marcar põe " - Reserva" na localização e
+        # desmarcar tira; digitar "Reserva" no campo também marca a caixa.
+        self.reserva = QCheckBox("Reserva")
+        self.reserva.setToolTip("Marque se o instrumento está guardado como reserva: a "
+                                "localização ganha \"- Reserva\" (em azul). Desmarque quando "
+                                "ele voltar a ser usado.")
+        self.reserva.clicked.connect(self._reserva_clicada)
+        self.campos["localizacao"].textChanged.connect(self._localizacao_mudou)
 
         grade = QGridLayout()
         rotulos = [("codigo", "Código"), ("tipo", "Tipo"), ("localizacao", "Localização"),
@@ -238,7 +246,13 @@ class AbaInstrumentos(QWidget):
         for indice, (nome, rotulo) in enumerate(rotulos):
             linha, coluna = divmod(indice, 2)
             grade.addWidget(QLabel(rotulo), linha, coluna * 2)
-            grade.addWidget(self.campos[nome], linha, coluna * 2 + 1)
+            if nome == "localizacao":
+                local = QHBoxLayout()
+                local.addWidget(self.campos[nome], 1)
+                local.addWidget(self.reserva)
+                grade.addLayout(local, linha, coluna * 2 + 1)
+            else:
+                grade.addWidget(self.campos[nome], linha, coluna * 2 + 1)
         self.novo_plano = QPushButton("Novo plano")
         self.novo_plano.setToolTip("Cria um plano vazio; depois inclua os pontos na sub-aba "
                                    "Plano de calibração.")
@@ -417,10 +431,18 @@ class AbaInstrumentos(QWidget):
         self.plano.setEnabled(pode)
         self.novo_plano.setVisible(pode)
         self.exige.setEnabled(pode)
+        self.reserva.setEnabled(pode)
         self.pode_editar = pode
         self.painel_plano.definir_edicao(pode)
         self.painel_calibracoes.definir_edicao(pode)
         self.recarregar_atual()
+
+    def _reserva_clicada(self, marcada: bool) -> None:
+        campo = self.campos["localizacao"]
+        campo.setText(com_reserva(campo.text(), marcada) or "")
+
+    def _localizacao_mudou(self, texto: str) -> None:
+        self.reserva.setChecked(eh_reserva(texto))
 
     def tem_alteracao(self) -> bool:
         """Algo digitado na ficha ou no plano e ainda não salvo."""
