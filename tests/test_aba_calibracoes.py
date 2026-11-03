@@ -176,11 +176,58 @@ def test_grafico_salva_png(app, repo, paquimetro, tmp_path):
     registrar(repo, paquimetro, date(2026, 10, 1), valores=(30.045, 60.0),
               parecer=ParecerFinal.ORIENTACAO_INDICATIVA)
     janela = JanelaTendencia(repo.tendencia(paquimetro.id), "PAQ-900")
-    assert janela.ponto.count() == 2
-    janela.ponto.setCurrentIndex(1)
+    assert janela.ponto.count() == 3                  # todos juntos + 1 por ponto
+    assert janela.ponto.currentText().startswith("Todos os pontos juntos")  # o principal
+    assert janela.todos and len(janela._desenhados) == 4  # 2 pontos x 2 calibrações
+    janela.salvar_png(tmp_path / "todos.png")
+    janela.ponto.setCurrentIndex(2)
+    assert not janela.todos and len(janela._desenhados) == 2
     imagem = tmp_path / "tendencia.png"
     janela.salvar_png(imagem)
     assert imagem.read_bytes()[:4] == b"\x89PNG"
+
+
+def test_todos_juntos_mesma_tolerancia_fica_em_erro(app, repo, paquimetro):
+    from calibracao.interface.grafico_tendencia import JanelaTendencia, tolerancia_comum
+    registrar(repo, paquimetro, date(2025, 10, 1))
+    registrar(repo, paquimetro, date(2026, 10, 1))
+    series = repo.tendencia(paquimetro.id)
+    assert tolerancia_comum(series)
+    janela = JanelaTendencia(series, "PAQ-900")
+    assert "eixo em erro" in janela._eixo.get_title()
+    # os dois pontos da mesma data ficam um pouco afastados para o lado
+    mesma_data = [d.x for d in janela._desenhados if d.medicao.data == date(2025, 10, 1)]
+    assert len(set(mesma_data)) == 2
+    # clicar no nome na legenda esconde o ponto; clicar de novo mostra
+    janela.esconder_ou_mostrar(0)
+    assert not any(a.get_visible() for a in janela._grupos[0])
+    assert janela._itens_legenda[0][1].get_alpha() == 0.3
+    janela.esconder_ou_mostrar(0)
+    assert all(a.get_visible() for a in janela._grupos[0])
+
+
+def test_todos_juntos_tolerancias_diferentes_fica_em_porcentagem(app):
+    from calibracao.dados.repositorio import MedicaoTendencia, SerieTendencia
+    from calibracao.interface.grafico_tendencia import JanelaTendencia, em_porcentagem
+    assert em_porcentagem(0.01, -0.02, 0.05) == pytest.approx(20)    # lado de cima: 0,05
+    assert em_porcentagem(-0.01, -0.02, 0.05) == pytest.approx(-50)  # lado de baixo: 0,02
+    assert em_porcentagem(-0.01, None, 0.05) == pytest.approx(-20)   # falta um lado: o outro
+    assert em_porcentagem(0.01, None, None) is None
+    ok, dia = Resultado.APROVADO, date(2025, 1, 1)
+    series = [
+        SerieTendencia("1 kg", "g", [MedicaoTendencia(dia, 0.5, 0.1, -1, 1, ok)]),
+        SerieTendencia("20 kg", "g", [MedicaoTendencia(dia, 5, 1, -10, 10, ok)]),
+        SerieTendencia("Sem tol.", "g", [MedicaoTendencia(dia, 1, 1, None, None, ok)]),
+    ]
+    janela = JanelaTendencia(series, "BAL-900")
+    assert "% da tolerância" in janela._eixo.get_title()
+    assert [round(d.y) for d in janela._desenhados] == [50, 50]
+    assert "Sem tol." in janela.aviso.text()   # sem tolerância: fora, e avisado
+
+
+def test_cor_e_marcador_nao_se_repetem():
+    from calibracao.interface.grafico_tendencia import cor_e_marcador
+    assert len({cor_e_marcador(i) for i in range(20)}) == 20
 
 
 def test_grafico_sem_dados(app):

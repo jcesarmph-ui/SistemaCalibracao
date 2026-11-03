@@ -69,7 +69,7 @@ e aprovada antes de seguir. Marcar `[x]` quando aprovado.
       Banco da entrega remontado da DQ05 (cópia do anterior em `dados/`).
 
 ### Gráfico de tendência
-- [ ] 17. (pedido de 2026-11-03, ainda não feito) **Gráfico com todos os pontos juntos**, um de
+- [x] 17. (feito em 2026-11-03: abre em "Todos os pontos juntos"; erro ou % da tolerância conforme as tolerâncias; cor + formato por ponto; clicar no nome na legenda esconde/mostra) **Gráfico com todos os pontos juntos**, um de
       cada cor, como **opção principal**: é o primeiro a aparecer ao abrir; os gráficos de um ponto
       por vez continuam na mesma lista, para quem quiser ver um por um.
       - Tolerâncias iguais em todos os pontos → eixo em **erro** (mesma unidade), com as linhas de
@@ -80,7 +80,7 @@ e aprovada antes de seguir. Marcar `[x]` quando aprovado.
         (ex.: afastar um pouco para o lado os pontos da mesma data, U mais fina, legenda clara).
 
 ### Cronograma
-- [ ] 18. (pedido de 2026-11-03, ainda não feito) **Seletor "Mês" sem meses antes da
+- [x] 18. (feito em 2026-11-03: implantação = novembro de 2026, gravada no banco da entrega) **Seletor "Mês" sem meses antes da
       implantação** (hoje aparecem meses de 2025, 12 para trás). O primeiro mês da lista é o mês em
       que o programa começa a ser usado; os meses que forem passando ficam como registro.
       **Ordem da lista**: em cima "Hoje — todos os instrumentos", o **mês atual** e os
