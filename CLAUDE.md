@@ -113,7 +113,8 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    de mês a partir da implantação). **Implantação = novembro de 2026** (`metadados.implantado_em`
    = 2026-11-01, gravado por `empacotamento/montar_entrega.py`; banco de antes guardado em
    `dados/entrega_antes_1.0.0.db`). Programa de teste **não** é mais gerado (pedido do usuário).
-   Entrega pronta em `dist/entrega` (conferida: abre, versão 1.0.0, 123 instrumentos, sem
+   **Colocada na rede pelo usuário em 2026-11-03** (pasta renomeada antes de abrir; abriu
+   quase instantâneo). Entrega montada em `dist/entrega` (conferida: abre, versão 1.0.0, 123 instrumentos, sem
    calibrações, sem lugar oficial). **O usuário copia a pasta para a rede sem abrir antes**; depois
    digita a "1ª calibração prevista" de cada instrumento olhando a DQ05.
    A partir daqui: CORREÇÃO (1.0.x) = conserto; MENOR (1.x.0) = novidade. Atualizar na rede =
