@@ -560,3 +560,24 @@ def test_aviso_salvo_a_cada_gravacao(janela):
     janela.relogio_salvo.timeout.emit()  # passou o tempo
     assert janela.aviso_salvo.isHidden()
 
+
+
+def test_shift_roda_rola_para_os_lados(app):
+    """Item 4 do teste (2026-11-03): Shift + roda do mouse rola na horizontal."""
+    from PySide6.QtWidgets import QTableWidget
+
+    from calibracao.interface.componentes import instalar_filtro_roda
+
+    instalar_filtro_roda()
+    tabela = QTableWidget(3, 40)
+    tabela.resize(300, 200)
+    tabela.show()
+    QApplication.processEvents()
+    barra = tabela.horizontalScrollBar()
+    assert barra.maximum() > 0 and barra.value() == 0
+    ponto = QPointF(50, 50)
+    evento = QWheelEvent(ponto, ponto, QPoint(0, 0), QPoint(0, -120), Qt.NoButton,
+                         Qt.ShiftModifier, Qt.NoScrollPhase, False)
+    QApplication.sendEvent(tabela.viewport(), evento)
+    assert barra.value() > 0
+    tabela.close()

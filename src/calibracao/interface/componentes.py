@@ -8,6 +8,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractButton,
     QAbstractItemView,
+    QAbstractScrollArea,
     QAbstractSpinBox,
     QApplication,
     QComboBox,
@@ -40,11 +41,29 @@ class FiltroRodaDoMouse(QObject):
         if (evento.type() in (QEvent.Polish, QEvent.EnabledChange)
                 and isinstance(objeto, self.CLICAVEIS)):
             objeto.setCursor(Qt.PointingHandCursor if objeto.isEnabled() else Qt.ArrowCursor)
+        if (evento.type() == QEvent.Wheel and evento.modifiers() & Qt.ShiftModifier
+                and self._rolar_para_o_lado(objeto, evento)):
+            return True
         if evento.type() == QEvent.Wheel and isinstance(objeto, self.SEM_RODA):
             pai = objeto.parentWidget()
             if pai is not None:
                 QApplication.sendEvent(pai, evento)
             return True
+        return False
+
+    @staticmethod
+    def _rolar_para_o_lado(objeto, evento) -> bool:
+        """Shift + roda = rolar para os lados (pedido de 2026-11-03), na primeira área com barra
+        horizontal a partir de onde está o mouse."""
+        passo = evento.angleDelta().y() or evento.angleDelta().x()
+        widget = objeto if isinstance(objeto, QWidget) else None
+        while widget is not None:
+            if isinstance(widget, QAbstractScrollArea):
+                barra = widget.horizontalScrollBar()
+                if barra.maximum() > barra.minimum():
+                    barra.setValue(barra.value() - round(passo / 120 * barra.singleStep() * 3))
+                    return True
+            widget = widget.parentWidget()
         return False
 
 

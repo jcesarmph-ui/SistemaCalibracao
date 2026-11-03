@@ -107,16 +107,19 @@ usuário): o usuário quer fazer **depois, não agora** — apenas lembrar a pen
 vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_responsavel.py`);
 `Abrir_CALIB.bat` e `iniciar_calib.py` (deixam de existir sem Streamlit); `.vscode/`.
 
-## ▶ PRÓXIMA SESSÃO — lembrar o usuário logo no início (pedido de 2026-10-30)
-1. **Tarefa combinada:** analisar **cada parte da interface**, uma por vez, para achar correções a
-   fazer (cabeçalho e painéis do topo, aba Instrumentos — lista, filtros, ficha, sub-abas Plano,
-   Calibrações e Histórico —, janelas de registrar/corrigir/ver calibração, gráfico de tendência,
-   aba Cronograma — hoje e por mês —, aba Lixeira, modo consulta/trava, aviso de cópia). Mostrar
-   foto de cada parte e perguntar com opções clicáveis o que mudar.
-2. **Pendente do usuário:** teste do pacote novo (lançador) em 2 PCs na rede — ele ainda **não**
-   fez. Lembrar: apagar a pasta de teste antiga da rede, copiar `dist/TESTE - Calibração` **sem
-   abrir antes**, anotar tempo da 1ª e da 2ª abertura, testar modo consulta/pedido de edição.
-3. Branch `fase-6-exe` enviada ao GitHub, **PR aberto e NÃO juntado** (fase 6 ainda não terminou).
+## ▶ PRÓXIMA SESSÃO — lembrar o usuário logo no início (atualizado em 2026-11-03)
+1. **Escrever SÓ em português** (o usuário ficou bravo com frases em inglês em 2026-11-03).
+2. **Correções do teste em andamento:** lista em `docs/correcoes_do_teste.md` (itens marcados
+   `[x]` = feitos). **Faltam os itens 6, 7 e 8** (trava: botão de pedir edição no canto; sinal
+   verde/vermelho para quem pediu; no modo consulta atualizar a cada 10 s + botão "Atualizar" —
+   só aparece quando outro PC está editando). Depois: gerar o pacote de teste
+   (`empacotamento/gerar_exe.py` + `empacotamento/montar_teste.py`), pois o item 4 (Shift + roda)
+   ainda não foi para o pacote.
+3. Branch atual `fase-6-caixa-reserva` (PR #13, base `fase-6-exe`, não juntado). Banco da entrega
+   remontado da DQ05 em 2026-11-03 (esquema v9). Pendente do usuário: testar em 2 PCs na rede
+   (`dist/TESTE - Calibração`, copiar sem abrir antes).
+4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,
+   com opções numeradas ("responda 1 ou 2").
 
 ## Onde paramos (2026-10-30)
 - Fases 0–5 juntadas ao `main` (PRs #1–#11). Versão **`0.5.0`** (fase 5 fechada em 2026-10-30,
