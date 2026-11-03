@@ -292,9 +292,9 @@ class JanelaNovaCalibracao(QDialog):
     def _caixa_parecer(self) -> QGroupBox:
         self.geral = QLabel()
         self.parecer = QComboBox()
-        self.parecer.setToolTip("Decisão de quem analisa. Muda a condição do instrumento: "
-                                "Aprovado → Em uso; Orientação indicativa → segue no "
-                                "cronograma; Reprovado - Desativado → sai do cronograma.")
+        self.parecer.setToolTip("Decisão de quem analisa. Aprovado → Em uso; Orientação "
+                                "indicativa → Em uso e com a marca de orientação indicativa; "
+                                "Reprovado - Desativado → sai do cronograma.")
         self.motivo = QLineEdit(placeholderText="Motivo / observação do parecer (opcional)")
         self.avisos = QLabel(wordWrap=True, objectName="avisos")
         self.cancelar = QPushButton("Cancelar")

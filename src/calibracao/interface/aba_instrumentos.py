@@ -46,25 +46,25 @@ from calibracao.interface.estilo import CORES_CONDICAO, CORES_SITUACAO
 from calibracao.interface.painel_plano import PainelPlano, numero, numero_em_texto
 from calibracao.regras.condicao import Condicao
 from calibracao.regras.lixeira import Tipo
-from calibracao.regras.localizacao import com_reserva, eh_reserva, local_do_filtro
+from calibracao.regras.localizacao import com_marcas, eh_indicativa, eh_reserva, local_do_filtro
 
 # Filtro "Condição" da lista: condições mostradas em cada opção (pedido do usuário em 2026-10-29).
-# A lista abre na primeira; os desativados só aparecem escolhendo o filtro.
+# A lista abre na primeira; os desativados só aparecem escolhendo o filtro. "Orientação
+# indicativa" não é condição (pedido de 2026-11-03): mostra os não desativados com a marca.
 FILTROS_CONDICAO = {
-    "Todos menos desativados": (Condicao.EM_USO, Condicao.ORIENTACAO_INDICATIVA),
+    "Todos menos desativados": (Condicao.EM_USO,),
     "Em uso": (Condicao.EM_USO,),
-    "Orientação indicativa": (Condicao.ORIENTACAO_INDICATIVA,),
+    "Orientação indicativa": (Condicao.EM_USO,),
     "Desativados": (Condicao.DESATIVADO,),
     "Todos": tuple(Condicao),
 }
+SO_INDICATIVA = "Orientação indicativa"
 TODOS_OS_TIPOS = "Todos os tipos"
 TODAS_AS_LOCALIZACOES = "Todas as localizações"
 
 # O que acontece com o instrumento em cada condição (texto da janelinha de mudar condição).
 EXPLICACAO_CONDICAO = {
     Condicao.EM_USO: "O instrumento volta a ser usado normalmente e segue no cronograma.",
-    Condicao.ORIENTACAO_INDICATIVA: "O instrumento continua sendo usado só como orientação "
-                                    "indicativa e segue no cronograma.",
     Condicao.DESATIVADO: "O instrumento sai do cronograma. O histórico de calibrações continua "
                          "guardado e ele pode voltar a ser usado depois.",
 }
@@ -234,7 +234,13 @@ class AbaInstrumentos(QWidget):
         self.reserva.setToolTip("Marque se o instrumento está guardado como reserva: a "
                                 "localização ganha \"- Reserva\" (em azul). Desmarque quando "
                                 "ele voltar a ser usado.")
-        self.reserva.clicked.connect(self._reserva_clicada)
+        self.reserva.clicked.connect(lambda marcada: self._marca_clicada(reserva=marcada))
+        self.indicativa = QCheckBox("Orientação indicativa")
+        self.indicativa.setToolTip("Marque se o instrumento é usado como orientação indicativa "
+                                   "(continua em uso e no cronograma): a localização ganha "
+                                   "\"- Orientação indicativa\". Fica no histórico ao salvar.")
+        self.indicativa.clicked.connect(
+            lambda marcada: self._marca_clicada(indicativa=marcada))
         self.campos["localizacao"].textChanged.connect(self._localizacao_mudou)
 
         grade = QGridLayout()
@@ -246,13 +252,7 @@ class AbaInstrumentos(QWidget):
         for indice, (nome, rotulo) in enumerate(rotulos):
             linha, coluna = divmod(indice, 2)
             grade.addWidget(QLabel(rotulo), linha, coluna * 2)
-            if nome == "localizacao":
-                local = QHBoxLayout()
-                local.addWidget(self.campos[nome], 1)
-                local.addWidget(self.reserva)
-                grade.addLayout(local, linha, coluna * 2 + 1)
-            else:
-                grade.addWidget(self.campos[nome], linha, coluna * 2 + 1)
+            grade.addWidget(self.campos[nome], linha, coluna * 2 + 1)
         self.novo_plano = QPushButton("Novo plano")
         self.novo_plano.setToolTip("Cria um plano vazio; depois inclua os pontos na sub-aba "
                                    "Plano de calibração.")
@@ -262,9 +262,14 @@ class AbaInstrumentos(QWidget):
         grade.addWidget(self.novo_plano, 5, 3)
         grade.addWidget(QLabel("Observações"), 6, 0)
         grade.addWidget(self.observacoes, 6, 1, 1, 3)
-        grade.addWidget(self.exige, 7, 1)
+        caixas = QHBoxLayout()
+        for caixa in (self.exige, self.reserva, self.indicativa):
+            caixas.addWidget(caixa)
+            caixas.addSpacing(20)
+        caixas.addStretch(1)
         self.condicao_atual = QLabel()
-        grade.addWidget(self.condicao_atual, 7, 2, 1, 2)
+        caixas.addWidget(self.condicao_atual)
+        grade.addLayout(caixas, 7, 1, 1, 3)
 
         self.novo = QPushButton("Novo instrumento")
         self.novo.clicked.connect(self.novo_instrumento)
@@ -334,6 +339,8 @@ class AbaInstrumentos(QWidget):
         return [
             i for i in self._instrumentos
             if self._condicao(i.id).condicao in condicoes
+            and (self.filtro_condicao.currentText() != SO_INDICATIVA
+                 or eh_indicativa(i.localizacao))
             and tipo in (TODOS_OS_TIPOS, i.tipo)
             and local in (TODAS_AS_LOCALIZACOES, local_do_filtro(i.localizacao))
             and (not termo or termo in f"{i.codigo} {i.tipo} {i.localizacao or ''}".lower())
@@ -410,13 +417,21 @@ class AbaInstrumentos(QWidget):
             atual = historico[-1] if historico else MudancaCondicao(Condicao.EM_USO, None)
             desde = f" desde {formatar_data(atual.data)}" if atual.data else ""
             self.condicao_atual.setText(f"Condição: <b>{atual.condicao}</b>{desde}")
+        # Condição e marca de orientação indicativa juntas, por data (mais recente em cima).
+        linhas = [(m.data, 0, n, m.condicao.value, CORES_CONDICAO[m.condicao], m.motivo,
+                   "Parecer final da calibração" if m.calibracao_id else "Mudança manual")
+                  for n, m in enumerate(historico)]
+        marcas = self.repo.historico_indicativa(instrumento.id) if instrumento else []
+        linhas += [(m.data, 1, n, "Orientação indicativa" if m.marcada
+                    else "Deixou de ser orientação indicativa", None, m.motivo,
+                    "Parecer final da calibração" if m.calibracao_id
+                    else "Ficha do instrumento") for n, m in enumerate(marcas)]
+        linhas.sort(key=lambda x: (x[0] or datetime.date.min, x[1], x[2]), reverse=True)
         tabela = self.tabela_historico
-        tabela.setRowCount(len(historico))
-        for linha, mudanca in enumerate(reversed(historico)):  # mais recente em cima
-            origem = "Parecer final da calibração" if mudanca.calibracao_id else "Mudança manual"
-            itens = [celula(formatar_data(mudanca.data)),
-                     celula(mudanca.condicao.value, CORES_CONDICAO[mudanca.condicao]),
-                     celula(mudanca.motivo or "—"), celula(origem)]
+        tabela.setRowCount(len(linhas))
+        for linha, (data, _, _, texto, cor, motivo, origem) in enumerate(linhas):
+            itens = [celula(formatar_data(data)), celula(texto, cor), celula(motivo or "—"),
+                     celula(origem)]
             for coluna, item in enumerate(itens):
                 tabela.setItem(linha, coluna, item)
         aplicar_destaques(tabela)
@@ -433,18 +448,21 @@ class AbaInstrumentos(QWidget):
         self.novo_plano.setVisible(pode)
         self.exige.setEnabled(pode)
         self.reserva.setEnabled(pode)
+        self.indicativa.setEnabled(pode)
         self.pode_editar = pode
         self.painel_plano.definir_edicao(pode)
         self.painel_calibracoes.definir_edicao(pode)
         self.recarregar_atual()
 
-    def _reserva_clicada(self, marcada: bool) -> None:
+    def _marca_clicada(self, reserva: bool | None = None,
+                       indicativa: bool | None = None) -> None:
         campo = self.campos["localizacao"]
-        campo.setText(com_reserva(campo.text(), marcada) or "")
+        campo.setText(com_marcas(campo.text(), reserva, indicativa) or "")
         campo.setCursorPosition(0)
 
     def _localizacao_mudou(self, texto: str) -> None:
         self.reserva.setChecked(eh_reserva(texto))
+        self.indicativa.setChecked(eh_indicativa(texto))
 
     def tem_alteracao(self) -> bool:
         """Algo digitado na ficha ou no plano e ainda não salvo."""
@@ -530,9 +548,9 @@ class AbaInstrumentos(QWidget):
         )
         try:
             if instrumento.id is None:
-                instrumento.id = self.repo.incluir_instrumento(instrumento)
+                instrumento.id = self.repo.incluir_instrumento(instrumento, self.hoje)
             else:
-                self.repo.atualizar_instrumento(instrumento)
+                self.repo.atualizar_instrumento(instrumento, self.hoje)
         except ErroDeValidacao as erro:
             self._aviso("\n".join(f"✖ {m}" for m in erro.mensagens), erro=True)
             return

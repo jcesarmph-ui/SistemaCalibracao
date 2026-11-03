@@ -2,7 +2,12 @@
 
 Cada calibração tem o resultado automático (pelos pontos) e o parecer final, escolhido por quem
 analisa — como no protótipo. O parecer muda a condição do instrumento; a mudança fica no histórico
-("definido como orientação indicativa em X por motivo Y", "desativado em X").
+("desativado em X").
+
+Orientação indicativa NÃO é condição (pedido do usuário em 2026-11-03): é uma marca a mais, como a
+Reserva — o instrumento pode estar Em uso e ser orientação indicativa. A marca fica na localização
+(" - Orientação indicativa", ver `regras/localizacao.py`); o parecer "Orientação indicativa" deixa
+o instrumento Em uso e põe a marca.
 """
 
 import datetime
@@ -13,8 +18,7 @@ from calibracao.regras.avaliacao import Resultado
 
 class Condicao(StrEnum):
     EM_USO = "Em uso"
-    ORIENTACAO_INDICATIVA = "Orientação indicativa"  # segue no cronograma (continua calibrado)
-    DESATIVADO = "Desativado"                        # sai do cronograma
+    DESATIVADO = "Desativado"  # sai do cronograma
 
 
 class ParecerFinal(StrEnum):
@@ -25,7 +29,7 @@ class ParecerFinal(StrEnum):
 
 CONDICAO_DO_PARECER = {
     ParecerFinal.APROVADO: Condicao.EM_USO,
-    ParecerFinal.ORIENTACAO_INDICATIVA: Condicao.ORIENTACAO_INDICATIVA,
+    ParecerFinal.ORIENTACAO_INDICATIVA: Condicao.EM_USO,  # e põe a marca na localização
     ParecerFinal.REPROVADO_DESATIVADO: Condicao.DESATIVADO,
 }
 

@@ -60,17 +60,31 @@ def eh_reserva(localizacao: str | None) -> bool:
     return bool(localizacao and _RESERVA.search(localizacao))
 
 
-def com_reserva(localizacao: str | None, reserva: bool) -> str | None:
-    """Localização com ou sem " - Reserva" (caixa "Reserva" da ficha, pedido de 2026-11-03).
+def eh_indicativa(localizacao: str | None) -> bool:
+    """True se a localização tem a marca de orientação indicativa (caixa da ficha marcada)."""
+    return bool(localizacao and _INDICATIVA.search(" ".join(localizacao.split())))
 
-    Vale para qualquer local ("CT-01 - Reserva"). Sendo também orientação indicativa, a reserva
-    vem antes: "Laboratório - Reserva - Orientação indicativa". Sem reserva, a palavra sai inteira.
+
+def com_marcas(localizacao: str | None, reserva: bool | None = None,
+               indicativa: bool | None = None) -> str | None:
+    """Localização com ou sem " - Reserva" / " - Orientação indicativa" (caixas da ficha, pedido
+    de 2026-11-03). None = deixa a marca como está.
+
+    Vale para qualquer local ("CT-01 - Reserva"). Com as duas, a reserva vem antes:
+    "Laboratório - Reserva - Orientação indicativa". Tirando a marca, a palavra sai inteira.
     """
     local = " ".join((localizacao or "").split())
-    indicativa = bool(_INDICATIVA.search(local))
-    if indicativa:
+    tem_indicativa = bool(_INDICATIVA.search(local))
+    if tem_indicativa:
         local = _INDICATIVA.sub("", local).strip(" -–")
+    tem_reserva = bool(_RESERVA.search(local))
     local = _RESERVA_COM_TRACO.sub(" - ", local).strip(" -–")
+    reserva = tem_reserva if reserva is None else reserva
+    indicativa = tem_indicativa if indicativa is None else indicativa
     partes = [p for p in (local, RESERVA if reserva else "",
                           ORIENTACAO_INDICATIVA if indicativa else "") if p]
     return " - ".join(partes) or None
+
+
+def com_reserva(localizacao: str | None, reserva: bool) -> str | None:
+    return com_marcas(localizacao, reserva=reserva)

@@ -28,8 +28,9 @@ def test_reprovado_nao_pode_ser_aprovado():
 
 def test_parecer_muda_a_condicao():
     assert CONDICAO_DO_PARECER[ParecerFinal.APROVADO] == Condicao.EM_USO
-    assert CONDICAO_DO_PARECER[ParecerFinal.ORIENTACAO_INDICATIVA] == \
-        Condicao.ORIENTACAO_INDICATIVA
+    # orientação indicativa é marca a mais, não condição (pedido de 2026-11-03)
+    assert CONDICAO_DO_PARECER[ParecerFinal.ORIENTACAO_INDICATIVA] == Condicao.EM_USO
+    assert list(Condicao) == [Condicao.EM_USO, Condicao.DESATIVADO]
     assert CONDICAO_DO_PARECER[ParecerFinal.REPROVADO_DESATIVADO] == Condicao.DESATIVADO
 
 

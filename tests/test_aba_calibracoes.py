@@ -126,9 +126,11 @@ def test_registrar_pela_tela_muda_a_condicao(app, repo, paquimetro):
     [salva] = repo.listar_calibracoes(paquimetro.id)
     assert (salva.data_calibracao, salva.custo, salva.laboratorio, salva.resultado) == (
         date(2026, 10, 26), 150.0, "Lab Fictício", Resultado.REPROVADO)
-    atual = repo.condicao_atual(paquimetro.id)
-    assert (atual.condicao, atual.motivo) == (
-        Condicao.ORIENTACAO_INDICATIVA, "Usar só para conferência")
+    # orientação indicativa não é condição: segue Em uso e ganha a marca na localização
+    assert repo.condicao_atual(paquimetro.id).condicao == Condicao.EM_USO
+    assert repo.obter_instrumento(paquimetro.id).localizacao.endswith("Orientação indicativa")
+    [marca] = repo.historico_indicativa(paquimetro.id)
+    assert (marca.marcada, marca.motivo) == (True, "Usar só para conferência")
 
 
 def registrar(repo, instrumento, data, valores=(30.01, 60.02), parecer=ParecerFinal.APROVADO):

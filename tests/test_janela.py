@@ -141,7 +141,7 @@ def test_mudar_condicao_pela_tela(janela):
 def test_mudar_condicao_recusa_data_futura(janela):
     aba = janela.aba_instrumentos
     escolher(aba, "TRE-902")
-    aba.aplicar_condicao(Condicao.ORIENTACAO_INDICATIVA, date(2026, 11, 1), "")
+    aba.aplicar_condicao(Condicao.DESATIVADO, date(2026, 11, 1), "")
     assert "futuro" in aba.avisos.text()
     assert "#ef5350" in aba.avisos.styleSheet()
 
@@ -376,3 +376,25 @@ def test_caixa_reserva_travada_no_modo_consulta(janela):
     assert not aba.reserva.isEnabled()
     aba.definir_edicao(True)
     assert aba.reserva.isEnabled()
+
+
+def test_caixa_orientacao_indicativa_entra_no_historico(janela):
+    """Orientação indicativa é marca a mais: segue "Em uso" (pedido de 2026-11-03)."""
+    aba = janela.aba_instrumentos
+    escolher(aba, "TRE-901")
+    aba.indicativa.click()
+    assert aba.campos["localizacao"].text() == "Expedição - Orientação indicativa"
+    aba.reserva.click()
+    assert aba.campos["localizacao"].text() == "Expedição - Reserva - Orientação indicativa"
+    aba.salvar_instrumento()
+    assert "Em uso" in aba.condicao_atual.text()
+    assert aba.tabela_historico.item(0, 1).text() == "Orientação indicativa"
+    assert aba.tabela_historico.item(0, 3).text() == "Ficha do instrumento"
+    aba.filtro_condicao.setCurrentText("Orientação indicativa")
+    assert codigos_da_lista(aba) == ["TRE-901"]
+    aba.filtro_condicao.setCurrentText("Todos menos desativados")
+    escolher(aba, "TRE-901")
+    aba.indicativa.click()
+    aba.salvar_instrumento()
+    assert aba.campos["localizacao"].text() == "Expedição - Reserva"
+    assert aba.tabela_historico.item(0, 1).text() == "Deixou de ser orientação indicativa"

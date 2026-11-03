@@ -90,7 +90,7 @@ def test_orientacao_indicativa_continua_no_cronograma(repo):
     calibrar(repo, a, date(2027, 3, 1), parecer=ParecerFinal.ORIENTACAO_INDICATIVA)
     [linha] = repo.cronograma(HOJE)
     assert (linha.condicao, linha.parecer_ultima, linha.situacao) == (
-        Condicao.ORIENTACAO_INDICATIVA, ParecerFinal.ORIENTACAO_INDICATIVA, Situacao.EM_DIA)
+        Condicao.EM_USO, ParecerFinal.ORIENTACAO_INDICATIVA, Situacao.EM_DIA)
 
 
 def test_calibracao_na_lixeira_nao_conta_no_cronograma(repo):

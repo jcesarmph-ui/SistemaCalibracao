@@ -53,3 +53,18 @@ def test_ind_so_quando_reserva_e_indicativa_juntas():
     assert not abreviar_indicativa("Laboratório - Orientação indicativa")
     assert "Orientação indicativa" in destacar("Laboratório - Orientação indicativa")
     assert not abreviar_indicativa("Laboratório - Reserva")
+
+
+@pytest.mark.parametrize("antes, marcar, depois", [
+    ("CT-01", True, "CT-01 - Orientação indicativa"),
+    ("Laboratório - Reserva", True, "Laboratório - Reserva - Orientação indicativa"),
+    ("CT-01 - Orientação indicativa", False, "CT-01"),
+    ("Laboratório - Reserva - Orientação indicativa", False, "Laboratório - Reserva"),
+    ("GL-02 (indic.)", False, "GL-02"),          # digitado à mão, fora do padrão
+    (None, True, "Orientação indicativa"),
+])
+def test_marca_de_orientacao_indicativa(antes, marcar, depois):
+    from calibracao.regras.localizacao import com_marcas, eh_indicativa
+
+    assert com_marcas(antes, indicativa=marcar) == depois
+    assert eh_indicativa(depois) is marcar

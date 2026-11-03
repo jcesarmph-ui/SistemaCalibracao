@@ -213,6 +213,20 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
   Orientação indicativa **segue no cronograma**; desativado sai. Lixeira = registro por engano.
   Calibração enviada à Lixeira **desfaz** a mudança de condição que o parecer dela fez
   (restaurar refaz). Lista de instrumentos abre em **"Todos menos desativados"**.
+- **Orientação indicativa NÃO é condição** (2026-11-03, correção do usuário): é uma **marca a
+  mais**, como a Reserva — pode estar **Em uso** e ser orientação indicativa. Condição = só **Em
+  uso / Desativado**. A marca é o " - Orientação indicativa" da localização, com **caixa na ficha**
+  (ao lado de "Precisa de calibração" e "Reserva"); pôr/tirar entra no "Histórico de condição"
+  (tabela `marcas_indicativa`, esquema **v7**; origem "Ficha do instrumento" ou parecer). Parecer
+  "Orientação indicativa" = Em uso + põe a marca; **Aprovado não tira a marca**. Calibração na
+  Lixeira desfaz a marca que o parecer pôs (restaurar refaz), só se ninguém mexeu depois.
+- **Caixa "Reserva"** (2026-11-03): põe/tira " - Reserva" na localização, qualquer local; digitar à
+  mão também marca. Reserva + indicativa = "<local> - Reserva - Orientação indicativa"; **na tela**
+  aparece "Reserva" (azul) + "**IND.**" (vermelho no amarelo), texto inteiro na dica do mouse.
+- **Programa de TESTE** (2026-11-03): mesmo programa + cópia do banco da entrega marcada
+  (`metadados.banco_de_teste`) → título "— TESTE" e faixa amarela. `empacotamento/montar_teste.py`
+  monta `dist/TESTE - Calibração` ("TESTE - Calibração de Instrumentos.exe") e confere por SHA-256
+  que a entrega não mudou. Fica numa pasta de teste na rede.
 - **Visual "orientação indicativa":** onde aparecer, essas palavras em **letra vermelha `#c62828`
   sobre fundo amarelo `#ffd54f`** (etiqueta física da MG) — exceção consciente à regra de cores.
 - **Corrigir calibração salva** (2026-10-30): pode corrigir **tudo menos a data** (data errada =

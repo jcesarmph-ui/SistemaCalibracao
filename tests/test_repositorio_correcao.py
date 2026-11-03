@@ -87,9 +87,18 @@ def test_corrigir_valor_reavalia_o_ponto_e_o_resultado(repo, salva):
     assert "Resultado: Aprovado → Reprovado" in mudancas
     assert repo.obter_calibracao(calibracao_id).resultado == Resultado.REPROVADO
     assert repo.pontos_da_calibracao(calibracao_id)[0].resultado == Resultado.REPROVADO
-    # o parecer mudou a condição do instrumento, na data da calibração
-    atual = repo.condicao_atual(instrumento)
-    assert (atual.condicao, atual.data) == (Condicao.ORIENTACAO_INDICATIVA, date(2027, 3, 10))
+    # o parecer pôs a marca de orientação indicativa, na data da calibração (segue Em uso)
+    assert repo.condicao_atual(instrumento).condicao == Condicao.EM_USO
+    [marca] = repo.historico_indicativa(instrumento)
+    assert (marca.marcada, marca.data, marca.calibracao_id) == (
+        True, date(2027, 3, 10), calibracao_id)
+    assert repo.obter_instrumento(instrumento).localizacao.endswith("Orientação indicativa")
+    # voltar o parecer para Reprovado - Desativado tira a marca que ele tinha posto
+    correcao = correcao_igual(repo, calibracao_id,
+                              parecer_final=ParecerFinal.REPROVADO_DESATIVADO)
+    repo.corrigir_calibracao(calibracao_id, correcao, "maria.silva", AGORA)
+    assert repo.historico_indicativa(instrumento) == []
+    assert not (repo.obter_instrumento(instrumento).localizacao or "").endswith("indicativa")
 
 
 def test_reprovada_nao_pode_ficar_com_parecer_aprovado(repo, salva):

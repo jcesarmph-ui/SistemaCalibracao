@@ -103,12 +103,10 @@ def test_data_obrigatoria_e_nao_futura(repo):
 
 def test_reativar_guarda_o_historico(repo):
     a = repo.incluir_instrumento(trena())
-    repo.mudar_condicao(a, Condicao.ORIENTACAO_INDICATIVA, date(2026, 12, 1), None, HOJE)
     repo.desativar_instrumento(a, date(2027, 1, 10), "Perdido", HOJE)
     repo.reativar_instrumento(a, date(2027, 2, 5), "Achado no almoxarifado", HOJE)
     assert not repo.esta_desativado(a)
     assert [(m.condicao, m.data, m.motivo) for m in repo.historico_condicao(a)] == [
-        (Condicao.ORIENTACAO_INDICATIVA, date(2026, 12, 1), None),
         (Condicao.DESATIVADO, date(2027, 1, 10), "Perdido"),
         (Condicao.EM_USO, date(2027, 2, 5), "Achado no almoxarifado"),
     ]

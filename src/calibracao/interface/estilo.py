@@ -112,7 +112,6 @@ CORES_PARECER = {
 
 CORES_CONDICAO = {
     Condicao.EM_USO: None,
-    Condicao.ORIENTACAO_INDICATIVA: None,
     Condicao.DESATIVADO: FAIXA_NEUTRA,
 }
 
