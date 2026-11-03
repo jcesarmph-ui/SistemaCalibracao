@@ -89,6 +89,7 @@ class AbaLixeira(QWidget):
 
         self.tabela = tabela_somente_leitura(["Tipo", "Item", "Enviado em", "Motivo"])
         self.tabela.setProperty("clicavel", True)  # clicar na linha escolhe o item
+        self.tabela.viewport().setCursor(Qt.PointingHandCursor)
         self.tabela.setSelectionMode(QAbstractItemView.SingleSelection)
         self.tabela.itemSelectionChanged.connect(self._habilitar)
         self.avisos = QLabel(wordWrap=True, objectName="avisos")

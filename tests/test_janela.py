@@ -524,3 +524,22 @@ def test_modo_consulta_so_ver_plano(janela, plano_da_trena):
     resumo.definir_edicao(False)
     assert resumo.editar.isHidden() and not resumo.ver.isHidden()
     assert resumo.criar_janela_ver().editar.isHidden()
+
+
+def test_maozinha_no_que_e_clicavel(janela):
+    """Pedido de 2026-11-03: mãozinha em botões, abas, filtros e caixinhas; desligado, seta."""
+    from PySide6.QtWidgets import QCheckBox
+
+    aba = janela.aba_instrumentos
+    assert aba.novo.cursor().shape() == Qt.PointingHandCursor
+    assert aba.filtro_tipo.cursor().shape() == Qt.PointingHandCursor
+    assert janela.abas.tabBar().cursor().shape() == Qt.PointingHandCursor
+    assert not aba.editar.isEnabled()  # nada escolhido: desligado
+    assert aba.editar.cursor().shape() == Qt.ArrowCursor
+    escolher(aba, "TRE-901")
+    assert aba.editar.cursor().shape() == Qt.PointingHandCursor
+    edicao = aba.criar_janela_edicao(aba.atual)
+    edicao.show()  # a mãozinha entra quando a janela aparece
+    QApplication.processEvents()
+    assert edicao.findChild(QCheckBox).cursor().shape() == Qt.PointingHandCursor
+    edicao.reject()

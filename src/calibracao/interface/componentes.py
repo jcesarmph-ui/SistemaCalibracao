@@ -5,6 +5,7 @@ import datetime
 from PySide6.QtCore import QEvent, QObject, QPoint, Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
+    QAbstractButton,
     QAbstractItemView,
     QAbstractSpinBox,
     QApplication,
@@ -31,8 +32,13 @@ class FiltroRodaDoMouse(QObject):
     """
 
     SEM_RODA = (QComboBox, QAbstractSpinBox, QTabBar)
+    # Mãozinha em tudo o que é clicável (pedido de 2026-11-03); desligado fica com a seta.
+    CLICAVEIS = (QAbstractButton, QComboBox, QTabBar)
 
     def eventFilter(self, objeto, evento) -> bool:  # noqa: N802 — nome exigido pelo Qt
+        if (evento.type() in (QEvent.Polish, QEvent.EnabledChange)
+                and isinstance(objeto, self.CLICAVEIS)):
+            objeto.setCursor(Qt.PointingHandCursor if objeto.isEnabled() else Qt.ArrowCursor)
         if evento.type() == QEvent.Wheel and isinstance(objeto, self.SEM_RODA):
             pai = objeto.parentWidget()
             if pai is not None:
@@ -42,7 +48,8 @@ class FiltroRodaDoMouse(QObject):
 
 
 def instalar_filtro_roda() -> None:
-    """Liga o filtro para o programa inteiro (janelas e diálogos), uma vez só."""
+    """Liga o filtro (roda do mouse e mãozinha) para o programa inteiro (janelas e diálogos),
+    uma vez só."""
     app = QApplication.instance()
     if app is not None and not hasattr(app, "_filtro_roda"):
         app._filtro_roda = FiltroRodaDoMouse(app)
