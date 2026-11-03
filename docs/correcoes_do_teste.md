@@ -28,7 +28,7 @@ e aprovada antes de seguir. Marcar `[x]` quando aprovado.
       Decidir com o usuário se quer também um botão "Atualizar".
 
 ### Aba Instrumentos
-- [ ] 9. (metade feita: linha escolhida em cinza com linhas brancas, no programa todo; falta o código parecer botão) Na lista, deixar claro que o **código é um botão** que abre os dados, e **destacar o
+- [x] 9. (código em azul sublinhado com mãozinha e dica; linha aberta em cinza com linhas brancas) Na lista, deixar claro que o **código é um botão** que abre os dados, e **destacar o
       instrumento aberto** (contorno ou cor), para não ter que comparar a lista com a ficha.
 - [ ] 10. **Ficha só de apresentação**; para editar, botão **EDITAR** que abre a ficha numa janela no
       meio da tela (como o aviso de pedido de edição), deixando claro que ali se edita.

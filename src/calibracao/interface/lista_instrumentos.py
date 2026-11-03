@@ -3,7 +3,8 @@
 Escolher uma linha avisa a aba (`escolhido`), que mostra os dados daquele instrumento.
 """
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QModelIndex, Qt, Signal
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -35,6 +36,8 @@ FILTROS_CONDICAO = {
 SO_INDICATIVA = "Orientação indicativa"
 TODOS_OS_TIPOS = "Todos os tipos"
 TODAS_AS_LOCALIZACOES = "Todas as localizações"
+COR_LINK = "#64b5f6"  # azul claro dos links (padrão do usuário)
+DICA_CODIGO = "Clique para abrir os dados deste instrumento."
 
 
 class ListaInstrumentos(QGroupBox):
@@ -69,6 +72,9 @@ class ListaInstrumentos(QGroupBox):
         cabecalho.setSectionResizeMode(QHeaderView.ResizeToContents)
         cabecalho.setSectionResizeMode(1, QHeaderView.Stretch)  # quem se ajusta é a localização
         self.tabela.itemSelectionChanged.connect(self._selecionou)
+        # O código tem cara de botão (pedido de 2026-11-03): azul sublinhado e mãozinha.
+        self.tabela.setMouseTracking(True)
+        self.tabela.entered.connect(self._mouse_sobre)
         self.contagem = QLabel(objectName="dica")
 
         filtros = QHBoxLayout()
@@ -136,7 +142,11 @@ class ListaInstrumentos(QGroupBox):
                      celula(condicao.condicao.value, CORES_CONDICAO[condicao.condicao]),
                      celula(formatar_data(condicao.data)), item_situacao]
             itens[0].setData(Qt.UserRole, instrumento.id)
-            itens[0].setToolTip(instrumento.tipo)
+            itens[0].setToolTip(f"{instrumento.tipo} — {DICA_CODIGO}")
+            itens[0].setForeground(QColor(COR_LINK))
+            fonte = QFont(itens[0].font())
+            fonte.setUnderline(True)
+            itens[0].setFont(fonte)
             for coluna, item in enumerate(itens):
                 self.tabela.setItem(linha, coluna, item)
             if instrumento.id == self.atual_id:
@@ -144,6 +154,11 @@ class ListaInstrumentos(QGroupBox):
         aplicar_destaques(self.tabela)
         self.tabela.blockSignals(False)
         self.contagem.setText(f"{len(visiveis)} de {len(self.instrumentos)} instrumento(s)")
+
+    def _mouse_sobre(self, indice: QModelIndex) -> None:
+        """Mãozinha sobre o código (é por ele que se abre o instrumento)."""
+        cursor = Qt.PointingHandCursor if indice.column() == 0 else Qt.ArrowCursor
+        self.tabela.viewport().setCursor(cursor)
 
     def marcar(self, instrumento_id: int | None) -> None:
         """Guarda qual está aberto (a linha continua selecionada ao recarregar)."""

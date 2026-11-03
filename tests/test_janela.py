@@ -435,3 +435,11 @@ def test_aba_calibrar_tem_nova_calibracao(janela):
     subabas = janela.aba_instrumentos.subabas
     assert [subabas.tabText(n) for n in range(subabas.count())] == [
         "Plano de calibração", "Histórico de condição"]
+
+
+def test_codigo_da_lista_tem_cara_de_botao(janela):
+    """Item 9 do teste (2026-11-03): código azul sublinhado, com dica de clique."""
+    item = janela.aba_instrumentos.tabela.item(0, 0)
+    assert item.foreground().color().name() == "#64b5f6"
+    assert item.font().underline()
+    assert "Clique para abrir" in item.toolTip()
