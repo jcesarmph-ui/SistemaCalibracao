@@ -1,12 +1,13 @@
 """Gráfico de tendência (Matplotlib dentro da janela), como no protótipo, com exportar PNG.
 
 Abre em **todos os pontos juntos** (pedido de 2026-11-03, item 17 do teste), um de cada cor; na
-lista dá para escolher um ponto por vez. Em cada um: o erro de cada calibração (medido − nominal,
-ou o erro do certificado) com a barra da Incerteza (U), e a tolerância em linhas tracejadas.
+lista dá para escolher um ponto por vez. Em cada um: o desvio encontrado de cada calibração
+(encontrado − exigido, ou o desvio do certificado) com a barra da Incerteza (U), e a tolerância em
+linhas tracejadas.
 
-Todos juntos: se todos os pontos têm a mesma tolerância, o eixo é o erro (na unidade do ponto);
-se não, é a **% da tolerância usada** (100% = no limite), para caber tudo num gráfico só. Pontos da
-mesma data ficam um pouco afastados para o lado, para um não cobrir o outro.
+Todos juntos: se todos os pontos têm a mesma tolerância, o eixo é o desvio (na unidade do ponto);
+se não, é a **% da tolerância usada** (100% = no limite), para caber tudo num gráfico só. Todos os
+pontos de uma calibração ficam na mesma reta vertical, na data dela (pedido de 2026-11-04).
 
 Reprovado: vermelho (marcador no gráfico de um ponto, anel em volta no de todos) — vermelho só
 para problema, como no resto do programa.
@@ -49,12 +50,32 @@ COR_REPROVADO = CORES["erro"]
 COR_TEXTO = "#f0f0f0"
 COR_GRADE = "#3a3a3a"
 COR_FUNDO = CORES["caixa"]
-# Todos juntos: paleta categórica para fundo escuro SEM amarelo, verde e vermelho (no programa
-# querem dizer aviso, certo e erro), sempre na mesma ordem. Passou de 5 pontos, a cor se repete
-# com outro formato de marcador — cada ponto continua com uma combinação só dele.
-CORES_PONTOS = ["#3987e5", "#d95926", "#199e70", "#d55181", "#9085e9"]
+# Todos juntos: 17 cores bem diferentes entre si (o maior plano tem 17 pontos), sempre na mesma
+# ordem — nada de dois tons da mesma cor (pedido de 2026-11-04). Verde e amarelo podem aparecer:
+# aqui cada cor é só um ponto, a legenda diz qual. Sem vermelho, que marca o reprovado. Só passando
+# de 17 a cor se repete, com outro formato de marcador.
+CORES_PONTOS = [
+    "#3987e5",  # azul
+    "#ff8c1a",  # laranja
+    "#3cb44b",  # verde
+    "#ffe119",  # amarelo
+    "#f032e6",  # magenta
+    "#42d4f4",  # ciano
+    "#a05cf0",  # roxo
+    "#bfef45",  # verde-limão
+    "#f5f5f5",  # branco
+    "#9a6324",  # marrom
+    "#fabed4",  # rosa-claro
+    "#469990",  # verde-azulado
+    "#dcbeff",  # lavanda
+    "#808000",  # oliva
+    "#ffd8b1",  # pêssego
+    "#aaffc3",  # menta
+    "#fffac8",  # creme
+]
 MARCADORES = ["o", "s", "^", "D", "v", "P"]
 TODOS = "Todos os pontos juntos"
+MAXIMO_DE_DATAS = 12  # até aqui, cada data de calibração aparece embaixo do gráfico
 
 
 def cor_e_marcador(indice: int) -> tuple[str, str]:
@@ -170,7 +191,13 @@ class JanelaTendencia(QDialog):
         eixo.axhline(0, color=COR_GRADE, linewidth=1)
         eixo.set_xlabel("Data da calibração", color=COR_TEXTO, fontsize=12)
         eixo.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m/%Y"))
-        eixo.xaxis.set_major_locator(mdates.AutoDateLocator(maxticks=8))
+        # No eixo, as datas das próprias calibrações (pedido de 2026-11-04); com muitas, o
+        # Matplotlib escolhe algumas para não encavalar.
+        datas = sorted({d.x for d in self._desenhados})
+        if len(datas) <= MAXIMO_DE_DATAS:
+            eixo.set_xticks(datas)
+        else:
+            eixo.xaxis.set_major_locator(mdates.AutoDateLocator(maxticks=8))
         eixo.tick_params(colors=COR_TEXTO, labelsize=11)
         eixo.grid(True, color=COR_GRADE, linewidth=0.8, alpha=0.6)
         for lado in eixo.spines.values():
@@ -205,11 +232,11 @@ class JanelaTendencia(QDialog):
 
         eixo.set_title(f"Tendência — {self.codigo} — {serie.nome}", color=COR_TEXTO,
                        fontsize=15, fontweight="bold", pad=12)
-        eixo.set_ylabel(f"Erro{unidade}", color=COR_TEXTO, fontsize=12)
+        eixo.set_ylabel(f"Desvio encontrado{unidade}", color=COR_TEXTO, fontsize=12)
         eixo.yaxis.set_major_formatter(FuncFormatter(lambda v, _: _texto(v)))
         eixo.margins(x=0.15, y=0.25)
         legenda = [Line2D([], [], color=COR_SERIE, marker="o", linewidth=2,
-                          label="Erro medido ± Incerteza (U)"),
+                          label="Desvio encontrado ± Incerteza (U)"),
                    Line2D([], [], color=COR_TOLERANCIA, linestyle="--", label="Tolerância")]
         if reprovados:
             legenda.append(Line2D([], [], color=COR_REPROVADO, marker="o", linestyle="",
@@ -222,11 +249,6 @@ class JanelaTendencia(QDialog):
 
     def _desenhar_todos(self, eixo) -> None:
         comum = tolerancia_comum(self.series)
-        todas_as_datas = [mdates.date2num(m.data) for s in self.series for m in s.medicoes]
-        largura = max(todas_as_datas) - min(todas_as_datas)
-        # Afastamento entre os pontos da mesma data: pequeno perto do período mostrado.
-        passo = max(largura * 0.008, 2.0)
-        meio = (len(self.series) - 1) / 2
         legenda, sem_tolerancia, algum_reprovado = [], [], False
         for indice, serie in enumerate(self.series):
             cor, marcador = cor_e_marcador(indice)
@@ -245,7 +267,7 @@ class JanelaTendencia(QDialog):
                                                 m.tolerancia_superior) or 0.0)
                     u_baixo = abs(em_porcentagem(-u, m.tolerancia_inferior,
                                                  m.tolerancia_superior) or 0.0)
-                x = mdates.date2num(m.data) + (indice - meio) * passo
+                x = mdates.date2num(m.data)  # a calibração inteira na mesma vertical
                 xs.append(x)
                 ys.append(y)
                 baixo.append(u_baixo)
@@ -275,14 +297,14 @@ class JanelaTendencia(QDialog):
         if comum:
             inferior, superior = _tolerancias(self.series[0])
             self._linhas_de_tolerancia(eixo, inferior, superior, numero_em_texto)
-            eixo.set_ylabel(f"Erro {unidade}" if unidade else "Erro", color=COR_TEXTO,
-                            fontsize=12)
+            eixo.set_ylabel(f"Desvio encontrado {unidade}" if unidade
+                            else "Desvio encontrado", color=COR_TEXTO, fontsize=12)
             eixo.yaxis.set_major_formatter(FuncFormatter(lambda v, _: _texto(v)))
             explicacao = (f"Tolerância igual em todos os pontos "
-                          f"({self._faixa(inferior, superior, unidade)}): eixo em erro")
+                          f"({self._faixa(inferior, superior, unidade)}): eixo em desvio")
         else:
             self._linhas_de_tolerancia(eixo, -100, 100, lambda v: f"{_texto(v)}%")
-            eixo.set_ylabel("Erro em % da tolerância", color=COR_TEXTO, fontsize=12)
+            eixo.set_ylabel("Desvio em % da tolerância", color=COR_TEXTO, fontsize=12)
             eixo.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{_texto(v)}%"))
             explicacao = ("Tolerâncias diferentes entre os pontos: eixo em % da tolerância "
                           "usada (100% = no limite)")
@@ -306,8 +328,8 @@ class JanelaTendencia(QDialog):
             for item in (linha, texto):
                 item.set_picker(True)
                 self._na_legenda[item] = indice
-        texto = ("Cada cor é um ponto do plano; os da mesma data ficam um pouco afastados para "
-                 "o lado, para não se cobrirem. A barra vertical é a Incerteza (U). Clique no "
+        texto = ("Cada cor é um ponto do plano; os pontos de uma calibração ficam na mesma "
+                 "vertical, na data dela. A barra vertical é a Incerteza (U). Clique no "
                  "nome de um ponto na legenda para escondê-lo ou mostrá-lo de novo. Passe o mouse "
                  "sobre um ponto para ver os valores; para ver um ponto sozinho, escolha-o em "
                  "\"Mostrar\".")
@@ -353,7 +375,7 @@ class JanelaTendencia(QDialog):
                               fontsize=10)
 
     def _passou_o_mouse(self, evento) -> None:
-        """Dica com ponto, data, erro, U e resultado do marcador mais perto do mouse."""
+        """Dica com ponto, data, desvio, U e resultado do marcador mais perto do mouse."""
         if not self._desenhados or evento.inaxes is not self._eixo:
             return
         perto = None
@@ -372,7 +394,7 @@ class JanelaTendencia(QDialog):
             return
         m = perto.medicao
         linhas = [perto.nome] if perto.nome else []
-        linhas += [formatar_data(m.data), f"Erro: {numero_em_texto(m.erro)}"]
+        linhas += [formatar_data(m.data), f"Desvio encontrado: {numero_em_texto(m.erro)}"]
         if perto.porcentagem is not None:
             linhas[-1] += f" ({_texto(round(perto.porcentagem))}% da tolerância)"
         linhas += [f"Incerteza (U): {numero_em_texto(m.incerteza) or '—'}", m.resultado.value]

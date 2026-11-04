@@ -58,8 +58,8 @@ def paquimetro(repo):
 
 def preencher(janela, medidos=("30,01", "60,02"), escolha="Aprovado"):
     for linha, texto in enumerate(medidos):
-        janela.tabela.item(linha, J.MEDIDO).setText(texto)
-    janela.tabela.cellWidget(2, J.MEDIDO).setCurrentText(escolha)
+        janela.tabela.item(linha, J.ENCONTRADO).setText(texto)
+    janela.tabela.cellWidget(2, J.ENCONTRADO).setCurrentText(escolha)
 
 
 def test_referencia_em_texto():
@@ -76,9 +76,9 @@ def test_referencia_em_texto():
 def test_resultado_aparece_enquanto_digita(app, repo, paquimetro):
     janela = JanelaNovaCalibracao(repo, paquimetro, HOJE)
     assert "Pendente" in janela.geral.text()
-    janela.tabela.item(0, J.MEDIDO).setText("30,045")  # 0,045 + U 0,01 passa de 0,05
+    janela.tabela.item(0, J.ENCONTRADO).setText("30,045")  # 0,045 + U 0,01 passa de 0,05
     assert janela.tabela.item(0, J.RESULTADO).text() == "Reprovado — acima do limite superior"
-    janela.tabela.item(0, J.MEDIDO).setText("trinta")
+    janela.tabela.item(0, J.ENCONTRADO).setText("trinta")
     assert "não é um número" in janela.tabela.item(0, J.RESULTADO).text()
     # a U do plano já vem preenchida
     assert janela.tabela.item(0, J.INCERTEZA).text() == "0,01"
@@ -187,17 +187,17 @@ def test_grafico_salva_png(app, repo, paquimetro, tmp_path):
     assert imagem.read_bytes()[:4] == b"\x89PNG"
 
 
-def test_todos_juntos_mesma_tolerancia_fica_em_erro(app, repo, paquimetro):
+def test_todos_juntos_mesma_tolerancia_fica_em_desvio(app, repo, paquimetro):
     from calibracao.interface.grafico_tendencia import JanelaTendencia, tolerancia_comum
     registrar(repo, paquimetro, date(2025, 10, 1))
     registrar(repo, paquimetro, date(2026, 10, 1))
     series = repo.tendencia(paquimetro.id)
     assert tolerancia_comum(series)
     janela = JanelaTendencia(series, "PAQ-900")
-    assert "eixo em erro" in janela._eixo.get_title()
-    # os dois pontos da mesma data ficam um pouco afastados para o lado
+    assert "eixo em desvio" in janela._eixo.get_title()
+    # os pontos da mesma calibração ficam na mesma vertical (pedido de 2026-11-04)
     mesma_data = [d.x for d in janela._desenhados if d.medicao.data == date(2025, 10, 1)]
-    assert len(set(mesma_data)) == 2
+    assert len(mesma_data) == 2 and len(set(mesma_data)) == 1
     # clicar no nome na legenda esconde o ponto; clicar de novo mostra
     janela.esconder_ou_mostrar(0)
     assert not any(a.get_visible() for a in janela._grupos[0])
@@ -252,13 +252,13 @@ def test_corrigir_pela_tela_vem_preenchido_e_registra_a_correcao(app, repo, paqu
     # vem como foi salva, com a data travada
     assert not janela.data.isEnabled()
     assert janela.data.date().toPython() == date(2026, 10, 20)
-    assert janela.tabela.item(0, J.MEDIDO).text() == "30,01"
-    assert janela.tabela.cellWidget(2, J.MEDIDO).currentText() == "Aprovado"
+    assert janela.tabela.item(0, J.ENCONTRADO).text() == "30,01"
+    assert janela.tabela.cellWidget(2, J.ENCONTRADO).currentText() == "Aprovado"
     assert janela.parecer.currentData() == ParecerFinal.APROVADO
     assert janela.salvar.text() == "SALVAR CORREÇÃO"
     # corrige o certificado e um valor
     janela.certificado.setText("CERT-77")
-    janela.tabela.item(1, J.MEDIDO).setText("60,03")
+    janela.tabela.item(1, J.ENCONTRADO).setText("60,03")
     janela.salvar_calibracao()
     assert janela.result(), janela.avisos.text()
     corrigida = repo.obter_calibracao(calibracao_id)
@@ -299,5 +299,113 @@ def test_ponto_com_u_nao_se_aplica_na_janela(app, repo):
         "MIC-901", "Micrômetro", plano_id=plano, periodicidade_meses=12)))
     janela = JanelaNovaCalibracao(repo, mic, HOJE)
     assert janela.tabela.item(0, J.INCERTEZA).text() == "não se aplica"
-    janela.tabela.item(0, J.MEDIDO).setText("0,64")
+    janela.tabela.item(0, J.ENCONTRADO).setText("0,64")
     assert janela.resultados() == [Resultado.APROVADO]
+
+
+def test_desvio_encontrado_e_desvio_final_na_hora(app, repo, paquimetro):
+    """Pedido de 2026-11-04: encontrado 29,98 (exigido 30, U 0,01, ± 0,05) → desvio −0,02 e
+    desvio final −0,03 (o lado mais perto da tolerância)."""
+    janela = JanelaNovaCalibracao(repo, paquimetro, HOJE)
+    janela.tabela.item(0, J.ENCONTRADO).setText("29,98")
+    assert janela.tabela.item(0, J.DESVIO).text() == "-0,02"
+    assert janela.tabela.item(0, J.DESVIO_FINAL).text() == "-0,03"
+    janela.tabela.item(0, J.ENCONTRADO).setText("30")
+    assert janela.tabela.item(0, J.DESVIO_FINAL).text() == "± 0,01"
+    janela.tabela.item(0, J.ENCONTRADO).setText("")
+    assert janela.tabela.item(0, J.DESVIO).text() == "—"
+    # verificação visual: nada de desvio
+    assert janela.tabela.item(2, J.DESVIO_FINAL).text() == "—"
+
+
+def test_sem_nominal_digita_o_desvio(app, repo):
+    plano = repo.incluir_plano(Plano("Plano DUR-901"))
+    repo.incluir_ponto(PontoPlano(plano, "NUMERICO", "67 a 80 HR15T", tolerancia_inferior=-2.0,
+                                  tolerancia_superior=2.0, incerteza=0.5))
+    dur = repo.obter_instrumento(repo.incluir_instrumento(Instrumento(
+        "DUR-901", "Durômetro", plano_id=plano, periodicidade_meses=12)))
+    janela = JanelaNovaCalibracao(repo, dur, HOJE)
+    assert not janela.tabela.item(0, J.ENCONTRADO).flags() & Qt.ItemIsEditable
+    janela.tabela.item(0, J.DESVIO).setText("1,2")
+    assert janela.tabela.item(0, J.DESVIO_FINAL).text() == "1,7"
+    assert janela.resultados() == [Resultado.APROVADO]
+    janela.tabela.item(0, J.DESVIO).setText("1,8")
+    assert janela.resultados() == [Resultado.REPROVADO]
+
+
+def test_limite_mostra_o_encontrado_mais_u_no_desvio_final(app, repo):
+    plano = repo.incluir_plano(Plano("Plano MIC-902"))
+    repo.incluir_ponto(PontoPlano(plano, "LIMITE", "Planeza", valor_maximo=2.0, incerteza=0.1))
+    mic = repo.obter_instrumento(repo.incluir_instrumento(Instrumento(
+        "MIC-902", "Micrômetro", plano_id=plano, periodicidade_meses=12)))
+    janela = JanelaNovaCalibracao(repo, mic, HOJE)
+    janela.tabela.item(0, J.ENCONTRADO).setText("1,8")
+    assert janela.tabela.item(0, J.DESVIO).text() == "—"
+    assert janela.tabela.item(0, J.DESVIO_FINAL).text() == "1,9"
+
+
+def test_enter_e_esc_nao_fecham_a_janela(app, repo, paquimetro):
+    """Pedido de 2026-11-04: o Enter fechou a calibração e perdeu tudo. Só fecha pelo X,
+    Salvar ou Cancelar."""
+    from PySide6.QtTest import QTest
+
+    from calibracao.interface.componentes import instalar_filtro_roda
+    instalar_filtro_roda()
+    janela = JanelaNovaCalibracao(repo, paquimetro, HOJE)
+    janela.show()
+    for tecla in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Escape):
+        QTest.keyClick(janela, tecla)
+        QTest.keyClick(janela.laboratorio, tecla)
+        QTest.keyClick(janela.salvar, tecla)
+        assert janela.isVisible()
+        assert janela.result() == 0
+    assert repo.listar_calibracoes(paquimetro.id) == []
+    janela.close()
+
+
+def test_enter_confirma_e_desce_para_a_celula_de_baixo(app, repo, paquimetro):
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QAbstractItemView, QLineEdit
+
+    from calibracao.interface.componentes import instalar_filtro_roda
+    instalar_filtro_roda()
+    janela = JanelaNovaCalibracao(repo, paquimetro, HOJE)
+    janela.show()
+    tabela = janela.tabela
+    tabela.setCurrentCell(0, J.ENCONTRADO)
+    tabela.editItem(tabela.item(0, J.ENCONTRADO))
+    editor = tabela.findChild(QLineEdit)
+    QTest.keyClicks(editor, "30,01")
+    QTest.keyClick(editor, Qt.Key_Return)
+    for _ in range(3):
+        app.processEvents()
+    assert tabela.item(0, J.ENCONTRADO).text() == "30,01"
+    assert tabela.currentRow() == 1  # desceu e já está digitando na de baixo
+    assert tabela.state() == QAbstractItemView.EditingState
+    assert janela.isVisible()
+    janela.close()
+
+
+def test_dezessete_pontos_com_cores_diferentes():
+    """O maior plano tem 17 pontos: nenhuma cor se repete até lá (pedido de 2026-11-04)."""
+    from calibracao.interface.grafico_tendencia import cor_e_marcador
+    assert len({cor_e_marcador(i)[0] for i in range(17)}) == 17
+
+
+def test_pontos_da_mesma_calibracao_na_mesma_vertical(app, repo, paquimetro):
+    from calibracao.interface.grafico_tendencia import JanelaTendencia
+    registrar(repo, paquimetro, date(2026, 10, 20))
+    janela = JanelaTendencia(repo.tendencia(paquimetro.id), "PAQ-900")
+    assert janela.todos
+    assert len({d.x for d in janela._desenhados}) == 1
+
+
+def test_eixo_mostra_as_datas_das_calibracoes(app, repo, paquimetro):
+    from matplotlib import dates as mdates
+
+    from calibracao.interface.grafico_tendencia import JanelaTendencia
+    registrar(repo, paquimetro, date(2025, 10, 1))
+    registrar(repo, paquimetro, date(2026, 10, 1))
+    janela = JanelaTendencia(repo.tendencia(paquimetro.id), "PAQ-900")
+    marcas = [mdates.num2date(x).date() for x in janela._eixo.get_xticks()]
+    assert marcas == [date(2025, 10, 1), date(2026, 10, 1)]
