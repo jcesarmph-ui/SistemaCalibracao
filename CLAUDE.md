@@ -106,7 +106,7 @@ usuário): o usuário quer fazer **depois, não agora** — apenas lembrar a pen
 vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_responsavel.py`);
 `Abrir_CALIB.bat` e `iniciar_calib.py` (deixam de existir sem Streamlit); `.vscode/`.
 
-## ▶ PRÓXIMA SESSÃO — lembrar o usuário logo no início (atualizado em 2026-11-03)
+## ▶ PRÓXIMA SESSÃO — lembrar o usuário logo no início (atualizado em 2026-11-04)
 1. **Escrever SÓ em português** (o usuário ficou bravo com frases em inglês em 2026-11-03).
 2. **Versão `1.0.0` entregue em 2026-11-03** (tag `v1.0.0`, tudo juntado ao `main`). Itens 1–18
    de `docs/correcoes_do_teste.md` feitos (17 = gráfico com todos os pontos juntos; 18 = seletor
@@ -122,6 +122,16 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    **Prints** de cada versão: repositório **PRIVADO** `jcesarmph-ui/calibracao-prints` (pasta
    `Projetos\calibracao-prints`, uma pasta `prints-X.Y.Z` por versão), gerados por
    `dados/fotos/foto_prints.py` (cópia do banco da entrega + uso simulado até 03/2029).
+   **Versão `1.1.0` (2026-11-04, PR #16, tag `v1.1.0`)** — ajustes da 1ª calibração real (a rede
+   já tinha 1 calibração): Enter/Esc não fecham janela nenhuma (só X/Salvar/Cancelar;
+   `componentes.FiltroRodaDoMouse._tecla_de_fechar`); Enter nas tabelas confirma e desce
+   (`componentes.enter_desce`); colunas Valor encontrado | Incerteza (U) | Desvio encontrado |
+   Desvio final (`regras.avaliacao.desvio_final`: desvio ± U do lado mais perto da tolerância;
+   desvio 0 → "± U"; limite → encontrado ± U mais perto do limite; sem nominal fixo → digita o
+   desvio); gráfico: calibração inteira numa vertical, datas das calibrações no eixo, 17 cores
+   bem diferentes (verde/amarelo permitidos no gráfico); calendário escuro. Banco sem mudança.
+   Pacote em `dist/Calibração de Instrumentos` (conferido: abre, versão 1.1.0). Fotos:
+   `dados/fotos/foto_1_1_0.py`; prints em `calibracao-prints/prints-1.1.0`.
 3. Pendências que continuam: confidencialidade do repositório público (só quando o usuário
    pedir); limpeza dos arquivos do protótipo na árvore (perguntar antes de remover).
 4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,
