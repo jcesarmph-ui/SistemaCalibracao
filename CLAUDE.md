@@ -131,7 +131,9 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    desvio); gráfico: calibração inteira numa vertical, datas das calibrações no eixo, 17 cores
    bem diferentes (verde/amarelo permitidos no gráfico); calendário escuro. Banco sem mudança.
    Pacote em `dist/Calibração de Instrumentos` (conferido: abre, versão 1.1.0). Fotos:
-   `dados/fotos/foto_1_1_0.py`; prints em `calibracao-prints/prints-1.1.0`.
+   `dados/fotos/foto_1_1_0.py`; prints em `calibracao-prints/prints-1.1.0`. **Colocada na rede
+   pelo usuário em 2026-11-04** (trocou a pasta `programa`; para ver pastas ocultas usou Opções
+   do Explorador de Arquivos → Modo de Exibição — o menu Exibir dele não tem "Itens ocultos").
 3. Pendências que continuam: confidencialidade do repositório público (só quando o usuário
    pedir); limpeza dos arquivos do protótipo na árvore (perguntar antes de remover).
 4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,
