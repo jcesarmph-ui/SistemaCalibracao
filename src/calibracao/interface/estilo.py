@@ -39,6 +39,19 @@ QComboBox QAbstractItemView {{ background: {campo}; selection-background-color: 
 QPushButton {{ background: {campo}; border: 1px solid {borda}; border-radius: 6px; padding: 10px; }}
 QPushButton:hover:enabled {{ background: {mouse}; color: #ffffff; }}
 QPushButton:disabled {{ color: #6e6e6e; border: 1px solid {campo_borda}; }}
+QCalendarWidget QWidget {{ alternate-background-color: {campo}; }}
+QCalendarWidget QAbstractItemView {{ background: {campo}; color: #f0f0f0;
+    selection-background-color: {selecao}; selection-color: #ffffff; outline: none; }}
+QCalendarWidget QAbstractItemView:disabled {{ color: #5a5a5a; }}
+QCalendarWidget #qt_calendar_navigationbar {{ background: {caixa};
+                                              border-bottom: 1px solid {campo_borda}; }}
+QCalendarWidget QToolButton {{ color: #ffffff; background: transparent; padding: 4px 10px;
+                               border: none; font-weight: bold; }}
+QCalendarWidget QToolButton:hover {{ background: {mouse}; border-radius: 4px; }}
+QCalendarWidget QMenu {{ background: {campo}; color: #f0f0f0; }}
+QCalendarWidget QMenu::item:selected {{ background: {selecao}; }}
+QCalendarWidget QSpinBox {{ background: {campo}; color: #ffffff; border: 1px solid {campo_borda};
+                            selection-background-color: {selecao}; }}
 QToolTip {{ background: {campo}; color: #f0f0f0; border: 1px solid {borda}; }}
 QTabWidget::pane {{ border: 1px solid {borda}; border-radius: 6px; background: {caixa};
                     top: -1px; }}

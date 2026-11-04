@@ -69,6 +69,50 @@ def avaliar_limite(valor: float | None, *, minimo: float | None, maximo: float |
     return _comparar(valor, incerteza, minimo, maximo, sem_incerteza)
 
 
+@dataclass(frozen=True)
+class DesvioFinal:
+    """O desvio somado à U, do lado que fica mais perto da tolerância (pedido de 2026-11-04).
+
+    `dos_dois_lados`: os dois lados ficam igualmente perto (desvio zero com tolerância igual dos
+    dois lados) — aparece "± U".
+    """
+
+    valor: float
+    dos_dois_lados: bool = False
+
+
+def desvio_final(x: float | None, incerteza: float | None, minimo: float | None,
+                 maximo: float | None, sem_incerteza: bool = False) -> DesvioFinal | None:
+    """`x` é o desvio encontrado (no ponto de limite, o próprio valor encontrado).
+
+    Ex.: desvio −0,2 e U 0,1 com tolerância ± 0,5 → −0,3 (e não −0,1). U ausente → None
+    (nunca U = 0); "U não se aplica" → o próprio desvio.
+    """
+    if x is None:
+        return None
+    if sem_incerteza:
+        return DesvioFinal(x)
+    if incerteza is None:
+        return None
+    u = abs(incerteza)
+    if u == 0:
+        return DesvioFinal(x)
+
+    def folga(valor: float) -> float:
+        """Quanto falta para sair da tolerância (menor = mais perto)."""
+        folgas = [maximo - valor] if maximo is not None else []
+        if minimo is not None:
+            folgas.append(valor - minimo)
+        return min(folgas) if folgas else -abs(valor)  # sem tolerância: o mais longe do zero
+
+    abaixo, acima = x - u, x + u
+    if abs(folga(abaixo) - folga(acima)) <= _FOLGA:
+        if abs(x) <= _FOLGA:
+            return DesvioFinal(u, dos_dois_lados=True)
+        return DesvioFinal(abaixo if abs(abaixo) > abs(acima) else acima)
+    return DesvioFinal(abaixo if folga(abaixo) < folga(acima) else acima)
+
+
 def resultado_geral(resultados: list[Resultado]) -> Resultado:
     """Resultado da calibração inteira a partir do resultado de cada ponto.
 

@@ -127,3 +127,27 @@ def test_incerteza_nao_se_aplica_avalia_so_pelo_valor():
     # sem a marca, U ausente continua "não avaliado" (nunca vira zero)
     assert avaliar_limite(0.64, minimo=None, maximo=2.0,
                           incerteza=None).resultado == Resultado.NAO_AVALIADO
+
+
+def test_desvio_final_fica_do_lado_mais_perto_da_tolerancia():
+    """Pedido de 2026-11-04: desvio −0,2 com U 0,1 e tolerância ± 0,5 → −0,3."""
+    from calibracao.regras.avaliacao import DesvioFinal, desvio_final
+    assert desvio_final(-0.2, 0.1, -0.5, 0.5).valor == pytest.approx(-0.3)
+    assert desvio_final(0.2, 0.1, -0.5, 0.5).valor == pytest.approx(0.3)
+    # tolerância de um lado só (ex.: -0,1 a +0,5): perto do lado de baixo
+    assert desvio_final(0.05, 0.1, -0.1, 0.5).valor == pytest.approx(-0.05)
+    # desvio zero com tolerância igual dos dois lados: "± U"
+    assert desvio_final(0.0, 0.1, -0.5, 0.5) == DesvioFinal(0.1, dos_dois_lados=True)
+    # U negativa vale sem o sinal
+    assert desvio_final(-0.2, -0.1, -0.5, 0.5).valor == pytest.approx(-0.3)
+
+
+def test_desvio_final_no_limite_e_sem_u():
+    from calibracao.regras.avaliacao import desvio_final
+    # limite "2 máx.": encontrado 1,8 e U 0,1 → 1,9
+    assert desvio_final(1.8, 0.1, None, 2.0).valor == pytest.approx(1.9)
+    assert desvio_final(700, 5, 628, None).valor == pytest.approx(695)
+    # U ausente: nada (nunca U = 0); U não se aplica: o próprio desvio
+    assert desvio_final(-0.2, None, -0.5, 0.5) is None
+    assert desvio_final(-0.2, None, -0.5, 0.5, sem_incerteza=True).valor == -0.2
+    assert desvio_final(None, 0.1, -0.5, 0.5) is None

@@ -43,19 +43,23 @@ from calibracao.dados.repositorio import (
 from calibracao.interface.componentes import (
     aplicar_destaques,
     celula,
+    enter_desce,
     formatar_data,
     tabela_somente_leitura,
 )
 from calibracao.interface.estilo import CORES, CORES_PARECER, CORES_RESULTADO
 from calibracao.interface.painel_plano import numero, numero_em_texto
-from calibracao.regras.avaliacao import Resultado, resultado_geral
+from calibracao.regras.avaliacao import Resultado, desvio_final, resultado_geral
 from calibracao.regras.condicao import pareceres_permitidos, so_qualitativos
 from calibracao.regras.lixeira import Tipo
 
 DICA_U = ("Incerteza expandida de medição (U), do certificado: quanto o resultado pode variar "
           "para mais ou para menos. Já vem a do plano; troque se o certificado trouxer outra.")
 DICA_SEM_NOMINAL = ("Ponto sem nominal fixo (ex.: durômetro, laboratório externo): digite o "
-                    "ERRO que está no certificado.")
+                    "DESVIO que está no certificado, na coluna Desvio encontrado.")
+DICA_DESVIO = "Valor encontrado − exigido (calculado sozinho)."
+DICA_DESVIO_FINAL = ("Desvio encontrado ± Incerteza (U), do lado que fica mais perto da "
+                     "tolerância (ex.: desvio −0,2 e U 0,1 → −0,3). É o que decide o resultado.")
 NUMERICOS = ("NUMERICO", "LIMITE")
 ESCOLHAS = {"— escolha —": None, "Aprovado": Resultado.APROVADO,
             "Reprovado": Resultado.REPROVADO}
@@ -96,6 +100,40 @@ def referencia(ponto) -> str:
     return "Verificação visual"
 
 
+def _texto_numero(valor: float | None) -> str:
+    if valor is None:
+        return "—"
+    if abs(valor) < 5e-7:  # nada de "-0" por arredondamento
+        valor = 0.0
+    return numero_em_texto(valor)
+
+
+def desvio_encontrado(ponto, valor: float | None) -> float | None:
+    """Encontrado − exigido; no ponto sem nominal fixo, o desvio já vem do certificado.
+    Ponto de limite não tem desvio (não há um valor exigido para subtrair)."""
+    if valor is None or ponto.tipo != "NUMERICO":
+        return None
+    return valor - ponto.valor_nominal if ponto.valor_nominal is not None else valor
+
+
+def texto_desvio_final(ponto, valor: float | None, incerteza: float | None) -> str:
+    """Desvio ± U do lado mais perto da tolerância; no limite, o encontrado ± U mais perto do
+    limite (pedido de 2026-11-04)."""
+    if ponto.tipo == "NUMERICO":
+        x = desvio_encontrado(ponto, valor)
+        minimo, maximo = ponto.tolerancia_inferior, ponto.tolerancia_superior
+    elif ponto.tipo == "LIMITE":
+        x, minimo, maximo = valor, ponto.valor_minimo, ponto.valor_maximo
+    else:
+        return "—"
+    final = desvio_final(x, incerteza, minimo, maximo, bool(ponto.incerteza_nao_aplica))
+    if final is None:
+        return "—"
+    if final.dos_dois_lados:
+        return f"± {_texto_numero(final.valor)}"
+    return _texto_numero(final.valor)
+
+
 def celula_resultado(resultado: Resultado, motivo: str | None = None) -> QTableWidgetItem:
     texto = f"{resultado.value} — {motivo}" if motivo else resultado.value
     return celula(texto, CORES_RESULTADO[resultado])
@@ -119,8 +157,8 @@ class JanelaNovaCalibracao(QDialog):
     """
 
     # Colunas da tabela de pontos
-    (NUM, SECAO, DESCRICAO, REFERENCIA, MEDIDO, INCERTEZA, PADRAO, INDICACAO, NAO_APLICAVEL,
-     OBSERVACAO, RESULTADO) = range(11)
+    (NUM, SECAO, DESCRICAO, REFERENCIA, ENCONTRADO, INCERTEZA, DESVIO, DESVIO_FINAL, PADRAO,
+     INDICACAO, NAO_APLICAVEL, OBSERVACAO, RESULTADO) = range(13)
 
     def __init__(self, repositorio: Repositorio, instrumento: Instrumento, hoje: datetime.date,
                  parent=None, corrigir: Calibracao | None = None, usuario: str = "") -> None:
@@ -219,9 +257,12 @@ class JanelaNovaCalibracao(QDialog):
     def _caixa_pontos(self) -> QGroupBox:
         colunas = [
             ("Nº", ""), ("Seção", ""), ("Descrição", ""), ("Exigido", "O que o ponto exige."),
-            ("Medido (ou erro)", "Valor medido. Em ponto sem nominal fixo, o erro do "
-                                 "certificado. Em ponto de verificação, escolha o resultado."),
+            ("Valor encontrado", "Valor medido na calibração. Em ponto de verificação, "
+                                 "escolha o resultado."),
             ("Incerteza (U)", DICA_U),
+            ("Desvio encontrado", DICA_DESVIO + " Em ponto sem nominal fixo, digite o desvio "
+                                                "do certificado."),
+            ("Desvio final", DICA_DESVIO_FINAL),
             ("Padrão", "Só registro, quando o certificado traz (pontos sem nominal fixo)."),
             ("Indicação", "Só registro, quando o certificado traz (pontos sem nominal fixo)."),
             ("Não aplicável", "Marque se o ponto não se aplica nesta calibração (exige "
@@ -240,6 +281,9 @@ class JanelaNovaCalibracao(QDialog):
         cabecalho.setSectionResizeMode(self.REFERENCIA, QHeaderView.Stretch)
         cabecalho.setSectionResizeMode(self.OBSERVACAO, QHeaderView.Stretch)
         self.tabela.setSelectionMode(QAbstractItemView.NoSelection)
+        # Um clique (ou começar a digitar) já edita; Enter confirma e desce (pedido de 2026-11-04).
+        self.tabela.setEditTriggers(QAbstractItemView.AllEditTriggers)
+        enter_desce(self.tabela)
 
         self.tabela.blockSignals(True)
         for linha, ponto in enumerate(self.pontos):
@@ -251,10 +295,11 @@ class JanelaNovaCalibracao(QDialog):
 
         sem_nominal = sum(1 for p in self.pontos if p.tipo == "NUMERICO"
                           and p.valor_nominal is None)
-        dica = ("Preencha todos os pontos: ponto em branco não deixa salvar. Clique duas vezes "
-                "numa célula para digitar.")
+        dica = ("Preencha todos os pontos: ponto em branco não deixa salvar. Clique numa célula "
+                "(ou comece a digitar) para preencher; Enter confirma e desce para a de baixo.")
         if sem_nominal:
-            dica += f" {sem_nominal} ponto(s) sem nominal fixo: digite o ERRO do certificado."
+            dica += (f" {sem_nominal} ponto(s) sem nominal fixo: digite o desvio do certificado "
+                     "em Desvio encontrado.")
         origem = "registrados" if self.corrigindo else "do plano"
         caixa = QGroupBox(f"Pontos {origem} — {len(self.pontos)}")
         coluna = QVBoxLayout(caixa)
@@ -276,14 +321,21 @@ class JanelaNovaCalibracao(QDialog):
         self._fixo(linha, self.DESCRICAO, ponto.descricao)
         self._fixo(linha, self.REFERENCIA, referencia(ponto))
         if ponto.tipo in NUMERICOS:
-            self._editavel(linha, self.MEDIDO)
+            if ponto.tipo == "NUMERICO" and ponto.valor_nominal is None:
+                # sem nominal fixo: o certificado já traz o desvio
+                self._fixo(linha, self.ENCONTRADO, "—")
+                self._editavel(linha, self.DESVIO)
+                self.tabela.item(linha, self.DESVIO).setToolTip(DICA_SEM_NOMINAL)
+            else:
+                self._editavel(linha, self.ENCONTRADO)
+                self._fixo(linha, self.DESVIO, "—")
+            self._fixo(linha, self.DESVIO_FINAL, "—")
             if ponto.incerteza_nao_aplica:  # "-" ou "N/A" na DQ05: avaliado só pelo valor
                 self._fixo(linha, self.INCERTEZA, NAO_SE_APLICA)
                 self.tabela.item(linha, self.INCERTEZA).setToolTip(DICA_NAO_SE_APLICA)
             else:
                 self._editavel(linha, self.INCERTEZA, numero_em_texto(ponto.incerteza))
             if ponto.tipo == "NUMERICO" and ponto.valor_nominal is None:
-                self.tabela.item(linha, self.MEDIDO).setToolTip(DICA_SEM_NOMINAL)
                 self._editavel(linha, self.PADRAO)
                 self._editavel(linha, self.INDICACAO)
             else:
@@ -293,8 +345,9 @@ class JanelaNovaCalibracao(QDialog):
             escolha = QComboBox()
             escolha.addItems(ESCOLHAS)
             escolha.currentIndexChanged.connect(lambda _, n=linha: self._avaliar_linha(n))
-            self.tabela.setCellWidget(linha, self.MEDIDO, escolha)
-            for coluna in (self.INCERTEZA, self.PADRAO, self.INDICACAO):
+            self.tabela.setCellWidget(linha, self.ENCONTRADO, escolha)
+            for coluna in (self.INCERTEZA, self.DESVIO, self.DESVIO_FINAL, self.PADRAO,
+                           self.INDICACAO):
                 self._fixo(linha, coluna, "—")
         nao_aplicavel = QTableWidgetItem()
         nao_aplicavel.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
@@ -353,7 +406,8 @@ class JanelaNovaCalibracao(QDialog):
             if ponto.resultado == Resultado.NAO_APLICAVEL:
                 self.tabela.item(linha, self.NAO_APLICAVEL).setCheckState(Qt.Checked)
             if ponto.tipo in NUMERICOS:
-                for coluna, valor in [(self.MEDIDO, ponto.valor),
+                for coluna, valor in [(self.ENCONTRADO, ponto.valor),
+                                      (self.DESVIO, ponto.valor),
                                       (self.INCERTEZA, ponto.incerteza),
                                       (self.PADRAO, ponto.valor_padrao),
                                       (self.INDICACAO, ponto.valor_medido)]:
@@ -361,7 +415,8 @@ class JanelaNovaCalibracao(QDialog):
                     if item.flags() & Qt.ItemIsEditable:
                         item.setText(numero_em_texto(valor))
             elif ponto.resultado in ESCOLHAS.values():
-                self.tabela.cellWidget(linha, self.MEDIDO).setCurrentText(ponto.resultado.value)
+                self.tabela.cellWidget(linha, self.ENCONTRADO).setCurrentText(
+                    ponto.resultado.value)
             self.tabela.item(linha, self.OBSERVACAO).setText(ponto.observacao or "")
         self.tabela.blockSignals(False)
         for linha in range(len(self.pontos)):
@@ -373,6 +428,10 @@ class JanelaNovaCalibracao(QDialog):
     def _mudou_celula(self, item: QTableWidgetItem) -> None:
         if item.column() != self.RESULTADO:
             self._avaliar_linha(item.row())
+
+    def _editavel_em(self, linha: int, coluna: int) -> bool:
+        item = self.tabela.item(linha, coluna)
+        return bool(item and item.flags() & Qt.ItemIsEditable)
 
     def _texto(self, linha: int, coluna: int) -> str:
         item = self.tabela.item(linha, coluna)
@@ -387,27 +446,43 @@ class JanelaNovaCalibracao(QDialog):
             medido.escolha = Resultado.NAO_APLICAVEL
             return medido
         if ponto.tipo in NUMERICOS:
-            for coluna, campo, nome in [(self.MEDIDO, "valor", "Medido"),
-                                        (self.INCERTEZA, "incerteza", "Incerteza (U)"),
-                                        (self.PADRAO, "valor_padrao", "Padrão"),
-                                        (self.INDICACAO, "valor_medido", "Indicação")]:
-                texto = self._texto(linha, coluna)
+            # o valor é o encontrado ou, sem nominal fixo, o desvio (só uma das duas é editável)
+            valor = self._texto(linha, self.ENCONTRADO) or self._texto(linha, self.DESVIO)
+            nome_valor = ("Desvio encontrado" if self._editavel_em(linha, self.DESVIO)
+                          else "Valor encontrado")
+            for texto, campo, nome in [
+                    (valor, "valor", nome_valor),
+                    (self._texto(linha, self.INCERTEZA), "incerteza", "Incerteza (U)"),
+                    (self._texto(linha, self.PADRAO), "valor_padrao", "Padrão"),
+                    (self._texto(linha, self.INDICACAO), "valor_medido", "Indicação")]:
                 try:
                     setattr(medido, campo, numero(texto))
                 except ValueError:
                     raise ValueError(f"Ponto {ponto.ordem}: \"{texto}\" em {nome} não é um "
                                      "número.") from None
         else:
-            medido.escolha = ESCOLHAS[self.tabela.cellWidget(linha, self.MEDIDO).currentText()]
+            medido.escolha = ESCOLHAS[
+                self.tabela.cellWidget(linha, self.ENCONTRADO).currentText()]
         return medido
 
     def _avaliar_linha(self, linha: int) -> None:
+        ponto = self.pontos[linha]
+        medido = None
         try:
-            avaliacao = self.repo.avaliar_ponto(self.pontos[linha], self.medido_da_linha(linha))
+            medido = self.medido_da_linha(linha)
+            avaliacao = self.repo.avaliar_ponto(ponto, medido)
             resultado, motivo = avaliacao.resultado, avaliacao.motivo
         except ValueError:
             resultado, motivo = Resultado.NAO_INFORMADO, "não é um número"
         self.tabela.blockSignals(True)
+        if ponto.tipo in NUMERICOS:
+            conta = medido is not None and medido.escolha != Resultado.NAO_APLICAVEL
+            valor = medido.valor if conta else None
+            if not self._editavel_em(linha, self.DESVIO):
+                self.tabela.item(linha, self.DESVIO).setText(
+                    _texto_numero(desvio_encontrado(ponto, valor)))
+            self.tabela.item(linha, self.DESVIO_FINAL).setText(
+                texto_desvio_final(ponto, valor, medido.incerteza if conta else None))
         item = celula_resultado(resultado, motivo)
         item.setData(Qt.UserRole, resultado)
         self.tabela.setItem(linha, self.RESULTADO, item)
@@ -543,18 +618,23 @@ class JanelaVerCalibracao(QDialog):
 
         pontos = repositorio.pontos_da_calibracao(calibracao.id)
         self.tabela = tabela_somente_leitura(
-            ["Nº", "Seção", "Descrição", "Exigido", "Medido (ou erro)", "Incerteza (U)",
-             "Padrão", "Indicação", "Resultado", "Observação"])
+            ["Nº", "Seção", "Descrição", "Exigido", "Valor encontrado", "Incerteza (U)",
+             "Desvio encontrado", "Desvio final", "Padrão", "Indicação", "Resultado",
+             "Observação"])
         self.tabela.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.tabela.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
         self.tabela.setRowCount(len(pontos))
         for linha, ponto in enumerate(pontos):
-            medido = (numero_em_texto(ponto.valor) if ponto.tipo in NUMERICOS
-                      else "—") or "—"
+            sem_nominal = ponto.tipo == "NUMERICO" and ponto.valor_nominal is None
+            numerico = ponto.tipo in NUMERICOS
+            encontrado = (_texto_numero(ponto.valor) if numerico and not sem_nominal
+                          else "—")
             itens = [celula(str(ponto.ordem)), celula(ponto.secao or ""),
-                     celula(ponto.descricao), celula(referencia(ponto)), celula(medido),
+                     celula(ponto.descricao), celula(referencia(ponto)), celula(encontrado),
                      celula(NAO_SE_APLICA if ponto.incerteza_nao_aplica
                             else numero_em_texto(ponto.incerteza) or "—"),
+                     celula(_texto_numero(desvio_encontrado(ponto, ponto.valor))),
+                     celula(texto_desvio_final(ponto, ponto.valor, ponto.incerteza)),
                      celula(numero_em_texto(ponto.valor_padrao) or "—"),
                      celula(numero_em_texto(ponto.valor_medido) or "—"),
                      celula_resultado(ponto.resultado), celula(ponto.observacao or "")]

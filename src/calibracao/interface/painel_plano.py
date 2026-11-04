@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from calibracao.dados.repositorio import ErroDeValidacao, PontoPlano, Repositorio
+from calibracao.interface.componentes import enter_desce
 from calibracao.regras.lixeira import Tipo
 
 # Tipos de ponto com nome amigável (o banco guarda a sigla da esquerda).
@@ -101,6 +102,7 @@ class PainelPlano(QWidget):
         # Um clique na célula (ou começar a digitar) já edita (pedido de 2026-11-03).
         self.tabela.setEditTriggers(QAbstractItemView.AllEditTriggers)
         self._gatilhos_edicao = self.tabela.editTriggers()  # volta a eles ao sair da consulta
+        enter_desce(self.tabela)  # Enter confirma e desce, igual ao Excel (pedido de 2026-11-04)
         cabecalho = self.tabela.horizontalHeader()
         # Cada coluna do tamanho do conteúdo (rola para o lado se precisar); a última completa.
         cabecalho.setSectionResizeMode(QHeaderView.ResizeToContents)

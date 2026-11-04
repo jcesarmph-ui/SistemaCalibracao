@@ -3,19 +3,23 @@
 import contextlib
 import datetime
 
-from PySide6.QtCore import QEvent, QObject, QPoint, Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QTextCharFormat
 from PySide6.QtWidgets import (
     QAbstractButton,
+    QAbstractItemDelegate,
     QAbstractItemView,
     QAbstractScrollArea,
     QAbstractSpinBox,
     QApplication,
+    QCalendarWidget,
     QComboBox,
+    QDialog,
     QFrame,
     QGroupBox,
     QHeaderView,
     QLabel,
+    QPushButton,
     QTabBar,
     QTableWidget,
     QTableWidgetItem,
@@ -37,10 +41,16 @@ class FiltroRodaDoMouse(QObject):
     # Mãozinha em tudo o que é clicável (pedido de 2026-11-03); desligado fica com a seta.
     CLICAVEIS = (QAbstractButton, QComboBox, QTabBar)
 
+    ENTER = (Qt.Key_Return, Qt.Key_Enter)
+
     def eventFilter(self, objeto, evento) -> bool:  # noqa: N802 — nome exigido pelo Qt
         if (evento.type() in (QEvent.Polish, QEvent.EnabledChange)
                 and isinstance(objeto, self.CLICAVEIS)):
             objeto.setCursor(Qt.PointingHandCursor if objeto.isEnabled() else Qt.ArrowCursor)
+        if evento.type() == QEvent.Polish and isinstance(objeto, QCalendarWidget):
+            calendario_escuro(objeto)
+        if evento.type() == QEvent.KeyPress and self._tecla_de_fechar(objeto, evento):
+            return True
         if (evento.type() == QEvent.Wheel and evento.modifiers() & Qt.ShiftModifier
                 and self._rolar_para_o_lado(objeto, evento)):
             return True
@@ -50,6 +60,17 @@ class FiltroRodaDoMouse(QObject):
                 QApplication.sendEvent(pai, evento)
             return True
         return False
+
+    def _tecla_de_fechar(self, objeto, evento) -> bool:
+        """Janela só fecha pelo X, por Salvar ou por Cancelar (pedido de 2026-11-04: o Enter
+        fechou a calibração e tudo o que estava digitado se perdeu).
+
+        Enter ou Esc que nenhum campo usou "sobe" até a janela, que apertaria o botão padrão
+        (Enter) ou fecharia (Esc): ali eles param. Enter também não aperta botão nenhum.
+        """
+        if evento.key() == Qt.Key_Escape:
+            return isinstance(objeto, QDialog)
+        return evento.key() in self.ENTER and isinstance(objeto, (QDialog, QPushButton))
 
     @staticmethod
     def _rolar_para_o_lado(objeto, evento) -> bool:
@@ -68,12 +89,79 @@ class FiltroRodaDoMouse(QObject):
 
 
 def instalar_filtro_roda() -> None:
-    """Liga o filtro (roda do mouse e mãozinha) para o programa inteiro (janelas e diálogos),
-    uma vez só."""
+    """Liga o filtro (roda do mouse, mãozinha, Enter/Esc que não fecham janela e calendário
+    escuro) para o programa inteiro (janelas e diálogos), uma vez só."""
     app = QApplication.instance()
     if app is not None and not hasattr(app, "_filtro_roda"):
         app._filtro_roda = FiltroRodaDoMouse(app)
         app.installEventFilter(app._filtro_roda)
+
+
+def calendario_escuro(calendario: QCalendarWidget) -> None:
+    """Calendário das datas no tema escuro (o resto vem do estilo): fim de semana na mesma cor
+    dos outros dias (vermelho é só para erro) e sem a coluna do número da semana."""
+    calendario.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
+    formato = QTextCharFormat()
+    formato.setForeground(QColor("#f0f0f0"))
+    for dia in (Qt.Saturday, Qt.Sunday):
+        calendario.setWeekdayTextFormat(dia, formato)
+
+
+class _EnterDesce(QObject):
+    """Enter na tabela confirma o valor e vai para a célula de baixo, igual ao Excel (pedido de
+    2026-11-04). Pula as células que não se digitam; na última, fica onde está."""
+
+    def __init__(self, tabela: QTableWidget) -> None:
+        super().__init__(tabela)
+        self.tabela = tabela
+        # O Enter que confirmou a célula continua "subindo" até a tabela: não desce de novo.
+        self._descida_marcada = False
+        tabela.installEventFilter(self)
+        tabela.itemDelegate().closeEditor.connect(self._fechou_editor)
+
+    def eventFilter(self, objeto, evento) -> bool:  # noqa: N802 — nome exigido pelo Qt
+        if (evento.type() == QEvent.KeyPress and evento.key() in (Qt.Key_Return, Qt.Key_Enter)
+                and self.tabela.state() != QAbstractItemView.EditingState):
+            if not self._descida_marcada:
+                self.descer()
+            return True
+        return False
+
+    def _fechou_editor(self, _editor, dica) -> None:
+        # Enter ao digitar fecha o editor com SubmitModelCache (Tab e clique fora, não).
+        if dica == QAbstractItemDelegate.SubmitModelCache:
+            self._descida_marcada = True
+            # A linha de onde saiu: ao fechar o editor, o foco pode cair numa caixa de escolha
+            # de outra linha e mudar a célula atual antes de descer.
+            atual = self.tabela.currentIndex()
+            QTimer.singleShot(0, lambda: self.descer(atual.row(), atual.column()))
+
+    def descer(self, linha_atual: int | None = None, coluna: int | None = None) -> None:
+        self._descida_marcada = False
+        tabela = self.tabela
+        if linha_atual is None:
+            atual = tabela.currentIndex()
+            if not atual.isValid():
+                return
+            linha_atual, coluna = atual.row(), atual.column()
+        if linha_atual < 0:
+            return
+        for linha in range(linha_atual + 1, tabela.rowCount()):
+            widget = tabela.cellWidget(linha, coluna)
+            if widget is not None and widget.isEnabled() and widget.focusPolicy() != Qt.NoFocus:
+                tabela.setCurrentCell(linha, coluna)
+                widget.setFocus()
+                return
+            item = tabela.item(linha, coluna)
+            if item is not None and item.flags() & Qt.ItemIsEditable:
+                tabela.setCurrentCell(linha, coluna)
+                if tabela.editTriggers() != QAbstractItemView.NoEditTriggers:
+                    tabela.editItem(item)
+                return
+
+
+def enter_desce(tabela: QTableWidget) -> None:
+    tabela._enter_desce = _EnterDesce(tabela)
 
 
 def formatar_data(data: datetime.date | None) -> str:

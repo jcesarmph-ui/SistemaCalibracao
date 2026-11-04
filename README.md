@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/tipo-aplicação_desktop-orange?style=flat-square" alt="Tipo"/>
   <img src="https://img.shields.io/badge/testes-pytest_(315)-brightgreen?style=flat-square" alt="Testes"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
-  <img src="https://img.shields.io/badge/versão-1.0.0_em_uso-success?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/versão-1.1.0_em_uso-success?style=flat-square" alt="Versão"/>
 </p>
 
 <p align="center">
@@ -499,9 +499,28 @@ foto e aprovada antes de seguir:
 | **1ª calibração prevista** | O programa começa sem calibrações antigas, mas cada instrumento recebe a data da próxima calibração e **já entra no cronograma**. |
 | **Incerteza "não se aplica"** | Onde a planilha diz "-" ou "N/A", o ponto é avaliado só pelo valor — diferente de incerteza esquecida, que continua bloqueando. |
 | **Dois computadores** | No modo consulta, botões **Pedir edição** e **Atualizar** no canto; a resposta volta em **verde** (liberado) ou **vermelho** (recusado); a tela se atualiza sozinha a cada 10 s. |
-| **Gráfico de tendência com todos os pontos** | Abre com **todos os pontos juntos**, cada um com cor e formato próprios e afastados para não se cobrirem. Tolerâncias iguais → eixo no erro; diferentes → eixo em **% da tolerância usada** (100% = no limite). Clicar no nome do ponto na legenda esconde/mostra; um ponto por vez continua disponível. |
+| **Gráfico de tendência com todos os pontos** | Abre com **todos os pontos juntos**, cada um com sua cor. Tolerâncias iguais → eixo no desvio; diferentes → eixo em **% da tolerância usada** (100% = no limite). Clicar no nome do ponto na legenda esconde/mostra; um ponto por vez continua disponível, na medida normal. |
 | **Cronograma a partir da implantação** | O seletor de mês começa no mês atual e nos próximos; os meses que já passaram ficam embaixo, como registro, sem nada de antes da implantação. |
 | **Rolagem** | Roda do mouse só rola (nunca muda opção sem querer); **Shift + roda** rola para os lados. |
+
+**Versão `1.1.0` — o que o primeiro uso real ensinou.** Na primeira calibração registrada na
+empresa apareceram ajustes, feitos e aprovados por foto:
+
+| Melhoria | O que faz |
+|---|---|
+| **Nada se perde com o teclado** | Enter e Esc não fecham mais nenhuma janela (o Enter fechava a calibração e o que estava digitado se perdia): só fecham pelo **X**, por **Salvar** ou por **Cancelar**. |
+| **Enter igual ao Excel** | Nas tabelas, o Enter confirma o valor e desce para a célula de baixo, já pronta para digitar. |
+| **Desvio separado do valor** | A calibração mostra **Valor encontrado**, **Incerteza (U)**, **Desvio encontrado** (encontrado − exigido) e **Desvio final**: o desvio somado à U do lado mais perto da tolerância (ex.: desvio −0,2 e U 0,1 → −0,3). É o número que decide o resultado. |
+| **Gráfico com as datas certas** | Os pontos de uma calibração ficam na mesma vertical, e embaixo aparecem as datas das próprias calibrações; até 17 pontos, cada um com uma cor bem diferente. |
+| **Calendário no tema escuro** | O calendário das datas estava branco com os dias em branco; agora segue o tema. |
+
+```mermaid
+flowchart LR
+    E["Valor encontrado<br/>9,8"] --> D["Desvio encontrado<br/>9,8 − 10 = −0,2"]
+    D --> F{"± U (0,1)"}
+    F -->|"−0,3 (mais perto de −0,5)"| R["Desvio final −0,3<br/>dentro de ± 0,5 → ✅"]
+    F -.->|"−0,1 (mais longe)"| X["descartado"]
+```
 
 ### 🗺️ Roteiro
 
@@ -514,6 +533,7 @@ foto e aprovada antes de seguir:
 - [x] Fase 5 — Melhorias e correções (plano novo pela tela, correção de calibração com registro,
   cronograma de qualquer mês com custo estimado, motivo do atraso, proteção contra cópia)
 - [x] Fase 6 — Programa para a rede, teste de uso real e versão `1.0.0` em uso na empresa (novembro de 2026)
+- [x] Versão `1.1.0` — ajustes do primeiro uso real (teclado, colunas de desvio, gráfico, calendário)
 
 ### 🧪 Testes do protótipo
 
