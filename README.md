@@ -29,6 +29,7 @@
 
 <p align="center">
   <a href="#-visão-geral">Visão Geral</a> •
+  <a href="#-telas">Telas</a> •
   <a href="#-funcionalidades">Funcionalidades</a> •
   <a href="#-como-o-resultado-é-avaliado">Como funciona</a> •
   <a href="#-arquitetura">Arquitetura</a> •
@@ -94,6 +95,43 @@ mindmap
 | 🔎 | Facilitar a consulta e a manutenção das informações. |
 | 📉 | Reduzir a dependência de planilhas extensas e de operações manuais. |
 | 🔗 | Melhorar a organização e a rastreabilidade das informações técnicas. |
+
+## 📸 Telas
+
+> Imagens geradas com um **banco de dados fictício** (instrumentos, locais, fabricantes e pessoas
+> inventados), sem nenhuma informação real.
+
+<p align="center">
+  <img src="docs/telas/01_cronograma.png" alt="Cronograma de calibrações" width="100%"/>
+  <br/><em>Tela inicial: indicadores do mês e cronograma de todos os instrumentos, com a situação
+  de cada um (em dia, pendente, vencida) e o motivo do atraso.</em>
+</p>
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/telas/02_instrumentos.png" alt="Cadastro de instrumentos"/>
+      <br/><em>Cadastro: lista com filtros, ficha do instrumento e plano de calibração.</em>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/telas/03_nova_calibracao.png" alt="Registro de calibração"/>
+      <br/><em>Nova calibração: cada ponto é avaliado na hora, considerando a incerteza (U) —
+      o ponto 4 reprova porque a faixa medida ± U passa da tolerância.</em>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/telas/04_grafico_tendencia.png" alt="Gráfico de tendência"/>
+      <br/><em>Gráfico de tendência: desvio de cada ponto ao longo das calibrações, com a barra
+      da incerteza e as linhas de tolerância.</em>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/telas/05_pedido_de_edicao.png" alt="Trava de edição entre computadores"/>
+      <br/><em>Uso em rede: quem abre primeiro edita; outro computador entra em modo consulta e
+      pode pedir a edição.</em>
+    </td>
+  </tr>
+</table>
 
 ## ✨ Funcionalidades
 
@@ -564,7 +602,7 @@ SistemaCalibracao/
 │   └── interface.py            # cores semânticas e telas da lixeira
 ├── assets/                     # recursos da interface (logo)
 ├── data/                       # banco SQLite (criado na 1ª execução; não versionado)
-├── docs/                       # documentação da atualização da lixeira
+├── docs/                       # documentação, decisões (ADRs) e telas (dados fictícios)
 ├── scripts/                    # utilitários administrativos (importação, validação, limpeza)
 ├── src/calibracao/             # programa final (PySide6): importador, regras, dados e interface
 ├── tests/                      # testes automáticos (unittest)
