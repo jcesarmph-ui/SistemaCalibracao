@@ -134,6 +134,11 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    `dados/fotos/foto_1_1_0.py`; prints em `calibracao-prints/prints-1.1.0`. **Colocada na rede
    pelo usuário em 2026-11-04** (trocou a pasta `programa`; para ver pastas ocultas usou Opções
    do Explorador de Arquivos → Modo de Exibição — o menu Exibir dele não tem "Itens ocultos").
+   **2026-11-05:** README ganhou a seção **📸 Telas** (PR #17): 5 fotos com banco **fictício**,
+   sem logo/nome da empresa (`docs/telas/`, geradas por `dados/fotos/foto_portfolio.py`, fora do
+   Git). Cópia do programa **com o banco real e o logo**, só para o usuário baixar em casa:
+   repositório **PRIVADO** `jcesarmph-ui/calibracao-programa`, uma Release com `.zip` por cópia
+   (como fazer: memória local `copia-programa-repo-privado`). Nunca torná-lo público.
 3. Pendências que continuam: confidencialidade do repositório público (só quando o usuário
    pedir); limpeza dos arquivos do protótipo na árvore (perguntar antes de remover).
 4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,
