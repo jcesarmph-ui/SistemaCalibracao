@@ -13,6 +13,7 @@
   <img src="https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Windows"/>
   <img src="https://img.shields.io/badge/Git-F05032?style=for-the-badge&logo=git&logoColor=white" alt="Git"/>
   <img src="https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub"/>
+  <img src="https://img.shields.io/badge/Claude_Code-D97757?style=for-the-badge&logo=claude&logoColor=white" alt="Claude Code"/>
 </p>
 <p align="center">
   <img src="https://img.shields.io/badge/área-gestão_da_qualidade-blue?style=flat-square" alt="Área"/>
@@ -388,7 +389,7 @@ stateDiagram-v2
 
 ## 🔄 Do protótipo ao programa final
 
-O sistema nasceu como um **protótipo em Streamlit** (descrito acima), que precisava abrir um servidor
+O sistema nasceu como um **protótipo em Streamlit** (descrito acima), feito com apoio do ChatGPT, que precisava abrir um servidor
 local e o navegador. O **programa final** está sendo refeito do zero como **aplicativo desktop em
 PySide6**, usando o protótipo como referência de regras e funcionalidades, com a mesma identidade visual
 dos demais programas internos (tema escuro, layout em faixas, versão na tela).
@@ -399,6 +400,7 @@ dos demais programas internos (tema escuro, layout em faixas, versão na tela).
 | openpyxl | Leitura da planilha de cronograma original, incluindo o formato de exibição das células. |
 | SQLite | Banco preparado para pasta de rede (journal tradicional, backup diário). |
 | pytest + ruff | Testes automáticos com dados fictícios e padronização do código. |
+| Claude Code | Desenvolvimento assistido por IA: regras definidas e cada etapa aprovada pelo autor. |
 
 ```mermaid
 flowchart LR
