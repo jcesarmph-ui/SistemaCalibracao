@@ -119,9 +119,8 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    digita a "1ª calibração prevista" de cada instrumento olhando a DQ05.
    A partir daqui: CORREÇÃO (1.0.x) = conserto; MENOR (1.x.0) = novidade. Atualizar na rede =
    trocar a pasta oculta `programa` (com o programa fechado por todos); **nunca** trocar `dados`.
-   **Prints** de cada versão: repositório **PRIVADO** `jcesarmph-ui/calibracao-prints` (pasta
-   `Projetos\calibracao-prints`, uma pasta `prints-X.Y.Z` por versão), gerados por
-   `dados/fotos/foto_prints.py` (cópia do banco da entrega + uso simulado até 03/2029).
+   **Prints por versão: não fazer mais.** O repositório `calibracao-prints` foi apagado a pedido
+   do usuário em 2026-11-05 (já tem as fotos do README e a cópia em `calibracao-programa`).
    **Versão `1.1.0` (2026-11-04, PR #16, tag `v1.1.0`)** — ajustes da 1ª calibração real (a rede
    já tinha 1 calibração): Enter/Esc não fecham janela nenhuma (só X/Salvar/Cancelar;
    `componentes.FiltroRodaDoMouse._tecla_de_fechar`); Enter nas tabelas confirma e desce
@@ -131,7 +130,7 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    desvio); gráfico: calibração inteira numa vertical, datas das calibrações no eixo, 17 cores
    bem diferentes (verde/amarelo permitidos no gráfico); calendário escuro. Banco sem mudança.
    Pacote em `dist/Calibração de Instrumentos` (conferido: abre, versão 1.1.0). Fotos:
-   `dados/fotos/foto_1_1_0.py`; prints em `calibracao-prints/prints-1.1.0`. **Colocada na rede
+   `dados/fotos/foto_1_1_0.py`. **Colocada na rede
    pelo usuário em 2026-11-04** (trocou a pasta `programa`; para ver pastas ocultas usou Opções
    do Explorador de Arquivos → Modo de Exibição — o menu Exibir dele não tem "Itens ocultos").
    **2026-11-05:** README ganhou a seção **📸 Telas** (PR #17): 5 fotos com banco **fictício**,
