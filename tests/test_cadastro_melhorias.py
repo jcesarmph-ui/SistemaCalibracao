@@ -148,3 +148,35 @@ def test_nome_novo_avisa_parecidos_e_pergunta_ao_salvar(janela, nome_novo_confir
     assert edicao.result()
     salvo = next(i for i in janela.repo.listar_instrumentos() if i.codigo == "PAQ-019")
     assert salvo.localizacao == "Almoxarifado"
+
+
+def test_renomear_plano(janela):
+    from calibracao.dados.repositorio import Plano
+
+    repo = janela.repo
+    plano = repo.incluir_plano(Plano("Plano PAQ-017"))
+    for instrumento in repo.listar_instrumentos():
+        if instrumento.codigo in ("PAQ-017", "PAQ-018"):
+            instrumento.plano_id = plano
+            repo.atualizar_instrumento(instrumento)
+    aba = janela.aba_instrumentos
+    paq18 = next(i for i in repo.listar_instrumentos() if i.codigo == "PAQ-018")
+    aba.mostrar(paq18)
+    edicao = aba.criar_janela_edicao(paq18)
+    assert edicao.plano.currentData() == plano and edicao.renomear_plano.isEnabled()
+    edicao.renomear("Plano dos paquímetros 0-150 mm")
+    assert repo.obter_plano(plano).nome == "Plano dos paquímetros 0-150 mm"
+    assert edicao.plano.currentText() == "Plano dos paquímetros 0-150 mm"
+    assert "renomeado" in edicao.avisos.text()
+    edicao.reject()  # Cancelar: o nome novo continua (foi gravado na hora) e a ficha mostra
+    assert aba.valores["plano"].text() == "<b>Plano dos paquímetros 0-150 mm</b>"
+    edicao = aba.criar_janela_edicao(paq18)
+    edicao.renomear("   ")
+    assert "Informe o nome do plano" in edicao.avisos.text()
+    edicao.plano.setCurrentIndex(0)  # sem plano: não há o que renomear
+    assert not edicao.renomear_plano.isEnabled()
+
+
+def test_sem_plano_nao_renomeia(janela):
+    edicao = novo_cadastro(janela)
+    assert edicao.plano.currentData() is None and not edicao.renomear_plano.isEnabled()

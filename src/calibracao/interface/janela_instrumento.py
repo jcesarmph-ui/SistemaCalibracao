@@ -82,6 +82,7 @@ class JanelaEditarInstrumento(QDialog):
         self.repo = repositorio
         self.hoje = hoje
         self.instrumento = instrumento
+        self.plano_renomeado = False  # Renomear plano grava na hora, mesmo cancelando
         codigo = instrumento.codigo if instrumento else ""
         self.setWindowTitle(f"Editar instrumento — {codigo}" if instrumento
                             else "Novo instrumento")
@@ -185,6 +186,14 @@ class JanelaEditarInstrumento(QDialog):
         self.novo_plano.setToolTip("Cria um plano vazio; depois de salvar, inclua os pontos em "
                                    "Plano de calibração.")
         self.novo_plano.clicked.connect(self.pedir_nome_do_plano)
+        # Renomear o plano escolhido (pedido de 2026-11-10): plano reaproveitado de outro
+        # instrumento fica com o nome do outro, o que confunde.
+        self.renomear_plano = QPushButton("Renomear plano")
+        self.renomear_plano.setToolTip("Troca o nome do plano escolhido (vale para todos os "
+                                       "instrumentos que usam este plano).")
+        self.renomear_plano.clicked.connect(self.pedir_novo_nome_do_plano)
+        self.plano.currentIndexChanged.connect(
+            lambda: self.renomear_plano.setEnabled(self.plano.currentData() is not None))
 
         self.campos["data_compra"].setPlaceholderText("dd/mm/aaaa")
         self.calendario_compra = BotaoCalendario(self.campos["data_compra"])
@@ -210,7 +219,10 @@ class JanelaEditarInstrumento(QDialog):
         grade.addWidget(self.dica_primeira, 5, 2, 1, 2)
         grade.addWidget(QLabel("Plano"), 6, 0)
         grade.addWidget(self.plano, 6, 1, 1, 2)
-        grade.addWidget(self.novo_plano, 6, 3)
+        botoes_plano = QHBoxLayout()
+        botoes_plano.addWidget(self.novo_plano, 1)
+        botoes_plano.addWidget(self.renomear_plano, 1)
+        grade.addLayout(botoes_plano, 6, 3)
         grade.addWidget(QLabel("Observações"), 7, 0)
         grade.addWidget(self.observacoes, 7, 1, 1, 3)
         caixas = QHBoxLayout()
@@ -276,6 +288,7 @@ class JanelaEditarInstrumento(QDialog):
             nome = self.repo.obter_plano(dados.plano_id).nome
             self.plano.addItem(f"{nome} (na Lixeira)", dados.plano_id)
         self.plano.setCurrentIndex(max(self.plano.findData(dados.plano_id), 0))
+        self.renomear_plano.setEnabled(self.plano.currentData() is not None)
         self.exige.setChecked(dados.exige_calibracao)
         self.primeira.setText(formatar_data(dados.primeira_prevista)
                               if dados.primeira_prevista else "")
@@ -383,6 +396,38 @@ class JanelaEditarInstrumento(QDialog):
                                         text=f"Plano {codigo}" if codigo else "Plano ")
         if ok:
             self.criar_plano(nome)
+
+    def pedir_novo_nome_do_plano(self) -> None:
+        plano_id = self.plano.currentData()
+        if plano_id is None:
+            return
+        plano = self.repo.obter_plano(plano_id)
+        outros = [i.codigo for i in self.repo.listar_instrumentos(incluir_desativados=True)
+                  if i.plano_id == plano_id
+                  and (self.instrumento is None or i.id != self.instrumento.id)]
+        aviso = (f"\n\nEste plano também é usado por: {', '.join(outros)}. O nome muda para "
+                 "todos." if outros else "")
+        nome, ok = QInputDialog.getText(self, "Renomear plano",
+                                        f'Novo nome do plano "{plano.nome}":{aviso}',
+                                        text=plano.nome)
+        if ok:
+            self.renomear(nome)
+
+    def renomear(self, nome: str) -> None:
+        """Grava o nome novo do plano escolhido na hora (não precisa de SALVAR)."""
+        plano_id = self.plano.currentData()
+        plano = self.repo.obter_plano(plano_id)
+        antigo = plano.nome
+        plano.nome = nome
+        try:
+            self.repo.atualizar_plano(plano)
+        except ErroDeValidacao as erro:
+            self._aviso("\n".join(f"✖ {m}" for m in erro.mensagens), erro=True)
+            return
+        self._recarregar_planos()
+        self.plano.setCurrentIndex(self.plano.findData(plano_id))
+        self.plano_renomeado = True
+        self._aviso(f'Plano "{antigo}" renomeado para "{nome.strip()}".')
 
     def criar_plano(self, nome: str) -> None:
         """Cria o plano e já o escolhe no campo Plano (falta clicar em SALVAR para ligar)."""

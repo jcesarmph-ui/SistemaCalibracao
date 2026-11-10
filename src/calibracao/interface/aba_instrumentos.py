@@ -319,7 +319,11 @@ class AbaInstrumentos(QWidget):
         return janela
 
     def _fechou_edicao(self, _resultado: int) -> None:
+        renomeou = self.janela_edicao is not None and self.janela_edicao.plano_renomeado
         self.janela_edicao = None
+        if renomeou:  # o nome do plano já mudou no banco: a ficha e o resto da tela acompanham
+            self.alterado.emit()
+            self.recarregar_atual()
 
     def editar_instrumento(self) -> None:
         if self.atual is not None:
