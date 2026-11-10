@@ -4,7 +4,16 @@ import contextlib
 import datetime
 import difflib
 
-from PySide6.QtCore import QEvent, QObject, QPoint, QStringListModel, Qt, QTimer, Signal
+from PySide6.QtCore import (
+    QEvent,
+    QObject,
+    QPoint,
+    QSize,
+    QStringListModel,
+    Qt,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import QColor, QTextCharFormat
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -26,11 +35,13 @@ from PySide6.QtWidgets import (
     QTabBar,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from calibracao.interface.estilo import abreviar_indicativa, destacar, tem_destaque
+from calibracao.interface.estilo import CORES, abreviar_indicativa, destacar, tem_destaque
+from calibracao.interface.tema_icones import icone
 from calibracao.regras.padronizacao import chave, locais
 
 
@@ -190,20 +201,27 @@ def data_livre_para_banco(texto: str | None) -> str | None:
         return texto
 
 
-class BotaoCalendario(QPushButton):
-    """Botão "Calendário" ao lado de um campo de texto de data (pedido de 2026-11-10): abre o
-    mesmo calendário das outras datas e escreve o dia escolhido (dd/mm/aaaa) no campo. O campo
-    continua aceitando digitação, para quem preferir escrever."""
+class BotaoCalendario(QToolButton):
+    """Ícone de calendário ao lado de um campo de texto de data (pedido de 2026-11-10; ícone
+    "calendar_month" do Google): abre o mesmo calendário das outras datas e escreve o dia
+    escolhido (dd/mm/aaaa) no campo. O campo continua aceitando digitação."""
 
     def __init__(self, campo, parent=None) -> None:
-        super().__init__("Calendário", parent)
+        super().__init__(parent)
         self.campo = campo
-        self.setToolTip("Escolher a data num calendário.")
+        self.setObjectName("calendario")
+        self.setIcon(icone("calendar_month", CORES["titulo"]))
+        self.setIconSize(QSize(24, 24))
+        self.setToolTip("Abrir o calendário (ou digite a data no campo, dd/mm/aaaa).")
         self.calendario = QCalendarWidget()
         self.calendario.setWindowFlags(Qt.Popup)
         self.calendario.setGridVisible(False)
         self.calendario.clicked.connect(self._escolheu)
         self.clicked.connect(self.abrir)
+
+    def setEnabled(self, ligado: bool) -> None:  # noqa: N802 — nome do Qt
+        super().setEnabled(ligado)
+        self.setVisible(ligado)  # campo só de consulta: o ícone some
 
     def abrir(self) -> None:
         texto = self.campo.text().strip()

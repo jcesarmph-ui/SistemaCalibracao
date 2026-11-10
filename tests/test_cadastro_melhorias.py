@@ -178,3 +178,20 @@ def test_renomear_plano_na_janela_editar_plano(janela):
     janela_plano.renomear("   ")
     assert "Informe o nome do plano" in janela_plano.painel.avisos.text()
     janela_plano.reject()
+
+
+def test_icone_de_calendario_do_google_em_todos_os_campos_de_data(janela):
+    from pathlib import Path
+
+    from calibracao.interface import tema_icones
+    from calibracao.interface.estilo import estilo
+
+    assert (tema_icones.PASTA / "LICENSE").read_text(encoding="utf-8").lstrip().startswith(
+        "Apache License")  # a licença vai junto com os ícones
+    assert 'fill="#ffffff"' in tema_icones.svg_colorido("calendar_month", "#ffffff")
+    assert not tema_icones.icone("calendar_month", "#ffffff").isNull()
+    caminho = tema_icones.arquivo_do_icone("calendar_month", "#ffffff")
+    assert Path(caminho).is_file() and caminho in estilo()  # setinha das datas do Qt
+    edicao = novo_cadastro(janela)
+    for botao in (edicao.calendario_compra, edicao.calendario_primeira):
+        assert botao.text() == "" and not botao.icon().isNull()

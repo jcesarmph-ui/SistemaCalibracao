@@ -214,7 +214,12 @@ class JanelaEditarInstrumento(QDialog):
         rotulo_primeira = QLabel("1ª calibração prevista")
         rotulo_primeira.setToolTip(DICA_PRIMEIRA)
         grade.addWidget(rotulo_primeira, 5, 0)
-        grade.addWidget(self.primeira, 5, 1)
+        self.calendario_primeira = BotaoCalendario(self.primeira)
+        primeira = QHBoxLayout()
+        primeira.setContentsMargins(0, 0, 0, 0)
+        primeira.addWidget(self.primeira, 1)
+        primeira.addWidget(self.calendario_primeira)
+        grade.addLayout(primeira, 5, 1)
         grade.addWidget(self.dica_primeira, 5, 2, 1, 2)
         grade.addWidget(QLabel("Plano"), 6, 0)
         grade.addWidget(self.plano, 6, 1, 1, 2)
@@ -290,6 +295,7 @@ class JanelaEditarInstrumento(QDialog):
         # Depois da 1ª calibração registrada, a data não é mais usada: fica só para consulta.
         ja_calibrado = bool(self.instrumento and self.repo.listar_calibracoes(self.instrumento.id))
         self.primeira.setReadOnly(ja_calibrado)
+        self.calendario_primeira.setEnabled(not ja_calibrado)
         self.dica_primeira.setText("Não é mais usada: já há calibração no programa"
                                    if ja_calibrado
                                    else "Só até a 1ª calibração registrada no programa")

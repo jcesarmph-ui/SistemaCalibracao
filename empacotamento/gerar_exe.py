@@ -44,6 +44,9 @@ def gerar(script: Path, saida: Path, excluir: list[str], dados: list[str]) -> Pa
         argumentos += ["--exclude-module", modulo]
     for arquivo in dados:
         argumentos += ["--add-data", f"{PROJETO / 'dados' / arquivo};recursos"]
+    # Ícones do Google (Material Symbols) com a licença Apache 2.0, que precisa ir junto.
+    icones = PROJETO / "src" / "calibracao" / "interface" / "icones"
+    argumentos += ["--add-data", f"{icones};calibracao/interface/icones"]
     PyInstaller.__main__.run(argumentos)
     return saida / NOME
 

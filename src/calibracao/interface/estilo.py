@@ -8,6 +8,7 @@ import html
 import re
 
 from calibracao.interface.marca_check import caminho_do_check
+from calibracao.interface.tema_icones import arquivo_do_icone
 from calibracao.regras.avaliacao import Resultado
 from calibracao.regras.condicao import Condicao, ParecerFinal
 from calibracao.regras.cronograma import Situacao, SituacaoNoMes
@@ -43,6 +44,13 @@ QListView#sugestoes::item:hover {{ background: {mouse}; }}
 QPushButton {{ background: {campo}; border: 1px solid {borda}; border-radius: 6px; padding: 10px; }}
 QPushButton:hover:enabled {{ background: {mouse}; color: #ffffff; }}
 QPushButton:disabled {{ color: #6e6e6e; border: 1px solid {campo_borda}; }}
+/* Campo de data: no lugar da setinha, o ícone de calendário (pedido de 2026-11-10). */
+QDateEdit::drop-down {{ subcontrol-origin: padding; subcontrol-position: center right;
+    width: 34px; border: none; }}
+QDateEdit::down-arrow {{ image: url({calendario}); width: 24px; height: 24px; }}
+QToolButton#calendario {{ background: {campo}; border: 1px solid {campo_borda};
+    border-radius: 4px; padding: 4px; }}
+QToolButton#calendario:hover {{ background: {mouse}; border: 1px solid {borda}; }}
 QCalendarWidget QWidget {{ alternate-background-color: {campo}; }}
 QCalendarWidget QAbstractItemView {{ background: {campo}; color: #f0f0f0;
     selection-background-color: {selecao}; selection-color: #ffffff; outline: none; }}
@@ -154,7 +162,8 @@ CORES_CONDICAO = {
 
 def estilo() -> str:
     # Caixinha marcada = contorno branco com ✓ dentro (pedido de 2026-11-03).
-    return ESTILO.format(**CORES, check=caminho_do_check())
+    return ESTILO.format(**CORES, check=caminho_do_check(),
+                         calendario=arquivo_do_icone("calendar_month", CORES["titulo"]))
 
 
 # Palavras que ganham a cor de etiqueta onde aparecerem nas tabelas.
