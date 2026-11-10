@@ -23,9 +23,9 @@ from PySide6.QtWidgets import (
 )
 
 from calibracao.dados.repositorio import ErroDeValidacao, Instrumento, Plano, Repositorio
-from calibracao.interface.componentes import formatar_data
+from calibracao.interface.componentes import formatar_data, reais_em_texto
 from calibracao.interface.estilo import CORES
-from calibracao.interface.painel_plano import numero, numero_em_texto
+from calibracao.interface.painel_plano import numero
 from calibracao.regras.localizacao import com_marcas, eh_indicativa, eh_reserva
 
 DICA_PRIMEIRA = ("Quando fazer a primeira calibração no programa (olhe a próxima calibração na "
@@ -33,8 +33,9 @@ DICA_PRIMEIRA = ("Quando fazer a primeira calibração no programa (olhe a próx
                  "calibração registrada, as datas seguintes vêm dela.")
 
 # (campo, rótulo) na ordem da tela, em duas colunas.
-ROTULOS = [("codigo", "Código"), ("tipo", "Tipo"), ("localizacao", "Localização"),
-           ("faixa", "Faixa"), ("resolucao", "Resolução"), ("fabricante", "Fabricante"),
+ROTULOS = [("codigo", "Código"), ("tipo", "Tipo de instrumento"), ("localizacao", "Localização"),
+           ("faixa", "Faixa de utilização"), ("resolucao", "Resolução"),
+           ("fabricante", "Fabricante"),
            ("data_compra", "Data de compra"), ("periodicidade_meses", "Periodicidade (meses)"),
            ("custo_compra", "Custo de compra (R$)"), ("responsavel", "Responsável")]
 
@@ -92,6 +93,9 @@ class JanelaEditarInstrumento(QDialog):
     def _caixa_campos(self) -> QGroupBox:
         self.campos = {nome: QLineEdit() for nome, _ in ROTULOS}
         self.campos["periodicidade_meses"].setToolTip("De quantos em quantos meses calibrar.")
+        self.campos["faixa"].setPlaceholderText("Adicione a unidade de medida (ex.: 0 a 150 mm)")
+        self.campos["faixa"].setToolTip("Faixa em que o instrumento é usado, com a unidade de "
+                                        "medida (ex.: 0 a 150 mm).")
         self.campos["custo_compra"].setToolTip("Valor pago na compra, em reais (ex.: 350,00).")
         self.plano = QComboBox()
         self.exige = QCheckBox("Precisa de calibração")
@@ -161,7 +165,7 @@ class JanelaEditarInstrumento(QDialog):
         dados = self.instrumento or Instrumento(codigo="", tipo="")
         for nome, campo in self.campos.items():
             valor = getattr(dados, nome)
-            campo.setText(numero_em_texto(valor) if nome == "custo_compra"
+            campo.setText(reais_em_texto(valor) if nome == "custo_compra"
                           else "" if valor is None else str(valor))
             campo.setCursorPosition(0)  # texto longo mostra o começo, não o fim
         if dados.plano_id is not None and self.plano.findData(dados.plano_id) < 0:
@@ -197,7 +201,7 @@ class JanelaEditarInstrumento(QDialog):
         dados = self.instrumento or Instrumento(codigo="", tipo="")
         for nome, campo in self.campos.items():
             valor = getattr(dados, nome)
-            salvo = (numero_em_texto(valor) if nome == "custo_compra"
+            salvo = (reais_em_texto(valor) if nome == "custo_compra"
                      else "" if valor is None else str(valor))
             if campo.text().strip() != salvo.strip():
                 return True

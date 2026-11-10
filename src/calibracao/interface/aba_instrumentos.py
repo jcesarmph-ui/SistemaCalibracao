@@ -35,13 +35,14 @@ from calibracao.dados.repositorio import (
 from calibracao.interface.componentes import (
     aplicar_destaques,
     celula,
+    dinheiro,
     formatar_data,
     tabela_somente_leitura,
 )
 from calibracao.interface.estilo import CORES_CONDICAO, destacar, tem_destaque
 from calibracao.interface.janela_instrumento import JanelaEditarInstrumento
 from calibracao.interface.lista_instrumentos import ListaInstrumentos
-from calibracao.interface.painel_plano import ResumoPlano, numero_em_texto
+from calibracao.interface.painel_plano import ResumoPlano
 from calibracao.regras.condicao import Condicao
 from calibracao.regras.lixeira import Tipo
 
@@ -54,8 +55,8 @@ EXPLICACAO_CONDICAO = {
 
 
 # Dados mostrados na ficha (só apresentação), em duas colunas: (chave, rótulo).
-DADOS = [("codigo", "Código"), ("tipo", "Tipo"), ("localizacao", "Localização"),
-         ("faixa", "Faixa"), ("resolucao", "Resolução"), ("fabricante", "Fabricante"),
+DADOS = [("codigo", "Código"), ("tipo", "Tipo de instrumento"), ("localizacao", "Localização"),
+         ("faixa", "Faixa de utilização"), ("resolucao", "Resolução"), ("fabricante", "Fabricante"),
          ("data_compra", "Data de compra"), ("periodicidade_meses", "Periodicidade"),
          ("custo_compra", "Custo de compra"), ("responsavel", "Responsável"),
          ("primeira_prevista", "1ª calibração prevista"), ("plano", "Plano"),
@@ -254,7 +255,7 @@ class AbaInstrumentos(QWidget):
             "fabricante": instrumento.fabricante, "data_compra": instrumento.data_compra,
             "periodicidade_meses": (f"{instrumento.periodicidade_meses} meses"
                                     if instrumento.periodicidade_meses else None),
-            "custo_compra": (f"R$ {numero_em_texto(instrumento.custo_compra)}"
+            "custo_compra": (dinheiro(instrumento.custo_compra)
                              if instrumento.custo_compra is not None else None),
             "responsavel": instrumento.responsavel,
             "primeira_prevista": (formatar_data(instrumento.primeira_prevista)
@@ -266,8 +267,8 @@ class AbaInstrumentos(QWidget):
         }
         for nome, texto in textos.items():
             self.valores[nome].setText(f"<b>{html.escape(texto)}</b>" if texto else "—")
-        self.valores["localizacao"].setText(destacar(local) if tem_destaque(local)
-                                            else html.escape(local))
+        self.valores["localizacao"].setText(
+            f"<b>{destacar(local) if tem_destaque(local) else html.escape(local)}</b>")
 
     def _mostrar_condicao(self, instrumento: Instrumento | None) -> None:
         historico = self.repo.historico_condicao(instrumento.id) if instrumento else []

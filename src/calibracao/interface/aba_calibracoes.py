@@ -43,6 +43,7 @@ from calibracao.dados.repositorio import (
 from calibracao.interface.componentes import (
     aplicar_destaques,
     celula,
+    dinheiro,
     enter_desce,
     formatar_data,
     tabela_somente_leitura,
@@ -63,12 +64,6 @@ DICA_DESVIO_FINAL = ("Desvio encontrado ± Incerteza (U), do lado que fica mais 
 NUMERICOS = ("NUMERICO", "LIMITE")
 ESCOLHAS = {"— escolha —": None, "Aprovado": Resultado.APROVADO,
             "Reprovado": Resultado.REPROVADO}
-
-
-def dinheiro(valor: float | None) -> str:
-    if valor is None:
-        return "—"
-    return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def referencia(ponto) -> str:

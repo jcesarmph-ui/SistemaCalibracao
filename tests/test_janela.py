@@ -98,7 +98,7 @@ def test_cadastrar_instrumento_pela_tela(janela):
     assert texto(janela.valores_indicadores["instrumentos"]) == "5"
     salvo = next(i for i in janela.repo.listar_instrumentos() if i.codigo == "PAQ-950")
     assert (salvo.custo_compra, salvo.responsavel) == (350.5, "Fulano")
-    assert aba.valores["custo_compra"].text() == "<b>R$ 350,5</b>"
+    assert aba.valores["custo_compra"].text() == "<b>R$ 350,50</b>"  # sempre com centavos
 
 
 def test_ficha_e_so_apresentacao_e_editar_abre_a_janela(janela):
@@ -581,3 +581,11 @@ def test_shift_roda_rola_para_os_lados(app):
     QApplication.sendEvent(tabela.viewport(), evento)
     assert barra.value() > 0
     tabela.close()
+
+
+def test_reais_sempre_com_centavos():
+    from calibracao.interface.componentes import dinheiro, reais_em_texto
+    assert dinheiro(1350) == "R$ 1.350,00"
+    assert reais_em_texto(350) == "350,00"
+    assert reais_em_texto(350.5) == "350,50"
+    assert reais_em_texto(None) == ""

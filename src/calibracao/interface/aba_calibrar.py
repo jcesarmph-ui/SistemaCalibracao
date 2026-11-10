@@ -19,7 +19,7 @@ from calibracao.regras.condicao import so_qualitativos
 from calibracao.regras.lixeira import Tipo
 
 # (chave, rótulo) dos dados mostrados do instrumento escolhido, em duas colunas.
-DADOS = [("codigo", "Código"), ("tipo", "Tipo"), ("localizacao", "Localização"),
+DADOS = [("codigo", "Código"), ("tipo", "Tipo de instrumento"), ("localizacao", "Localização"),
          ("condicao", "Condição"), ("plano", "Plano"), ("periodicidade", "Periodicidade"),
          ("proxima", "Próxima calibração"), ("situacao", "Situação")]
 
@@ -111,8 +111,7 @@ class AbaCalibrar(QWidget):
             "situacao": situacao.value if situacao else "—",
         }
         for chave, texto in textos.items():
-            self.valores[chave].setText(f"<b>{texto}</b>" if chave != "localizacao"
-                                        else texto)
+            self.valores[chave].setText(f"<b>{texto}</b>")
         cores = CORES_SITUACAO.get(situacao) if situacao else None
         self.valores["situacao"].setStyleSheet(
             f"background: {cores[0]}; color: {cores[1]}; padding: 2px 6px;" if cores else "")

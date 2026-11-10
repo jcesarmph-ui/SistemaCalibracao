@@ -164,6 +164,18 @@ def enter_desce(tabela: QTableWidget) -> None:
     tabela._enter_desce = _EnterDesce(tabela)
 
 
+def dinheiro(valor: float | None) -> str:
+    """R$ com centavos e ponto no milhar (ex.: R$ 1.350,00)."""
+    if valor is None:
+        return "—"
+    return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def reais_em_texto(valor: float | None) -> str:
+    """Valor em reais para o campo de digitar, sempre com os centavos (ex.: 350,00)."""
+    return "" if valor is None else f"{valor:.2f}".replace(".", ",")
+
+
 def formatar_data(data: datetime.date | None) -> str:
     return data.strftime("%d/%m/%Y") if data else "—"
 
