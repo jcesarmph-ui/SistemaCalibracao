@@ -213,7 +213,12 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
      linha** — só ele abre.
    - **Protótipo para o usuário brincar** (fora do Git, dados fictícios):
      `.venv/Scripts/python dados/prototipo_painel/painel_teste.py` (painel guardado só em
-     `%TEMP%/teste_painel_calibracao.json`). Esperando o retorno dele antes de programar.
+     `%TEMP%/teste_painel_calibracao.json`). Correções dele (2026-11-10): **sem setas e sem
+     Maior/Menor** (lugar e tamanho fixos, 2 por linha, na ordem em que entraram); roda do mouse
+     rola a tela (gráfico não engole); gráfico sem dados **não pode ser adicionado** (botão
+     bloqueado com cara de bloqueado) e o montador **só oferece o que faz sentido**; legenda
+     fora do gráfico, no máximo 12 itens com aviso. `.exe` do protótipo para a pasta
+     particular dele na rede: `dados/prototipo_painel/Teste Painel de Indicadores.zip`.
    - Ainda em aberto: conta do "mais perto do limite" (proposta: desvio final ÷ tolerância do
      lado, pior ponto; relatório = calibrações do mês, aba = última de cada instrumento);
      relatório final não muda depois de correção? (proposto: não muda); relatório do ano com a
