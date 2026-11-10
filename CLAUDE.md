@@ -164,8 +164,25 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    3. **Aviso de atualização** (pergunta do usuário em 2026-11-10): o programa avisa que há versão
       nova e a pessoa escolhe atualizar agora ou depois; ver se dá para publicar a atualização na
       rede sem ele trocar a pasta à mão (sempre com a confirmação dele).
-   Essas três podem ir para o README (são grandes). Depois: PR, tag `v1.2.0` (ou dividir em
-   versões) e pacote para trocar a pasta `programa` na rede.
+   Essas três **vão para o README** (pedido do usuário em 2026-11-10). Depois: PR, tag `v1.2.0`
+   (ou dividir em versões) e pacote para trocar a pasta `programa` na rede.
+   **Onde parei (2026-11-10, antes do /clear):** PDF — parte de dados **pronta e enviada**
+   (commit "Certificados em PDF…": `dados/certificados.py`, tabela `certificados` sem mudar a
+   versão do esquema, `Repositorio.anexar_certificado`/`certificado_da_calibracao`/
+   `listar_certificados`/`conferir_certificado`, Lixeira `Tipo.CERTIFICADO`, backup espelha em
+   `backup/certificados/`; testes em `tests/test_certificados.py`). **Falta a tela:** linha
+   "Certificado (PDF)" + botão "Escolher PDF" em `aba_calibracoes.JanelaNovaCalibracao._caixa_dados`
+   (conferir o PDF antes de salvar; anexar depois de `registrar_calibracao`/`corrigir_calibracao`;
+   na correção mostrar o atual e "Trocar PDF"); "Abrir PDF" em `JanelaVerCalibracao`; **aba nova
+   "Certificados"** (lupa + Código | Nº do certificado | Data; clicar abre com
+   `QDesktopServices`); ícones novos (ex.: `attach_file`, `picture_as_pdf`) **só com foto
+   aprovada**. Rodar a bateria inteira de testes **em segundo plano** (o chat caiu 2× com ela).
+   **Perguntas do usuário ainda sem resposta** (responder quando retomar): QR Code (por
+   instrumento ou certificado, como abre no celular); conferir o PDF contra o plano sozinho com IA
+   (ele quer testar; como provar confiabilidade e defender numa auditoria, IA ajudando a análise
+   crítica humana, não substituindo); o que o relatório do mês em PDF mostraria (com exemplo
+   fictício); e-mail automático (ele diz o e-mail e eu configuro o envio); o que seria o painel de
+   indicadores.
 3. Pendências que continuam: confidencialidade do repositório público (só quando o usuário
    pedir); limpeza dos arquivos do protótipo na árvore (perguntar antes de remover).
 4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,
