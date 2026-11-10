@@ -59,7 +59,7 @@ class AbaCertificados(QWidget):
 
         self.busca = QLineEdit(placeholderText="Pesquisar por código ou nº do certificado")
         self.busca.textChanged.connect(self._preencher)
-        lupa(self.busca, "#9e9e9e")
+        lupa(self.busca, CORES["dica"])
         self.contagem = QLabel(objectName="dica")
         topo = QHBoxLayout()
         topo.addWidget(self.busca, 1)
@@ -115,6 +115,6 @@ class AbaCertificados(QWidget):
 
     def _aviso(self, texto: str, tipo: str = "dica") -> None:
         cor = {"certo": CORES["certo"], "erro": CORES["erro"], "aviso": CORES["aviso"]}.get(
-            tipo, "#9e9e9e")
+            tipo, CORES["dica"])
         self.avisos.setStyleSheet(f"color: {cor};")
         self.avisos.setText(texto)

@@ -24,15 +24,16 @@ def _distancia(ponto, inicio, fim) -> float:
     return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
 
 
-def png_do_check() -> bytes:
-    """PNG RGBA: ✓ branco (com borda suavizada) sobre fundo transparente."""
+def png_do_check(cor: str = "#ffffff") -> bytes:
+    """PNG RGBA: ✓ na `cor` (com borda suavizada) sobre fundo transparente."""
+    vermelho, verde, azul = (int(cor[i:i + 2], 16) for i in (1, 3, 5))
     linhas = []
     for y in range(TAMANHO):
         linha = bytearray([0])  # filtro "nenhum" da linha
         for x in range(TAMANHO):
             d = min(_distancia((x + 0.5, y + 0.5), a, b) for a, b in TRACOS)
             alfa = max(0.0, min(1.0, ESPESSURA + 0.5 - d))
-            linha += bytes([255, 255, 255, round(alfa * 255)])
+            linha += bytes([vermelho, verde, azul, round(alfa * 255)])
         linhas.append(bytes(linha))
 
     def bloco(tipo: bytes, dados: bytes) -> bytes:
@@ -44,11 +45,11 @@ def png_do_check() -> bytes:
             + bloco(b"IDAT", zlib.compress(b"".join(linhas), 9)) + bloco(b"IEND", b""))
 
 
-def caminho_do_check() -> str:
+def caminho_do_check(cor: str = "#ffffff") -> str:
     """Grava o PNG na pasta temporária (se ainda não estiver lá) e devolve o caminho com "/"
     (como o estilo do Qt espera). Sem conseguir gravar, devolve "" (fica sem o ✓)."""
-    arquivo = Path(tempfile.gettempdir()) / "calibracao_check.png"
-    conteudo = png_do_check()
+    arquivo = Path(tempfile.gettempdir()) / f"calibracao_check_{cor.lstrip('#')}.png"
+    conteudo = png_do_check(cor)
     try:
         if not arquivo.is_file() or arquivo.read_bytes() != conteudo:
             arquivo.write_bytes(conteudo)

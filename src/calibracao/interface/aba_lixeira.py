@@ -89,7 +89,7 @@ class AbaLixeira(QWidget):
         topo.addWidget(self.filtro)
         self.busca = QLineEdit(placeholderText="Pesquisar por código, descrição ou motivo")
         self.busca.textChanged.connect(self._preencher)
-        lupa(self.busca, "#9e9e9e")
+        lupa(self.busca, CORES["dica"])
         topo.addWidget(self.busca, 1)
         topo.addWidget(QLabel("Use a Lixeira para o que foi registrado por engano. Restaurar "
                               "devolve o item para onde estava.", objectName="dica"), 1)

@@ -79,7 +79,7 @@ class ListaInstrumentos(QGroupBox):
             filtro.currentTextChanged.connect(self.preencher)
         self.busca = QLineEdit(placeholderText="Buscar por código, tipo ou localização")
         self.busca.textChanged.connect(self.preencher)
-        lupa(self.busca, "#9e9e9e")
+        lupa(self.busca, CORES["dica"])
 
         colunas = ["Código", "Localização", "Condição", "Desde", "Situação"]
         self.tabela = QTableWidget(0, len(colunas))

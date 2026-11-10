@@ -117,7 +117,7 @@ def calendario_escuro(calendario: QCalendarWidget) -> None:
     dos outros dias (vermelho é só para erro) e sem a coluna do número da semana."""
     calendario.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
     formato = QTextCharFormat()
-    formato.setForeground(QColor("#f0f0f0"))
+    formato.setForeground(QColor(CORES["texto"]))
     for dia in (Qt.Saturday, Qt.Sunday):
         calendario.setWeekdayTextFormat(dia, formato)
 
@@ -336,8 +336,8 @@ class ListaFlutuante(QFrame):
                  parent: QWidget) -> None:
         super().__init__(parent, Qt.Popup)
         self.setObjectName("flutuante")
-        self.setStyleSheet("#flutuante { background: #0a0a0a; border: 1px solid #e0e0e0; "
-                           "border-radius: 6px; }")
+        self.setStyleSheet(f"#flutuante {{ background: {CORES['caixa']}; "
+                           f"border: 1px solid {CORES['borda']}; border-radius: 6px; }}")
         tabela = tabela_somente_leitura(colunas)
         tabela.setRowCount(len(linhas))
         for indice, itens in enumerate(linhas):
@@ -504,7 +504,9 @@ class CampoComSugestoes(QLineEdit):
 
 
 # Símbolos dos avisos → ícone do Google na cor do aviso (aprovado por foto em 2026-11-10).
-SIMBOLOS = {"✔": ("check_circle", CORES["certo"]), "✖": ("error", CORES["erro"]),
+def simbolos() -> dict[str, tuple[str, str]]:
+    """Lido na hora (a cor depende do tema)."""
+    return {"✔": ("check_circle", CORES["certo"]), "✖": ("error", CORES["erro"]),
             "⚠": ("warning", CORES["aviso"])}
 
 
@@ -523,9 +525,9 @@ class RotuloAviso(QLabel):
 
     def setText(self, texto: str) -> None:  # noqa: N802 — nome do Qt
         self._original = texto
-        simbolos = ({s: (nome, self.cor_icone) for s, (nome, _) in SIMBOLOS.items()}
-                    if self.cor_icone else SIMBOLOS)
-        com_icones = html_com_icones(texto, simbolos)
+        escolhidos = ({s: (nome, self.cor_icone) for s, (nome, _) in simbolos().items()}
+                      if self.cor_icone else simbolos())
+        com_icones = html_com_icones(texto, escolhidos)
         self.setTextFormat(Qt.RichText if com_icones else Qt.AutoText)
         super().setText(com_icones if com_icones else texto)
 

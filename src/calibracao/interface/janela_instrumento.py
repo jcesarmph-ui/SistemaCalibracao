@@ -99,7 +99,7 @@ class JanelaEditarInstrumento(QDialog):
                         else "NOVO INSTRUMENTO", objectName="titulo", alignment=Qt.AlignCenter)
         faixa = QLabel("Você está editando: mude o que precisar e clique em SALVAR "
                        "(ou em Cancelar para desistir).", alignment=Qt.AlignCenter)
-        faixa.setStyleSheet(f"background: {CORES['aviso']}; color: #000000; padding: 6px; "
+        faixa.setStyleSheet(f"background: {CORES['aviso_fundo']}; color: #000000; padding: 6px; "
                             "font-weight: bold;")
 
         coluna = QVBoxLayout(self)

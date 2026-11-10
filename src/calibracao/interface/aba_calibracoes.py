@@ -611,7 +611,7 @@ class JanelaNovaCalibracao(QDialog):
             texto = (f"<b>{self.pdf_atual.nome_original}</b> — guardado em "
                      f"{enviado:%d/%m/%Y %H:%M}")
         else:
-            texto = '<span style="color:#9e9e9e"><i>Nenhum PDF (opcional)</i></span>'
+            texto = f'<span style="color:{CORES["dica"]}"><i>Nenhum PDF (opcional)</i></span>'
         self.nome_pdf.setText(texto)
 
     def procurar_pdf(self) -> None:

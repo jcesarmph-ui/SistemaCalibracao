@@ -325,7 +325,7 @@ class PainelPlano(QWidget):
         self.mostrar(self.plano_id)
 
     def _aviso(self, texto: str, erro: bool = False, certo: bool = False) -> None:
-        cor = "#ef5350" if erro else "#43a047" if certo else "#ffd54f"
+        cor = CORES["erro"] if erro else CORES["certo"] if certo else CORES["aviso"]
         self.avisos.setStyleSheet(f"color: {cor};")
         self.avisos.setText(texto)
 
@@ -349,7 +349,7 @@ class JanelaEditarPlano(QDialog):
         self.painel.plano_descartado.connect(self.accept)
         faixa = QLabel("Você está editando o plano: clique numa célula e digite; depois clique em "
                        "SALVAR PLANO (ou em Cancelar para desistir).", alignment=Qt.AlignCenter)
-        faixa.setStyleSheet("background: #ffd54f; color: #000000; padding: 6px; "
+        faixa.setStyleSheet(f"background: {CORES['aviso_fundo']}; color: #000000; padding: 6px; "
                             "font-weight: bold;")
         self.cancelar = QPushButton("Cancelar")
         self.cancelar.clicked.connect(self.reject)
@@ -392,13 +392,13 @@ class JanelaEditarPlano(QDialog):
         try:
             self.repo.atualizar_plano(plano)
         except ErroDeValidacao as erro:
-            self.painel.avisos.setStyleSheet("color: #ef5350;")
+            self.painel.avisos.setStyleSheet(f"color: {CORES['erro']};")
             self.painel.avisos.setText("\n".join(f"✖ {m}" for m in erro.mensagens))
             return
         novo = self.repo.obter_plano(self.plano_id).nome
         self.setWindowTitle(f"Editar plano — {novo}")
         self.titulo.setText(f"EDITAR PLANO — {novo}")
-        self.painel.avisos.setStyleSheet("color: #ffd54f;")
+        self.painel.avisos.setStyleSheet(f"color: {CORES['aviso']};")
         self.painel.avisos.setText(f'Plano "{antigo}" renomeado para "{novo}".')
         self.painel.alterado.emit()
 

@@ -17,7 +17,7 @@ import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QSize, Qt, QTimer
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QColor, QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -68,6 +68,7 @@ from calibracao.interface.estilo import (
     CORES_SITUACAO,
     CORES_SITUACAO_NO_MES,
     estilo,
+    tema_claro,
 )
 from calibracao.interface.recursos import recurso
 from calibracao.interface.tema_icones import icone, pixmap, por_icone
@@ -123,6 +124,20 @@ def celula_motivo(motivo: str | None):
     return item
 
 
+INICIO_DAS_LETRAS = 0.32  # o símbolo ocupa o primeiro terço do logo; depois vêm as letras
+
+
+def logo_com_letra_preta(imagem: QPixmap) -> QPixmap:
+    """Tema claro: as letras brancas do logo viram pretas (o símbolo, à esquerda, não muda)."""
+    figura = imagem.toImage().convertToFormat(QImage.Format_ARGB32)
+    for x in range(int(figura.width() * INICIO_DAS_LETRAS), figura.width()):
+        for y in range(figura.height()):
+            cor = figura.pixelColor(x, y)
+            if cor.alpha() and min(cor.red(), cor.green(), cor.blue()) > 150:
+                figura.setPixelColor(x, y, QColor(0, 0, 0, cor.alpha()))
+    return QPixmap.fromImage(figura)
+
+
 class JanelaPrincipal(QMainWindow):
     def __init__(self, repositorio: Repositorio, pasta_dados: Path,
                  hoje: datetime.date | None = None,
@@ -173,12 +188,12 @@ class JanelaPrincipal(QMainWindow):
         self.faixa_teste = QLabel(
             "VERSÃO DE TESTE — os dados daqui não valem: pode incluir, mudar e excluir à vontade",
             objectName="faixa_teste", alignment=Qt.AlignCenter)
-        self.faixa_teste.setStyleSheet(f"background: {CORES['aviso']}; color: #000000; "
+        self.faixa_teste.setStyleSheet(f"background: {CORES['aviso_fundo']}; color: #000000; "
                                        "padding: 4px; font-weight: bold;")
         self.faixa_teste.setVisible(self.de_teste)
         tela.addWidget(self.faixa_teste)
         self.aviso_copia = RotuloClicavel(objectName="aviso_copia", wordWrap=True)
-        self.aviso_copia.setStyleSheet(f"background: {CORES['aviso']}; color: #000000; "
+        self.aviso_copia.setStyleSheet(f"background: {CORES['aviso_fundo']}; color: #000000; "
                                        "padding: 6px; font-weight: bold;")
         self.aviso_copia.setCursor(Qt.PointingHandCursor)
         self.aviso_copia.clicado.connect(self.mudar_pasta_oficial)
@@ -254,7 +269,8 @@ class JanelaPrincipal(QMainWindow):
         arquivo_logo = recurso("logo_mg.png", self.pasta_dados)
         if arquivo_logo.is_file():
             logo = QLabel()
-            logo.setPixmap(QPixmap(str(arquivo_logo)).scaledToHeight(80, Qt.SmoothTransformation))
+            imagem = QPixmap(str(arquivo_logo)).scaledToHeight(80, Qt.SmoothTransformation)
+            logo.setPixmap(logo_com_letra_preta(imagem) if tema_claro() else imagem)
         else:
             logo = QLabel("MG Centro de Serviços")
         grade = QGridLayout()
@@ -363,12 +379,12 @@ class JanelaPrincipal(QMainWindow):
         vencidas = contagem[Situacao.VENCIDA]
         pendentes = contagem[Situacao.PENDENTE_MES]
         total_mes = pendentes + contagem[Situacao.FEITA_MES]
-        cor_vencidas = CORES["erro"] if vencidas else "#f0f0f0"
-        cor_pendentes = CORES["aviso"] if pendentes else "#9e9e9e"
+        cor_vencidas = CORES["erro"] if vencidas else CORES["texto"]
+        cor_pendentes = CORES["aviso"] if pendentes else CORES["dica"]
         textos = {
             "instrumentos": str(len(self.repo.listar_instrumentos())),
             "vencidas": f'<span style="color:{cor_vencidas}">{vencidas}</span>',
-            "mes": f'{total_mes} <span style="color:#9e9e9e">|</span> '
+            "mes": f'{total_mes} <span style="color:{CORES["dica"]}">|</span> '
                    f'<span style="color:{cor_pendentes}">{pendentes} '
                    f'pendente{"s" if pendentes != 1 else ""}</span>',
             "proximo_mes": str(contagem[Situacao.PROXIMO_MES]),
@@ -616,7 +632,7 @@ class JanelaPrincipal(QMainWindow):
         """Botão "Atualizar" do modo consulta: o mesmo que acontece sozinho a cada 10 s."""
         self.a_cada_sinal()
         if self.repo.modo_consulta:
-            self.mostrar_aviso("↻ Atualizado", CORES["selecao"], CORES["borda"], 1500)
+            self.mostrar_aviso("↻ Atualizado", "#424242", CORES["borda"], 1500)
 
     def closeEvent(self, evento) -> None:  # noqa: N802 — nome exigido pelo Qt
         self.relogio.stop()

@@ -392,6 +392,6 @@ class AbaInstrumentos(QWidget):
         self._aviso(f"✔ {codigo} enviado para a Lixeira.", certo=True)
 
     def _aviso(self, texto: str, erro: bool = False, certo: bool = False) -> None:
-        cor = "#ef5350" if erro else "#43a047" if certo else "#ffd54f"
+        cor = CORES["erro"] if erro else CORES["certo"] if certo else CORES["aviso"]
         self.avisos.setStyleSheet(f"color: {cor};")
         self.avisos.setText(texto)
