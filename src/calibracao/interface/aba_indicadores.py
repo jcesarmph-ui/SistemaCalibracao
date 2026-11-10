@@ -417,11 +417,7 @@ class AbaIndicadores(QWidget):
         self.desfazer.setIcon(icone("undo", CORES["titulo"]))
         quantas = len(self.desfazer_lista)
         self.desfazer.setEnabled(bool(quantas))
-        self.desfazer.setToolTip(
-            f"Desfazer a última mudança nos gráficos ({quantas} para desfazer; até "
-            f"{MAXIMO_DESFAZER})" if quantas else
-            "Desfazer: nada para desfazer (vale para adicionar, editar ou tirar gráfico; até "
-            f"as {MAXIMO_DESFAZER} últimas)")
+        self.desfazer.setToolTip("Desfazer última alteração")  # texto pedido pelo usuário
 
     def definir_edicao(self, pode: bool) -> None:
         """Modo consulta: só ver os gráficos."""
