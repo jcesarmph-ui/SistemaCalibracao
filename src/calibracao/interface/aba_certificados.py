@@ -1,7 +1,8 @@
 """Aba Certificados: os PDFs dos certificados das calibrações feitas no programa.
 
 Só código do instrumento | nº do certificado | data da calibração (pedido do usuário em
-2026-11-10); clicar na linha abre o PDF no programa de PDF do Windows. Certificados antigos, de
+2026-11-10); clicar na linha ou no botão "Abrir certificado" da linha (pedido de 2026-11-10,
+no teste da 1.2.0) abre o PDF no programa de PDF do Windows. Certificados antigos, de
 antes do programa, não entram (ficam na pasta física / na DQ05).
 """
 
@@ -10,8 +11,10 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -25,7 +28,7 @@ from calibracao.interface.componentes import (
     tabela_somente_leitura,
 )
 from calibracao.interface.estilo import CORES
-from calibracao.interface.tema_icones import lupa
+from calibracao.interface.tema_icones import lupa, por_icone
 from calibracao.regras.padronizacao import chave
 
 
@@ -49,7 +52,7 @@ class AbaCertificados(QWidget):
 
     alterado = Signal()  # não grava nada; existe para ficar igual às outras abas
 
-    COLUNAS = ["Código do instrumento", "Nº do certificado", "Data da calibração"]
+    COLUNAS = ["Código do instrumento", "Nº do certificado", "Data da calibração", ""]
 
     def __init__(self, repositorio: Repositorio) -> None:
         super().__init__()
@@ -63,14 +66,16 @@ class AbaCertificados(QWidget):
         self.contagem = QLabel(objectName="dica")
         topo = QHBoxLayout()
         topo.addWidget(self.busca, 1)
-        topo.addWidget(QLabel("Clique na linha para abrir o PDF. Só aparecem os certificados "
-                              "das calibrações registradas no programa.", objectName="dica"), 1)
+        topo.addWidget(QLabel("Clique na linha ou em \"Abrir certificado\". Só aparecem os "
+                              "certificados das calibrações registradas no programa.",
+                              objectName="dica"), 1)
         topo.addWidget(self.contagem)
 
         self.tabela = tabela_somente_leitura(self.COLUNAS)
         self.tabela.setProperty("clicavel", True)
         self.tabela.viewport().setCursor(Qt.PointingHandCursor)
         self.tabela.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.tabela.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
         self.tabela.clicked.connect(lambda indice: self.abrir_linha(indice.row()))
         self.avisos = RotuloAviso(wordWrap=True, objectName="avisos")
 
@@ -93,7 +98,15 @@ class AbaCertificados(QWidget):
                      celula(formatar_data(linha.data_calibracao))]
             for coluna, item in enumerate(itens):
                 self.tabela.setItem(numero, coluna, item)
-        aplicar_destaques(self.tabela)
+            self.tabela.setItem(numero, 3, celula(""))
+        aplicar_destaques(self.tabela)  # antes dos botões: ele tira o que está nas células
+        for numero, linha in enumerate(self.visiveis):
+            botao = QPushButton("Abrir certificado")
+            por_icone(botao, "picture_as_pdf", CORES["titulo"])
+            botao.setToolTip(f"Abrir o PDF do certificado de {linha.codigo}")
+            botao.clicked.connect(lambda _=False, n=numero: self.abrir_linha(n))
+            self.tabela.setCellWidget(numero, 3, botao)
+        self.tabela.resizeRowsToContents()
         total = len(self.linhas)
         self.contagem.setText(f"{len(self.visiveis)} de {total}" if termo
                               else f"{total} certificado(s)")

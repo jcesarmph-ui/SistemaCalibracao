@@ -183,6 +183,11 @@ def test_aba_lista_pesquisa_e_abre_com_um_clique(app, repo, instrumento, tmp_pat
     aba.abrir_linha(0)
     assert len(abertos) == 1 and abertos[0].read_bytes().endswith(b"b.pdf\n%%EOF\n")
     assert "PDF aberto" in aba.avisos.text()
+    # Botão "Abrir certificado" na linha (pedido de 2026-11-10) abre o mesmo PDF.
+    botao = aba.tabela.cellWidget(0, 3)
+    assert botao is not None and botao.text().strip() == "Abrir certificado"
+    botao.click()
+    assert len(abertos) == 2 and abertos[1] == abertos[0]
 
 
 def test_pdf_sumido_ou_mexido_e_avisado(app, repo, instrumento, tmp_path, abertos):
