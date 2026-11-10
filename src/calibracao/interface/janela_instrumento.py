@@ -63,6 +63,12 @@ ROTULOS = [("codigo", "Código"), ("tipo", "Tipo de instrumento"), ("localizacao
            ("custo_compra", "Custo de compra (R$)"), ("responsavel", "Responsável")]
 
 
+def _mostrar(rotulo: QLabel, texto: str) -> None:
+    """Dica/aviso embaixo do campo: só aparece (e ocupa lugar) quando tem texto."""
+    rotulo.setText(texto)
+    rotulo.setVisible(bool(texto))
+
+
 def _texto(campo: QLineEdit) -> str | None:
     return campo.text().strip() or None
 
@@ -140,7 +146,7 @@ class JanelaEditarInstrumento(QDialog):
         self.aviso_tipo = QLabel(wordWrap=True)
         self.aviso_tipo.setStyleSheet(f"color: {CORES['aviso']};")
         self.campos["tipo"].textChanged.connect(
-            lambda: self.aviso_tipo.setText(self.campos["tipo"].aviso_de_novos("um tipo")))
+            lambda: _mostrar(self.aviso_tipo, self.campos["tipo"].aviso_de_novos("um tipo")))
         self.campos["localizacao"] = CampoComSugestoes(varios=True)
         self.campos["localizacao"].setPlaceholderText("Comece a escrever e escolha na lista")
         self.campos["localizacao"].setToolTip(DICA_LOCAL)
@@ -151,8 +157,10 @@ class JanelaEditarInstrumento(QDialog):
         self.aviso_local = QLabel(wordWrap=True)
         self.aviso_local.setStyleSheet(f"color: {CORES['aviso']};")
         self.campos["localizacao"].textChanged.connect(
-            lambda: self.aviso_local.setText(
-                self.campos["localizacao"].aviso_de_novos("um local")))
+            lambda: _mostrar(self.aviso_local,
+                             self.campos["localizacao"].aviso_de_novos("um local")))
+        for aviso in (self.dica_codigo, self.aviso_tipo, self.aviso_local):
+            aviso.hide()  # só ocupa lugar quando tem o que dizer
         self.campos["periodicidade_meses"].setToolTip("De quantos em quantos meses calibrar.")
         self.campos["faixa"].setPlaceholderText("Adicione a unidade de medida (ex.: 0 a 150 mm)")
         self.campos["faixa"].setToolTip("Faixa em que o instrumento é usado, com a unidade de "
@@ -313,12 +321,12 @@ class JanelaEditarInstrumento(QDialog):
         vermelho."""
         self._proximo_codigo = None
         self.dica_codigo.setStyleSheet("")
-        self.dica_codigo.setText("")
+        _mostrar(self.dica_codigo, "")
         digitado = texto.strip()
         dono = self._codigos.get(digitado.casefold())
         if dono is not None and (self.instrumento is None or dono != self.instrumento.id):
             self.dica_codigo.setStyleSheet(f"color: {CORES['erro']};")
-            self.dica_codigo.setText(f"✖ Já existe um instrumento {digitado}.")
+            _mostrar(self.dica_codigo, f"✖ Já existe um instrumento {digitado}.")
             return
         achado = _SIGLA_DIGITADA.match(texto)
         if not achado or (self.instrumento and digitado == self.instrumento.codigo):
@@ -329,11 +337,11 @@ class JanelaEditarInstrumento(QDialog):
             return
         compacto = digitado.upper().replace(" ", "")
         if compacto == proximo:
-            self.dica_codigo.setText(f"{proximo} é o próximo número livre de {sigla}.")
+            _mostrar(self.dica_codigo, f"{proximo} é o próximo número livre de {sigla}.")
         elif dividir_codigo(texto) is None or proximo.startswith(compacto):
             self._proximo_codigo = proximo
-            self.dica_codigo.setText(f"Próximo número de {sigla}: {proximo} — aperte Enter "
-                                     "para usar (ou continue digitando outro).")
+            _mostrar(self.dica_codigo, f"Próximo número de {sigla}: {proximo} — aperte "
+                                       "Enter para usar (ou continue digitando outro).")
 
     def usar_proximo_codigo(self) -> None:
         """Enter no código: completa com o próximo número sugerido (se houver sugestão)."""

@@ -408,6 +408,7 @@ class CampoComSugestoes(QLineEdit):
         self.sugestoes.setWidget(self)
         self.sugestoes.setCompletionMode(QCompleter.UnfilteredPopupCompletion)
         self.sugestoes.setMaxVisibleItems(12)
+        self.sugestoes.popup().setObjectName("sugestoes")  # tema escuro (estilo.py)
         self.sugestoes.activated.connect(self.escolher)
         self.textEdited.connect(self.mostrar_sugestoes)
 
@@ -470,9 +471,13 @@ class CampoComSugestoes(QLineEdit):
         return achados[:4]
 
     def aviso_de_novos(self, oque: str) -> str:
-        """Texto do aviso amarelo para os nomes novos (vazio se não há)."""
+        """Texto do aviso amarelo para os nomes novos (vazio se não há). Enquanto o que foi
+        digitado ainda é pedaço de um nome da lista ("serra" de "Serralheria"), não avisa: a
+        pessoa provavelmente ainda vai escolher na lista (ao salvar, a pergunta vale igual)."""
         partes = []
         for nome in self.nomes_novos():
+            if any(chave(nome) in chave(opcao) for opcao in self.opcoes):
+                continue
             parecidos = self.parecidos(nome)
             parece = (f" Parece com: {', '.join(parecidos)} — se for o mesmo, escolha na lista."
                       if parecidos else "")

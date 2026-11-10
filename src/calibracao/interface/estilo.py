@@ -36,6 +36,10 @@ QLineEdit, QComboBox, QDateEdit {{ background: {campo}; border: 1px solid {campo
 QLineEdit:focus, QComboBox:focus {{ border: 1px solid {borda}; }}
 QComboBox:hover:enabled {{ background: {mouse}; }}
 QComboBox QAbstractItemView {{ background: {campo}; selection-background-color: {selecao}; }}
+QListView#sugestoes {{ background: {campo}; color: #f0f0f0; border: 1px solid {borda};
+    selection-background-color: {selecao}; selection-color: #ffffff; outline: none; }}
+QListView#sugestoes::item {{ padding: 4px 6px; }}
+QListView#sugestoes::item:hover {{ background: {mouse}; }}
 QPushButton {{ background: {campo}; border: 1px solid {borda}; border-radius: 6px; padding: 10px; }}
 QPushButton:hover:enabled {{ background: {mouse}; color: #ffffff; }}
 QPushButton:disabled {{ color: #6e6e6e; border: 1px solid {campo_borda}; }}
