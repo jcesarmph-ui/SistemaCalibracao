@@ -147,9 +147,25 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    (`regras/padronizacao.TIPOS_JUNTADOS`: Régua graduada para furos, Paquímetro analógico,
    Balança Suspensa) — o banco da rede é acertado uma vez ao abrir (`metadados.nomes_unificados`,
    simulado numa cópia só leitura); lista com a linha toda clicável; botão Renomear plano.
-   Fotos: `dados/fotos/foto_1_2_0.py`. **Falta:** aprovação das fotos e o **tema claro** (mostrar
-   foto antes; cuidar de calendário, listas, logo com letra preta, gráfico); depois PR, tag
-   `v1.2.0` e pacote para o usuário trocar a pasta `programa` na rede.
+   Fotos: `dados/fotos/foto_1_2_0.py`, `foto_icone_data.py`, `foto_icones.py` (banco: cópia só
+   leitura da rede no scratchpad). **Feito e aprovado também:** ícones do Google (Material
+   Symbols, `interface/icones/` + `LICENSE`, `tema_icones.py`): calendário em todas as datas, abas,
+   botões, lupa, cadeado e avisos ✔✖⚠ (`componentes.RotuloAviso`); Renomear plano na janela do
+   EDITAR PLANO; lista com linha toda clicável.
+   **Próximos (combinados em 2026-11-10, nesta ordem salvo mudança):**
+   1. **PDF dos certificados**: campo "Certificado (PDF)" na Nova calibração e no EDITAR da
+      calibração (opcional); arquivos na pasta `dados/certificados` da rede (a1), banco guarda só
+      a ligação; **um PDF por calibração**, trocável, o antigo vai para a Lixeira (d1); **aba nova
+      "Certificados"** com só **código do instrumento | nº do certificado | data da calibração**
+      (b), clicar abre o PDF; **só calibrações feitas no programa** — certificados antigos de
+      papel não entram (c2; a pasta física é só descontinuada, não destruída).
+   2. **Modo claro e escuro** escolhido pela pessoa (como no Windows), no lugar de trocar tudo
+      para claro; mostrar foto antes; cuidar de calendário, listas, logo com letra preta, gráfico.
+   3. **Aviso de atualização** (pergunta do usuário em 2026-11-10): o programa avisa que há versão
+      nova e a pessoa escolhe atualizar agora ou depois; ver se dá para publicar a atualização na
+      rede sem ele trocar a pasta à mão (sempre com a confirmação dele).
+   Essas três podem ir para o README (são grandes). Depois: PR, tag `v1.2.0` (ou dividir em
+   versões) e pacote para trocar a pasta `programa` na rede.
 3. Pendências que continuam: confidencialidade do repositório público (só quando o usuário
    pedir); limpeza dos arquivos do protótipo na árvore (perguntar antes de remover).
 4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,
