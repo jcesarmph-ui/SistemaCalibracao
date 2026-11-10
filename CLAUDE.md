@@ -202,11 +202,17 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    certificados, modo claro/escuro, Indicadores, Relatórios) e vai uma **cópia nova para o
    `programas-executaveis`** (repositório privado).
    **E-mail automático: NÃO vai ter** (decisão de 2026-11-10).
-   **ONDE PAREI (2026-11-10, antes do /clear): Indicadores e Relatórios prontos e enviados
-   (407 testes). Próximo: mostrar ao usuário as fotos em `dados/fotos/versao_1.2.0/indicadores`
-   (indicadores_escuro/claro, montador, relatorios_escuro, relatorio_setembro_2027.pdf) e
-   pedir aprovação dos ícones novos; depois fechar a 1.2.0 (README com as coisas grandes, PR,
-   tag, pacote para a rede, cópia no programas-executaveis).**
+   **VERSÃO 1.2.0 ENTREGUE (2026-11-10):** PR #20 juntado, tag `v1.2.0`, 410 testes. Ajustes
+   do teste final do usuário (cópia do banco real no scratchpad): janelinha que piscava (botão
+   mostrado antes de ter "pai" vira janela solta — teste `test_redesenhar_nao_pisca_janela_solta`;
+   só `hide()` antes de pôr no layout, nunca `setVisible(True)`), relatórios sem "passou a ser
+   orientação indicativa", relatório anual = números do topo + gráficos (sem tabela e sem
+   ALTERAÇÕES), botão "Abrir certificado" na aba Certificados. **Rede atualizada por mim**: pasta
+   `programa` trocada (a 1.1.0 guardada como `programa 1.1.0`; o `.exe` da rede se chama
+   "DQ05 CRONOGRAMA DE CALIBRACAO de EIMEs.exe"; lançador sem mudança). Cópia privada:
+   Release `calibracao-v1.2.0-2026-11-10` no `programas-executaveis`. README: novidades da 1.2.0
+   + fotos metade claro/metade escuro + relatório mensal fictício (PR #21, script
+   `dados/fotos/foto_portfolio.py`).
    **Indicadores e Relatórios: FEITOS (2026-11-10, 3 etapas)** — `regras/indicadores.py`,
    `regras/relatorio.py`, `interface/aba_indicadores.py`, `aba_relatorios.py`,
    `desenho_grafico.py`, `relatorio_pdf.py`; tabelas `graficos_painel` e `relatorios` (sem mudar a
