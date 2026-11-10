@@ -2,8 +2,18 @@
 
 import contextlib
 import datetime
+import difflib
 
-from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QTimer, Signal
+from PySide6.QtCore import (
+    QEvent,
+    QObject,
+    QPoint,
+    QSize,
+    QStringListModel,
+    Qt,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import QColor, QTextCharFormat
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -14,20 +24,25 @@ from PySide6.QtWidgets import (
     QApplication,
     QCalendarWidget,
     QComboBox,
+    QCompleter,
     QDialog,
     QFrame,
     QGroupBox,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QPushButton,
     QTabBar,
     QTableWidget,
     QTableWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from calibracao.interface.estilo import abreviar_indicativa, destacar, tem_destaque
+from calibracao.interface.estilo import CORES, abreviar_indicativa, destacar, tem_destaque
+from calibracao.interface.tema_icones import html_com_icones, por_icone
+from calibracao.regras.padronizacao import chave, locais
 
 
 class FiltroRodaDoMouse(QObject):
@@ -102,7 +117,7 @@ def calendario_escuro(calendario: QCalendarWidget) -> None:
     dos outros dias (vermelho é só para erro) e sem a coluna do número da semana."""
     calendario.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
     formato = QTextCharFormat()
-    formato.setForeground(QColor("#f0f0f0"))
+    formato.setForeground(QColor(CORES["texto"]))
     for dia in (Qt.Saturday, Qt.Sunday):
         calendario.setWeekdayTextFormat(dia, formato)
 
@@ -162,6 +177,80 @@ class _EnterDesce(QObject):
 
 def enter_desce(tabela: QTableWidget) -> None:
     tabela._enter_desce = _EnterDesce(tabela)
+
+
+def data_livre_para_tela(texto: str | None) -> str:
+    """Data guardada como aaaa-mm-dd aparece como dd/mm/aaaa; qualquer outro texto (ex.: "-" ou
+    uma frase vinda da planilha) aparece como está."""
+    if not texto:
+        return ""
+    try:
+        return datetime.date.fromisoformat(texto.strip()).strftime("%d/%m/%Y")
+    except ValueError:
+        return texto
+
+
+def data_livre_para_banco(texto: str | None) -> str | None:
+    """O contrário: dd/mm/aaaa vira aaaa-mm-dd (como as datas já guardadas); o resto fica igual."""
+    texto = (texto or "").strip()
+    if not texto:
+        return None
+    try:
+        return datetime.datetime.strptime(texto, "%d/%m/%Y").date().isoformat()
+    except ValueError:
+        return texto
+
+
+class BotaoCalendario(QToolButton):
+    """Ícone de calendário ao lado de um campo de texto de data (pedido de 2026-11-10; ícone
+    "calendar_month" do Google): abre o mesmo calendário das outras datas e escreve o dia
+    escolhido (dd/mm/aaaa) no campo. O campo continua aceitando digitação."""
+
+    def __init__(self, campo, parent=None) -> None:
+        super().__init__(parent)
+        self.campo = campo
+        self.setObjectName("calendario")
+        por_icone(self, "calendar_month", CORES["titulo"])  # repintado na troca de tema
+        self.setIconSize(QSize(24, 24))
+        self.setToolTip("Abrir o calendário (ou digite a data no campo, dd/mm/aaaa).")
+        self.calendario = QCalendarWidget()
+        self.calendario.setWindowFlags(Qt.Popup)
+        self.calendario.setGridVisible(False)
+        self.calendario.clicked.connect(self._escolheu)
+        self.clicked.connect(self.abrir)
+
+    def setEnabled(self, ligado: bool) -> None:  # noqa: N802 — nome do Qt
+        super().setEnabled(ligado)
+        if ligado and self.parentWidget() is None:
+            return  # mostrar ainda sem "pai" pisca uma janela solta; aparece junto com o campo
+        self.setVisible(ligado)  # campo só de consulta: o ícone some
+
+    def abrir(self) -> None:
+        texto = self.campo.text().strip()
+        try:
+            dia = datetime.datetime.strptime(texto, "%d/%m/%Y").date()
+        except ValueError:
+            dia = datetime.date.today()
+        self.calendario.setSelectedDate(dia)
+        self.calendario.adjustSize()
+        self.calendario.move(self.campo.mapToGlobal(QPoint(0, self.campo.height())))
+        self.calendario.show()
+
+    def _escolheu(self, data) -> None:
+        self.campo.setText(data.toPython().strftime("%d/%m/%Y"))
+        self.calendario.hide()
+
+
+def dinheiro(valor: float | None) -> str:
+    """R$ com centavos e ponto no milhar (ex.: R$ 1.350,00)."""
+    if valor is None:
+        return "—"
+    return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def reais_em_texto(valor: float | None) -> str:
+    """Valor em reais para o campo de digitar, sempre com os centavos (ex.: 350,00)."""
+    return "" if valor is None else f"{valor:.2f}".replace(".", ",")
 
 
 def formatar_data(data: datetime.date | None) -> str:
@@ -249,8 +338,8 @@ class ListaFlutuante(QFrame):
                  parent: QWidget) -> None:
         super().__init__(parent, Qt.Popup)
         self.setObjectName("flutuante")
-        self.setStyleSheet("#flutuante { background: #0a0a0a; border: 1px solid #e0e0e0; "
-                           "border-radius: 6px; }")
+        self.setStyleSheet(f"#flutuante {{ background: {CORES['caixa']}; "
+                           f"border: 1px solid {CORES['borda']}; border-radius: 6px; }}")
         tabela = tabela_somente_leitura(colunas)
         tabela.setRowCount(len(linhas))
         for indice, itens in enumerate(linhas):
@@ -317,3 +406,132 @@ def preenchendo(tabela: QTableWidget):
         for coluna, modo in enumerate(modos):
             cabecalho.setSectionResizeMode(coluna, modo)
         tabela.setUpdatesEnabled(True)
+
+
+class CampoComSugestoes(QLineEdit):
+    """Campo de texto com sugestões enquanto se digita, como a pesquisa do Google (pedido de
+    2026-11-10): mostra os nomes já usados que têm o que foi digitado em qualquer parte, sem ligar
+    para maiúsculas nem acentos ("paqui" acha "Paquímetro"). Clicar (ou Enter) numa sugestão
+    escreve o nome do jeito certo. Dá para escrever um nome novo, mas `nomes_novos` diz quais não
+    existem, para a tela avisar e pedir confirmação.
+
+    Com `varios=True` (localização) aceita mais de um nome separado por " / ": as sugestões valem
+    para o trecho depois da última barra.
+    """
+
+    def __init__(self, varios: bool = False, parent=None) -> None:
+        super().__init__(parent)
+        self.varios = varios
+        self.opcoes: list[str] = []
+        self._modelo = QStringListModel(self)
+        self.sugestoes = QCompleter(self._modelo, self)
+        self.sugestoes.setWidget(self)
+        self.sugestoes.setCompletionMode(QCompleter.UnfilteredPopupCompletion)
+        self.sugestoes.setMaxVisibleItems(12)
+        self.sugestoes.popup().setObjectName("sugestoes")  # tema escuro (estilo.py)
+        self.sugestoes.activated.connect(self.escolher)
+        self.textEdited.connect(self.mostrar_sugestoes)
+
+    def definir_opcoes(self, opcoes: list[str]) -> None:
+        self.opcoes = list(opcoes)
+
+    def _trecho(self) -> tuple[str, str]:
+        """(o que vem antes, o trecho que está sendo digitado)."""
+        texto = self.text()
+        if self.varios and "/" in texto:
+            antes, _, trecho = texto.rpartition("/")
+            return antes.rstrip() + " / ", trecho.strip()
+        return "", texto.strip()
+
+    def filtradas(self) -> list[str]:
+        _, trecho = self._trecho()
+        procurado = chave(trecho)
+        return [opcao for opcao in self.opcoes if procurado in chave(opcao)]
+
+    def mostrar_sugestoes(self, _texto: str = "") -> None:
+        filtradas = self.filtradas()
+        self._modelo.setStringList(filtradas)
+        if filtradas:
+            self.sugestoes.complete()
+        else:
+            self.sugestoes.popup().hide()
+
+    def escolher(self, opcao: str) -> None:
+        antes, _ = self._trecho()
+        self.setText(antes + opcao)
+        self.sugestoes.popup().hide()
+
+    def mais_um(self) -> None:
+        """Botão "Mais um local": põe a barra e já mostra todas as opções."""
+        texto = self.text().rstrip()
+        if texto and not texto.endswith("/"):
+            self.setText(texto + " / ")
+        self.setFocus()
+        self.mostrar_sugestoes()
+
+    def nomes(self) -> list[str]:
+        if not self.text().strip():
+            return []
+        return locais(self.text()) if self.varios else [" ".join(self.text().split())]
+
+    def nomes_novos(self) -> list[str]:
+        """Os nomes digitados que nenhum instrumento usa ainda."""
+        existentes = {chave(opcao) for opcao in self.opcoes}
+        return [nome for nome in self.nomes() if chave(nome) not in existentes]
+
+    def parecidos(self, nome: str) -> list[str]:
+        """Nomes já usados parecidos com um nome novo ("CT - 1" → "CT-01")."""
+        k = chave(nome)
+        compactos = {o: chave(o).replace(" ", "").replace("-", "") for o in self.opcoes}
+        k_compacto = k.replace(" ", "").replace("-", "")
+        achados = [o for o in self.opcoes
+                   if k and (k in chave(o) or chave(o) in k
+                             or difflib.SequenceMatcher(None, k_compacto,
+                                                        compactos[o]).ratio() >= 0.75)]
+        return achados[:4]
+
+    def aviso_de_novos(self, oque: str) -> str:
+        """Texto do aviso amarelo para os nomes novos (vazio se não há). Enquanto o que foi
+        digitado ainda é pedaço de um nome da lista ("serra" de "Serralheria"), não avisa: a
+        pessoa provavelmente ainda vai escolher na lista (ao salvar, a pergunta vale igual)."""
+        partes = []
+        for nome in self.nomes_novos():
+            if any(chave(nome) in chave(opcao) for opcao in self.opcoes):
+                continue
+            parecidos = self.parecidos(nome)
+            parece = (f" Parece com: {', '.join(parecidos)} — se for o mesmo, escolha na lista."
+                      if parecidos else "")
+            partes.append(f"⚠ \"{nome}\" é {oque} novo (nenhum instrumento usa).{parece}")
+        return "\n".join(partes)
+
+
+# Símbolos dos avisos → ícone do Google na cor do aviso (aprovado por foto em 2026-11-10).
+def simbolos() -> dict[str, tuple[str, str]]:
+    """Lido na hora (a cor depende do tema)."""
+    return {"✔": ("check_circle", CORES["certo"]), "✖": ("error", CORES["erro"]),
+            "⚠": ("warning", CORES["aviso"])}
+
+
+class RotuloAviso(QLabel):
+    """Rótulo de aviso: ✔ ✖ ⚠ no começo da frase aparecem como ícone (verde, vermelho, amarelo).
+
+    O texto continua guardado como foi escrito (`text()` devolve com o símbolo); só a tela mostra
+    o ícone. `cor_icone` pinta todos de uma cor só (ex.: branco no aviso flutuante colorido).
+    """
+
+    def __init__(self, texto: str = "", parent=None, cor_icone: str | None = None, **kw) -> None:
+        super().__init__(parent, **kw)
+        self.cor_icone = cor_icone
+        self._original = ""
+        self.setText(texto)
+
+    def setText(self, texto: str) -> None:  # noqa: N802 — nome do Qt
+        self._original = texto
+        escolhidos = ({s: (nome, self.cor_icone) for s, (nome, _) in simbolos().items()}
+                      if self.cor_icone else simbolos())
+        com_icones = html_com_icones(texto, escolhidos)
+        self.setTextFormat(Qt.RichText if com_icones else Qt.AutoText)
+        super().setText(com_icones if com_icones else texto)
+
+    def text(self) -> str:
+        return self._original

@@ -8,13 +8,17 @@ de `calibracao.regras` — aqui só se guarda e se busca.
 import dataclasses
 import datetime
 import functools
+import re
 import sqlite3
 import uuid
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
+from calibracao.dados import certificados as arquivos_pdf
 from calibracao.dados.backup import fazer_backup_diario
 from calibracao.dados.esquema import conectar, criar_tabelas
+from calibracao.regras import indicadores as regras_indicadores
+from calibracao.regras import relatorio as regras_relatorio
 from calibracao.regras.avaliacao import (
     Avaliacao,
     Resultado,
@@ -40,8 +44,26 @@ from calibracao.regras.cronograma import (
     proxima_calibracao,
     situacao,
 )
-from calibracao.regras.lixeira import Tipo, bloqueio_exclusao_permanente, bloqueio_restaurar
+from calibracao.regras.indicadores import (
+    COM_ATRASO_TXT,
+    NO_PRAZO_TXT,
+    SEM_LABORATORIO,
+    CalibracaoParaIndicador,
+    DefinicaoGrafico,
+    InstrumentoParaIndicador,
+    limite_usado,
+)
+from calibracao.regras.lixeira import PAI, Tipo, bloqueio_exclusao_permanente, bloqueio_restaurar
 from calibracao.regras.localizacao import com_marcas, eh_indicativa, padronizar_localizacao
+from calibracao.regras.padronizacao import locais as locais_da_localizacao
+from calibracao.regras.padronizacao import (
+    localizacao_padrao,
+    ordem,
+    preferidas_dos_locais,
+    preferidas_dos_tipos,
+    tipo_padrao,
+)
+from calibracao.regras.relatorio import ConteudoRelatorio, LinhaDoRelatorio, Numero, Periodo
 from calibracao.regras.trava import sinal_antigo
 
 MENSAGEM_CONSULTA = ("Modo consulta: outra pessoa está editando. Nada foi salvo.")
@@ -320,6 +342,20 @@ class LinhaDoMes:
     prevista: PrevistaNoMes
 
 
+PASTA_RELATORIOS = "relatorios"
+
+
+@dataclass
+class RelatorioGuardado:
+    """Um relatório final guardado (o PDF fica em `relatorios/`; não muda mais)."""
+    id: int
+    periodo: Periodo
+    arquivo: str
+    sha256: str
+    gerado_em: datetime.datetime
+    gerado_por: str | None
+
+
 @dataclass
 class ItemLixeira:
     tipo: Tipo
@@ -329,11 +365,35 @@ class ItemLixeira:
     motivo: str | None
 
 
+@dataclass
+class Certificado:
+    """PDF do certificado de uma calibração (o arquivo fica em `certificados/`)."""
+    id: int
+    calibracao_id: int
+    arquivo: str
+    nome_original: str
+    tamanho: int
+    sha256: str
+    enviado_em: str
+    enviado_por: str | None
+
+
+@dataclass
+class LinhaCertificado:
+    """Uma linha da aba Certificados: código | nº do certificado | data da calibração."""
+    certificado_id: int
+    calibracao_id: int
+    codigo: str
+    numero: str | None
+    data_calibracao: datetime.date
+
+
 # Tabela de cada tipo e, quando há, a coluna que aponta para o "pai".
 _TABELA = {Tipo.INSTRUMENTO: "instrumentos", Tipo.PLANO: "planos",
-           Tipo.PONTO: "pontos_plano", Tipo.CALIBRACAO: "calibracoes"}
+           Tipo.PONTO: "pontos_plano", Tipo.CALIBRACAO: "calibracoes",
+           Tipo.CERTIFICADO: "certificados"}
 _COLUNA_PAI = {Tipo.INSTRUMENTO: "plano_id", Tipo.PONTO: "plano_id",
-               Tipo.CALIBRACAO: "instrumento_id"}
+               Tipo.CALIBRACAO: "instrumento_id", Tipo.CERTIFICADO: "calibracao_id"}
 
 ESCOLHAS_QUALITATIVAS = (Resultado.APROVADO, Resultado.REPROVADO)
 
@@ -403,6 +463,15 @@ def _mudanca(linha: sqlite3.Row) -> MudancaCondicao:
                            linha["calibracao_id"])
 
 
+_CODIGO = re.compile(r"^\s*([A-Za-zÀ-ÿ]+)\s*-\s*(\d+)\s*$")
+
+
+def dividir_codigo(codigo: str | None) -> tuple[str, str] | None:
+    """"PAQ-018" → ("PAQ", "018"); código fora do padrão sigla-número → None."""
+    achado = _CODIGO.match(codigo or "")
+    return (achado.group(1).upper(), achado.group(2)) if achado else None
+
+
 def _instrumento(linha: sqlite3.Row) -> Instrumento:
     dados = {campo: linha[campo] for campo in ["id", *_CAMPOS_INSTRUMENTO]}
     dados["exige_calibracao"] = bool(dados["exige_calibracao"])
@@ -428,6 +497,7 @@ class Repositorio:
         self.modo_consulta = False
         self.ao_gravar = None  # chamado depois de cada gravação que deu certo
         self._gravacoes_abertas = 0
+        self.pasta_dados: Path | None = None  # onde ficam os PDFs (ao lado do banco)
 
     @classmethod
     def abrir(cls, caminho: Path, hoje: datetime.date | None = None) -> "Repositorio":
@@ -437,7 +507,9 @@ class Repositorio:
         conexao = conectar(caminho)
         with conexao:
             criar_tabelas(conexao)
-        return cls(conexao)
+        repositorio = cls(conexao)
+        repositorio.pasta_dados = Path(caminho).parent
+        return repositorio
 
     def fechar(self) -> None:
         self._conexao.close()
@@ -625,11 +697,64 @@ class Repositorio:
         if erros:
             raise ErroDeValidacao(erros)
 
+    def _padronizar_nomes(self, dados: dict) -> None:
+        """Tipo e locais com o nome que os outros instrumentos já usam (pedido de 2026-11-10):
+        "lâmina de Folga" vira "Lâmina de folga", "ct-01" vira "CT-01"; nome novo fica como
+        foi digitado."""
+        outros = self._conexao.execute(
+            "SELECT tipo, localizacao FROM instrumentos WHERE excluido_em IS NULL AND id IS NOT ?",
+            (dados.get("id"),)).fetchall()
+        dados["tipo"] = tipo_padrao(dados["tipo"],
+                                    preferidas_dos_tipos(linha["tipo"] for linha in outros))
+        dados["localizacao"] = localizacao_padrao(
+            dados["localizacao"], preferidas_dos_locais(linha["localizacao"] for linha in outros))
+
+    def tipos_cadastrados(self) -> list[str]:
+        """Os tipos dos instrumentos (fora da Lixeira), um nome só para cada, em ordem."""
+        tipos = [linha[0] for linha in self._conexao.execute(
+            "SELECT tipo FROM instrumentos WHERE excluido_em IS NULL")]
+        return sorted(set(preferidas_dos_tipos(tipos).values()), key=ordem)
+
+    def locais_cadastrados(self) -> list[str]:
+        """Cada local já usado (fora da Lixeira), separado ("Serralheria / Manutenção" conta
+        como Serralheria e Manutenção), um nome só para cada, em ordem."""
+        localizacoes = [linha[0] for linha in self._conexao.execute(
+            "SELECT localizacao FROM instrumentos WHERE excluido_em IS NULL")]
+        return sorted(set(preferidas_dos_locais(localizacoes).values()), key=ordem)
+
+    def siglas_dos_tipos(self) -> list[tuple[str, str]]:
+        """(tipo, sigla) de cada sigla usada nos códigos: "Paquímetro (PAQ)". Tipo com duas
+        siglas aparece duas vezes (Manômetro MAN e MN). Conta todos, até os da Lixeira."""
+        linhas = self._conexao.execute("SELECT codigo, tipo FROM instrumentos").fetchall()
+        preferidas = preferidas_dos_tipos(linha["tipo"] for linha in linhas)
+        pares = set()
+        for linha in linhas:
+            partes = dividir_codigo(linha["codigo"])
+            if partes:
+                pares.add((tipo_padrao(linha["tipo"], preferidas), partes[0]))
+        return sorted(pares, key=lambda par: (ordem(par[0]), par[1]))
+
+    def proximo_codigo(self, sigla: str) -> str | None:
+        """O código seguinte ao maior número da sigla ("PAQ-018" → "PAQ-019"), contando todos os
+        instrumentos (desativados e na Lixeira também, para um código não voltar). None se a
+        sigla ainda não existe."""
+        maior = None
+        for (codigo,) in self._conexao.execute("SELECT codigo FROM instrumentos"):
+            partes = dividir_codigo(codigo)
+            if partes and partes[0].casefold() == sigla.strip().casefold():
+                if maior is None or int(partes[1]) > int(maior[1]):
+                    maior = partes
+        if maior is None:
+            return None
+        numero = str(int(maior[1]) + 1).zfill(len(maior[1]))
+        return f"{maior[0]}-{numero}"
+
     @_escrita
     def incluir_instrumento(self, instrumento: Instrumento,
                             hoje: datetime.date | None = None) -> int:
         self._validar_instrumento(instrumento)
         dados = _dados_instrumento(instrumento)
+        self._padronizar_nomes(dados)
         with self._conexao:
             cursor = self._conexao.execute(
                 f"INSERT INTO instrumentos ({', '.join(_CAMPOS_INSTRUMENTO)}) "
@@ -649,6 +774,7 @@ class Repositorio:
             raise ValueError("Instrumento sem id: use incluir_instrumento.")
         self._validar_instrumento(instrumento)
         dados = _dados_instrumento(instrumento)
+        self._padronizar_nomes(dados)
         antes = self._conexao.execute("SELECT localizacao FROM instrumentos WHERE id = ?",
                                       (instrumento.id,)).fetchone()[0]
         with self._conexao:
@@ -1276,6 +1402,89 @@ class Repositorio:
 
     # ---------------------------------------------------------------- lixeira
 
+    # ---------------------------------------------------------------- certificados (PDF)
+
+    def certificado_da_calibracao(self, calibracao_id: int) -> Certificado | None:
+        """O PDF que vale para a calibração (fora da Lixeira), ou None."""
+        linha = self._conexao.execute(
+            "SELECT * FROM certificados WHERE calibracao_id = ? AND excluido_em IS NULL "
+            "ORDER BY id DESC LIMIT 1", (calibracao_id,)).fetchone()
+        if linha is None:
+            return None
+        return Certificado(linha["id"], linha["calibracao_id"], linha["arquivo"],
+                           linha["nome_original"], linha["tamanho"], linha["sha256"],
+                           linha["enviado_em"], linha["enviado_por"])
+
+    def caminho_do_certificado(self, certificado: Certificado) -> Path:
+        if self.pasta_dados is None:
+            raise ErroDeValidacao(["Banco aberto sem pasta: não há onde achar o PDF."])
+        return self.pasta_dados / arquivos_pdf.PASTA / certificado.arquivo
+
+    @_escrita
+    def anexar_certificado(self, calibracao_id: int, arquivo: Path, usuario: str | None,
+                           agora: datetime.datetime) -> int:
+        """Guarda o PDF do certificado da calibração. Se já havia um, o antigo vai para a
+        Lixeira ("trocado por outro PDF"). ErroDeValidacao se o arquivo não servir."""
+        if self.pasta_dados is None:
+            raise ErroDeValidacao(["Banco aberto sem pasta: não há onde guardar o PDF."])
+        if self.na_lixeira(Tipo.CALIBRACAO, calibracao_id):
+            raise ErroDeValidacao(["A calibração está na Lixeira: restaure-a antes."])
+        calibracao = self.obter_calibracao(calibracao_id)
+        codigo = self.obter_instrumento(calibracao.instrumento_id).codigo
+        nome = arquivos_pdf.nome_do_arquivo(codigo, calibracao.certificado,
+                                            calibracao.data_calibracao, agora)
+        try:
+            destino, resumo, tamanho = arquivos_pdf.guardar(Path(arquivo), self.pasta_dados, nome)
+        except arquivos_pdf.ErroDoArquivo as erro:
+            raise ErroDeValidacao([str(erro)]) from erro
+        anterior = self.certificado_da_calibracao(calibracao_id)
+        quando = agora.isoformat(timespec="seconds")
+        try:
+            with self._conexao:
+                if anterior is not None:
+                    self._conexao.execute(
+                        "UPDATE certificados SET excluido_em = ?, motivo_exclusao = ? "
+                        "WHERE id = ?", (quando, "Trocado por outro PDF", anterior.id))
+                cursor = self._conexao.execute(
+                    "INSERT INTO certificados (calibracao_id, arquivo, nome_original, tamanho, "
+                    "sha256, enviado_em, enviado_por) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (calibracao_id, nome, Path(arquivo).name, tamanho, resumo, quando, usuario))
+        except sqlite3.Error:
+            destino.unlink(missing_ok=True)  # o banco não gravou: o PDF copiado não fica solto
+            raise
+        return cursor.lastrowid
+
+    def conferir_certificado(self, certificado: Certificado) -> str | None:
+        """Problema com o arquivo guardado (sumiu ou foi mexido), ou None se está igual ao que
+        foi enviado (mesmo SHA-256)."""
+        caminho = self.caminho_do_certificado(certificado)
+        if not caminho.is_file():
+            return "O PDF não foi encontrado na pasta dos certificados."
+        if arquivos_pdf.sha256(caminho) != certificado.sha256:
+            return "O PDF na pasta não é o mesmo que foi enviado (foi alterado depois)."
+        return None
+
+    def listar_certificados(self) -> list[LinhaCertificado]:
+        """Todos os PDFs que valem (calibração e instrumento fora da Lixeira), mais recentes
+        primeiro: código | nº do certificado | data da calibração."""
+        linhas = self._conexao.execute("""
+            SELECT k.id, k.calibracao_id, i.codigo, c.certificado, c.data_calibracao
+              FROM certificados k JOIN calibracoes c ON c.id = k.calibracao_id
+              JOIN instrumentos i ON i.id = c.instrumento_id
+             WHERE k.excluido_em IS NULL AND c.excluido_em IS NULL AND i.excluido_em IS NULL
+             ORDER BY c.data_calibracao DESC, i.codigo""")
+        return [LinhaCertificado(linha[0], linha[1], linha[2], linha[3], _data(linha[4]))
+                for linha in linhas]
+
+    def obter_certificado(self, certificado_id: int) -> Certificado:
+        linha = self._conexao.execute(
+            "SELECT * FROM certificados WHERE id = ?", (certificado_id,)).fetchone()
+        if linha is None:
+            raise KeyError(f"Certificado {certificado_id} não existe.")
+        return Certificado(linha["id"], linha["calibracao_id"], linha["arquivo"],
+                           linha["nome_original"], linha["tamanho"], linha["sha256"],
+                           linha["enviado_em"], linha["enviado_por"])
+
     def na_lixeira(self, tipo: Tipo, item_id: int) -> bool:
         linha = self._conexao.execute(
             f"SELECT excluido_em FROM {_TABELA[tipo]} WHERE id = ?", (item_id,)
@@ -1301,12 +1510,18 @@ class Repositorio:
         pai_id = self._conexao.execute(
             f"SELECT {coluna} FROM {_TABELA[tipo]} WHERE id = ?", (item_id,)
         ).fetchone()[0]
-        pai = Tipo.INSTRUMENTO if tipo == Tipo.CALIBRACAO else Tipo.PLANO
-        return pai_id is not None and self.na_lixeira(pai, pai_id)
+        return pai_id is not None and self.na_lixeira(PAI[tipo], pai_id)
 
     @_escrita
     def restaurar(self, tipo: Tipo, item_id: int) -> None:
         bloqueio = bloqueio_restaurar(tipo, self._pai_na_lixeira(tipo, item_id))
+        if bloqueio is None and tipo == Tipo.CERTIFICADO and self.na_lixeira(tipo, item_id):
+            calibracao_id = self._conexao.execute(
+                "SELECT calibracao_id FROM certificados WHERE id = ?", (item_id,)).fetchone()[0]
+            if self.certificado_da_calibracao(calibracao_id) is not None:
+                bloqueio = ("Esta calibração já tem outro PDF. Para voltar este, use "
+                            "\"Substituir certificado (PDF)\" no EDITAR da calibração (o "
+                            "atual vai para a Lixeira).")
         if bloqueio:
             raise ErroDeValidacao([bloqueio])
         voltando = self.na_lixeira(tipo, item_id)
@@ -1325,7 +1540,8 @@ class Repositorio:
                          "SELECT 1 FROM pontos_plano WHERE plano_id = ?"],
             Tipo.PONTO: ["SELECT 1 FROM pontos_calibracao WHERE ponto_plano_id = ?"],
             Tipo.INSTRUMENTO: ["SELECT 1 FROM calibracoes WHERE instrumento_id = ?"],
-            Tipo.CALIBRACAO: [],  # os pontos medidos são apagados junto
+            Tipo.CALIBRACAO: [],  # os pontos medidos (e os PDFs) são apagados junto
+            Tipo.CERTIFICADO: [],
         }[tipo]
         return any(self._conexao.execute(sql, (item_id,)).fetchone() for sql in consultas)
 
@@ -1338,13 +1554,24 @@ class Repositorio:
             tipo, confirmacao, self._tem_dependencias(tipo, item_id))
         if bloqueio:
             raise ErroDeValidacao([bloqueio])
+        pdfs = []  # arquivos a apagar da pasta depois que o banco apagou as linhas
+        if tipo in (Tipo.CALIBRACAO, Tipo.CERTIFICADO):
+            coluna = "calibracao_id" if tipo == Tipo.CALIBRACAO else "id"
+            pdfs = [linha[0] for linha in self._conexao.execute(
+                f"SELECT arquivo FROM certificados WHERE {coluna} = ?", (item_id,))]
         with self._conexao:
+            if tipo == Tipo.CALIBRACAO:
+                self._conexao.execute(
+                    "DELETE FROM certificados WHERE calibracao_id = ?", (item_id,))
             if tipo == Tipo.INSTRUMENTO:  # o histórico de condição e da marca vai junto
                 self._conexao.execute(
                     "DELETE FROM condicoes WHERE instrumento_id = ?", (item_id,))
                 self._conexao.execute(
                     "DELETE FROM marcas_indicativa WHERE instrumento_id = ?", (item_id,))
             self._conexao.execute(f"DELETE FROM {_TABELA[tipo]} WHERE id = ?", (item_id,))
+        if self.pasta_dados is not None:
+            for arquivo in pdfs:
+                arquivos_pdf.apagar(self.pasta_dados, arquivo)
 
     def listar_lixeira(self) -> list[ItemLixeira]:
         """Tudo o que está na Lixeira, mais recente primeiro."""
@@ -1365,9 +1592,281 @@ class Repositorio:
                    c.excluido_em, c.motivo_exclusao
               FROM calibracoes c JOIN instrumentos i ON i.id = c.instrumento_id
              WHERE c.excluido_em IS NOT NULL
+            UNION ALL
+            SELECT 'Certificado (PDF)', k.id,
+                   i.codigo || ' — PDF da calibração de '
+                   || strftime('%d/%m/%Y', c.data_calibracao) || ' (' || k.nome_original || ')',
+                   k.excluido_em, k.motivo_exclusao
+              FROM certificados k JOIN calibracoes c ON c.id = k.calibracao_id
+              JOIN instrumentos i ON i.id = c.instrumento_id
+             WHERE k.excluido_em IS NOT NULL
             ORDER BY excluido_em DESC
         """
         return [
             ItemLixeira(Tipo(linha[0]), linha[1], linha[2], linha[3], linha[4])
             for linha in self._conexao.execute(consulta)
         ]
+
+    # ---------------------------------------------------------------- indicadores (painel)
+
+    def dados_dos_indicadores(self) -> tuple[list[CalibracaoParaIndicador],
+                                             list[InstrumentoParaIndicador]]:
+        """As calibrações (fora da Lixeira, de todos os instrumentos, até os desativados) e os
+        instrumentos em uso, prontos para os gráficos. "Com atraso" = feita depois do mês
+        previsto (a prevista vem da calibração anterior ou da 1ª calibração prevista)."""
+        condicoes = self.condicoes_atuais()
+        calibracoes, instrumentos = [], []
+        for instrumento in self.listar_instrumentos(incluir_desativados=True):
+            locais = locais_da_localizacao(instrumento.localizacao)
+            condicao = condicoes.get(instrumento.id)
+            if condicao is None or condicao.condicao != Condicao.DESATIVADO:
+                instrumentos.append(InstrumentoParaIndicador(instrumento.codigo,
+                                                             instrumento.tipo, locais))
+            prevista = instrumento.primeira_prevista
+            for calibracao in self.listar_calibracoes(instrumento.id):
+                atrasada = prevista is not None and (
+                    calibracao.data_calibracao.year, calibracao.data_calibracao.month) > (
+                    prevista.year, prevista.month)
+                parecer = (calibracao.parecer_final.value if calibracao.parecer_final
+                           else calibracao.resultado.value)
+                calibracoes.append(CalibracaoParaIndicador(
+                    calibracao.data_calibracao, instrumento.codigo, instrumento.tipo, locais,
+                    (calibracao.laboratorio or "").strip() or SEM_LABORATORIO, parecer,
+                    COM_ATRASO_TXT if atrasada else NO_PRAZO_TXT, calibracao.custo or 0.0,
+                    limite_usado(self.pontos_da_calibracao(calibracao.id))))
+                prevista = calibracao.data_proxima or proxima_calibracao(
+                    calibracao.data_calibracao, instrumento.periodicidade_meses)
+        return calibracoes, instrumentos
+
+    def listar_graficos(self) -> list[tuple[int, DefinicaoGrafico]]:
+        """Os gráficos do painel, na ordem em que entraram (lugar fixo)."""
+        linhas = self._conexao.execute(
+            "SELECT id, definicao FROM graficos_painel WHERE excluido_em IS NULL ORDER BY id")
+        return [(linha[0], DefinicaoGrafico.de_json(linha[1])) for linha in linhas]
+
+    def obter_grafico(self, grafico_id: int) -> DefinicaoGrafico:
+        linha = self._conexao.execute(
+            "SELECT definicao FROM graficos_painel WHERE id = ?", (grafico_id,)).fetchone()
+        if linha is None:
+            raise KeyError(f"Gráfico {grafico_id} não existe.")
+        return DefinicaoGrafico.de_json(linha[0])
+
+    @_escrita
+    def incluir_grafico(self, definicao: DefinicaoGrafico,
+                        agora: datetime.datetime | None = None) -> int:
+        quando = (agora or datetime.datetime.now()).isoformat(timespec="seconds")
+        with self._conexao:
+            cursor = self._conexao.execute(
+                "INSERT INTO graficos_painel (definicao, criado_em) VALUES (?, ?)",
+                (definicao.para_json(), quando))
+        return cursor.lastrowid
+
+    @_escrita
+    def alterar_grafico(self, grafico_id: int, definicao: DefinicaoGrafico) -> None:
+        with self._conexao:
+            self._conexao.execute("UPDATE graficos_painel SET definicao = ? WHERE id = ?",
+                                  (definicao.para_json(), grafico_id))
+
+    @_escrita
+    def tirar_grafico(self, grafico_id: int, agora: datetime.datetime | None = None) -> None:
+        quando = (agora or datetime.datetime.now()).isoformat(timespec="seconds")
+        with self._conexao:
+            self._conexao.execute(
+                "UPDATE graficos_painel SET excluido_em = ? WHERE id = ? AND excluido_em IS NULL",
+                (quando, grafico_id))
+
+    @_escrita
+    def voltar_grafico(self, grafico_id: int) -> None:
+        """Desfazer o "Tirar": volta para o mesmo lugar (a ordem é a da criação)."""
+        with self._conexao:
+            self._conexao.execute(
+                "UPDATE graficos_painel SET excluido_em = NULL WHERE id = ?", (grafico_id,))
+
+    # ---------------------------------------------------------------- relatórios
+
+    def relatorios_guardados(self) -> list[RelatorioGuardado]:
+        """Os relatórios finais guardados, do mais novo para o mais antigo."""
+        linhas = self._conexao.execute(
+            "SELECT * FROM relatorios ORDER BY gerado_em DESC, id DESC")
+        return [RelatorioGuardado(linha["id"], Periodo.da_chave(linha["periodo"]),
+                                  linha["arquivo"], linha["sha256"],
+                                  datetime.datetime.fromisoformat(linha["gerado_em"]),
+                                  linha["gerado_por"]) for linha in linhas]
+
+    def relatorios_pendentes(self, hoje: datetime.date) -> list[Periodo]:
+        """Meses (e anos) que já acabaram e ainda não têm o relatório final guardado."""
+        guardados = {r.periodo.chave for r in self.relatorios_guardados()}
+        return regras_relatorio.pendentes(self.data_implantacao(), hoje, guardados)
+
+    def caminho_do_relatorio(self, relatorio: RelatorioGuardado) -> Path:
+        if self.pasta_dados is None:
+            raise ErroDeValidacao(["Banco aberto sem pasta: não há onde achar o PDF."])
+        return self.pasta_dados / PASTA_RELATORIOS / relatorio.arquivo
+
+    def conferir_relatorio(self, relatorio: RelatorioGuardado) -> str | None:
+        """Problema com o PDF guardado (sumiu ou foi mexido), ou None."""
+        caminho = self.caminho_do_relatorio(relatorio)
+        if not caminho.is_file():
+            return "O PDF não foi encontrado na pasta dos relatórios."
+        if arquivos_pdf.sha256(caminho) != relatorio.sha256:
+            return "O PDF na pasta não é o mesmo que foi guardado (foi alterado depois)."
+        return None
+
+    @_escrita
+    def guardar_relatorio(self, periodo: Periodo, arquivo: Path, usuario: str | None,
+                          agora: datetime.datetime) -> int:
+        """Guarda o PDF do relatório final (copiado para `relatorios/` e conferido). Um por
+        período: depois de guardado, não muda mais."""
+        if self.pasta_dados is None:
+            raise ErroDeValidacao(["Banco aberto sem pasta: não há onde guardar o PDF."])
+        if self._conexao.execute("SELECT 1 FROM relatorios WHERE periodo = ?",
+                                 (periodo.chave,)).fetchone():
+            raise ErroDeValidacao([f"O relatório de {periodo.nome} já está guardado."])
+        try:
+            destino, resumo, _ = arquivos_pdf.guardar(Path(arquivo), self.pasta_dados,
+                                                      periodo.nome_do_arquivo(),
+                                                      PASTA_RELATORIOS)
+        except arquivos_pdf.ErroDoArquivo as erro:
+            raise ErroDeValidacao([str(erro)]) from erro
+        try:
+            with self._conexao:
+                cursor = self._conexao.execute(
+                    "INSERT INTO relatorios (periodo, arquivo, sha256, gerado_em, gerado_por) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (periodo.chave, destino.name, resumo, agora.isoformat(timespec="seconds"),
+                     usuario))
+        except sqlite3.Error:
+            destino.unlink(missing_ok=True)
+            raise
+        return cursor.lastrowid
+
+    def conteudo_do_relatorio(self, periodo: Periodo, hoje: datetime.date,
+                              agora: datetime.datetime) -> ConteudoRelatorio:
+        """Números, calibrações e ALTERAÇÕES do período (os gráficos vêm do painel)."""
+        final = periodo.acabou(hoje)
+        referencia = periodo.fim if final else hoje
+        situacao_em = periodo.fim + datetime.timedelta(days=1) if final else hoje
+        conteudo = ConteudoRelatorio(periodo, final, referencia, agora)
+        calibracoes_ind, _ = self.dados_dos_indicadores()
+        atrasadas = {(c.instrumento, c.data) for c in calibracoes_ind
+                     if c.prazo == COM_ATRASO_TXT}
+
+        feitas = []
+        for instrumento in self.listar_instrumentos(incluir_desativados=True):
+            for calibracao in self.listar_calibracoes(instrumento.id):
+                if periodo.inicio <= calibracao.data_calibracao <= referencia:
+                    feitas.append((instrumento, calibracao))
+        feitas.sort(key=lambda par: (par[1].data_calibracao, par[0].codigo))
+        previstas = [linha for mes in periodo.meses() if mes <= referencia
+                     for linha in self.cronograma_do_mes(mes, situacao_em)]
+        nao_feitas = [linha for linha in previstas
+                      if linha.prevista.situacao in (SituacaoNoMes.PENDENTE,
+                                                     SituacaoNoMes.VENCIDA)]
+        pendentes = sum(linha.prevista.situacao == SituacaoNoMes.PENDENTE for linha in nao_feitas)
+        vencidas = len(nao_feitas) - pendentes
+
+        custo = sum(c.custo or 0 for _, c in feitas)
+        no_prazo = [(i.codigo, c.data_calibracao) not in atrasadas for i, c in feitas]
+        mensal = periodo.tipo == regras_relatorio.MENSAL
+        numeros = regras_indicadores.numeros(calibracoes_ind, referencia,
+                                             self.data_implantacao())
+        dinheiro = regras_relatorio.dinheiro
+        conteudo.numeros = [
+            Numero("Previstas no mês" if mensal else "Previstas no ano", str(len(previstas))),
+            Numero("Feitas", str(len(feitas)), "certo" if feitas else ""),
+            Numero("Pendentes", str(pendentes), "aviso" if pendentes else ""),
+            Numero("Vencidas", str(vencidas), "erro" if vencidas else ""),
+            Numero("No prazo", f"{100 * sum(no_prazo) / len(no_prazo):.0f}%" if no_prazo
+                   else "—"),
+            Numero("Custo do mês" if mensal else "Custo do ano", dinheiro(custo)),
+        ]
+        if mensal:
+            conteudo.numeros += [Numero("Custo 12 meses", dinheiro(numeros.custo_12_meses)),
+                                 Numero("Custo médio/mês", dinheiro(numeros.custo_medio_mes))]
+        else:
+            implantacao = self.data_implantacao() or periodo.inicio
+            primeiro = max(periodo.inicio, implantacao.replace(day=1))
+            meses = max(1, (referencia.year - primeiro.year) * 12
+                        + referencia.month - primeiro.month + 1)
+            conteudo.numeros.append(Numero("Custo médio/mês", dinheiro(custo / meses)))
+
+        for instrumento, c in feitas:
+            parecer = c.parecer_final.value if c.parecer_final else c.resultado.value
+            conteudo.linhas.append(LinhaDoRelatorio(
+                instrumento.codigo, instrumento.tipo, instrumento.localizacao or "—",
+                f"{c.data_calibracao:%d/%m/%Y}", c.certificado or "—", c.laboratorio or "—",
+                parecer, dinheiro(c.custo) if c.custo is not None else "—"))
+        for linha in nao_feitas:
+            situacao = ("Pendente" if linha.prevista.situacao == SituacaoNoMes.PENDENTE
+                        else "Vencida")
+            conteudo.linhas.append(LinhaDoRelatorio(
+                linha.instrumento.codigo, linha.instrumento.tipo,
+                linha.instrumento.localizacao or "—", "—", "—", "—", situacao, "—"))
+        conteudo.alteracoes = self._alteracoes(periodo.inicio, referencia, feitas, nao_feitas,
+                                               atrasadas)
+        return conteudo
+
+    def _alteracoes(self, inicio, fim, feitas, nao_feitas, atrasadas) -> list[tuple[str, str]]:
+        """O que mudou no período: reprovados, atrasos, vencidas, instrumentos novos, mudanças
+        de condição feitas à mão e correções de calibração. Instrumento que passou a ser
+        orientação indicativa NÃO entra (pedido do usuário em 2026-11-10)."""
+        def dia(data) -> str:
+            return f"{data:%d/%m/%Y}"
+
+        def com_motivo(texto: str, motivo: str | None) -> str:
+            return f"{texto} — {motivo}" if motivo else f"{texto}."
+
+        itens: list[tuple[str, str]] = []
+        for instrumento, c in feitas:
+            if c.parecer_final == ParecerFinal.REPROVADO_DESATIVADO:
+                itens.append(("erro", com_motivo(f"{instrumento.codigo} reprovado e desativado "
+                                                 f"em {dia(c.data_calibracao)}",
+                                                 c.motivo_parecer)))
+            if (instrumento.codigo, c.data_calibracao) in atrasadas:
+                itens.append(("aviso", com_motivo(f"{instrumento.codigo} calibrado com atraso "
+                                                  f"em {dia(c.data_calibracao)}",
+                                                  c.motivo_atraso)))
+        for linha in nao_feitas:
+            if linha.prevista.situacao == SituacaoNoMes.VENCIDA:
+                itens.append(("erro", com_motivo(f"{linha.instrumento.codigo} vencido (previsto "
+                                                 f"para {dia(linha.prevista.prevista)})",
+                                                 linha.prevista.motivo_atraso)))
+        periodo = (inicio.isoformat(), fim.isoformat())
+        novos = self._conexao.execute(
+            "SELECT codigo, tipo, localizacao, criado_em FROM instrumentos "
+            "WHERE excluido_em IS NULL AND date(criado_em) BETWEEN ? AND ? ORDER BY codigo",
+            periodo).fetchall()
+        if len(novos) > regras_relatorio.MAXIMO_DE_NOVOS_LISTADOS:
+            itens.append(("info", f"{len(novos)} instrumentos novos cadastrados."))
+        else:
+            for codigo, tipo, local, criado in novos:
+                onde = f", {local}" if local else ""
+                quando = dia(datetime.date.fromisoformat(criado[:10]))
+                itens.append(("info", f"Instrumento novo cadastrado: {codigo} ({tipo}{onde}) "
+                                      f"em {quando}."))
+        condicoes = self._conexao.execute(
+            "SELECT i.codigo, c.condicao, c.data, c.motivo FROM condicoes c "
+            "JOIN instrumentos i ON i.id = c.instrumento_id "
+            "WHERE c.calibracao_id IS NULL AND c.data BETWEEN ? AND ? ORDER BY c.data, i.codigo",
+            periodo).fetchall()
+        if len(condicoes) > regras_relatorio.MAXIMO_DE_NOVOS_LISTADOS:
+            itens.append(("info", f"{len(condicoes)} mudanças de condição feitas na ficha."))
+        else:
+            for codigo, condicao, data, motivo in condicoes:
+                quando = dia(datetime.date.fromisoformat(data))
+                if condicao == Condicao.DESATIVADO.value:
+                    itens.append(("erro", com_motivo(f"{codigo} desativado em {quando}", motivo)))
+                else:
+                    itens.append(("info", com_motivo(f"{codigo} voltou a ser usado em {quando}",
+                                                     motivo)))
+        correcoes = self._conexao.execute(
+            "SELECT i.codigo, cal.data_calibracao, k.mudancas FROM correcoes_calibracao k "
+            "JOIN calibracoes cal ON cal.id = k.calibracao_id "
+            "JOIN instrumentos i ON i.id = cal.instrumento_id "
+            "WHERE cal.excluido_em IS NULL AND date(k.quando) BETWEEN ? AND ? ORDER BY k.quando",
+            periodo).fetchall()
+        for codigo, data, mudancas in correcoes:
+            quando = dia(datetime.date.fromisoformat(data))
+            itens.append(("info", f"Correção na calibração de {codigo} de {quando}: "
+                                  f"{'; '.join(mudancas.splitlines())}."))
+        return itens

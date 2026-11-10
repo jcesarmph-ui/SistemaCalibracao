@@ -26,13 +26,16 @@ def padronizar_localizacao(texto: str | None) -> str | None:
     indicativa = bool(_INDICATIVA.search(local))
     if indicativa:
         local = _INDICATIVA.sub("", local).strip(" -–")
-    if _LABORATORIO.search(local):
-        if _RESERVA.search(local):
-            local = "Laboratório - Reserva"
-        else:
-            local = "Laboratório"
+    # Mais de um local ("Serralheria / Manutenção", pedido de 2026-11-10): cada um à parte.
+    local = " / ".join(_laboratorio(parte.strip()) for parte in local.split("/") if parte.strip())
     if indicativa:
         local = f"{local} - {ORIENTACAO_INDICATIVA}" if local else ORIENTACAO_INDICATIVA
+    return local
+
+
+def _laboratorio(local: str) -> str:
+    if _LABORATORIO.search(local):
+        return "Laboratório - Reserva" if _RESERVA.search(local) else "Laboratório"
     return local
 
 

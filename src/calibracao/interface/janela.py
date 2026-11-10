@@ -16,8 +16,8 @@ consulta, com aviso amarelo; clicar no aviso e digitar MUDAR torna este o lugar 
 import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, Qt, QTimer
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer
+from PySide6.QtGui import QColor, QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QTabWidget,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -47,11 +48,15 @@ from calibracao.dados.repositorio import (
 )
 from calibracao.interface.aba_calibracoes import dinheiro
 from calibracao.interface.aba_calibrar import AbaCalibrar
+from calibracao.interface.aba_certificados import AbaCertificados
+from calibracao.interface.aba_indicadores import AbaIndicadores
 from calibracao.interface.aba_instrumentos import AbaInstrumentos
 from calibracao.interface.aba_lixeira import AbaLixeira
+from calibracao.interface.aba_relatorios import AbaRelatorios, guardar_pendentes
 from calibracao.interface.componentes import (
     ListaFlutuante,
     PainelClicavel,
+    RotuloAviso,
     RotuloClicavel,
     aplicar_destaques,
     celula,
@@ -65,9 +70,13 @@ from calibracao.interface.estilo import (
     CORES_PARECER,
     CORES_SITUACAO,
     CORES_SITUACAO_NO_MES,
+    aplicar_tema,
     estilo,
+    tema_claro,
 )
+from calibracao.interface.preferencias import gravar_tema
 from calibracao.interface.recursos import recurso
+from calibracao.interface.tema_icones import icone, pixmap, por_icone, repintar_icones
 from calibracao.regras.cronograma import Situacao, SituacaoNoMes, meses_do_seletor, somar_meses
 from calibracao.regras.trava import (
     INTERVALO_CONSULTA,
@@ -76,7 +85,7 @@ from calibracao.regras.trava import (
     ObservadorDeSinal,
 )
 
-TITULO = "CALIBRAÇÃO DE INSTRUMENTOS"
+TITULO = "DQ-05 CALIBRAÇÃO DE INSTRUMENTOS"  # "DQ-05" pedido de 2026-11-10
 
 # (texto do indicador, dica ao passar o mouse)
 INDICADORES = {
@@ -120,6 +129,22 @@ def celula_motivo(motivo: str | None):
     return item
 
 
+ICONES_DAS_ABAS = ["straighten", "tune", "event_note", "picture_as_pdf", "bar_chart",
+                   "description", "delete"]
+INICIO_DAS_LETRAS = 0.30  # o símbolo vai até ~27% da largura; o traço (31%) e as letras mudam
+
+
+def logo_com_letra_preta(imagem: QPixmap) -> QPixmap:
+    """Tema claro: as letras brancas do logo viram pretas (o símbolo, à esquerda, não muda)."""
+    figura = imagem.toImage().convertToFormat(QImage.Format_ARGB32)
+    for x in range(int(figura.width() * INICIO_DAS_LETRAS), figura.width()):
+        for y in range(figura.height()):
+            cor = figura.pixelColor(x, y)
+            if cor.alpha() and min(cor.red(), cor.green(), cor.blue()) > 150:
+                figura.setPixelColor(x, y, QColor(0, 0, 0, cor.alpha()))
+    return QPixmap.fromImage(figura)
+
+
 class JanelaPrincipal(QMainWindow):
     def __init__(self, repositorio: Repositorio, pasta_dados: Path,
                  hoje: datetime.date | None = None,
@@ -151,9 +176,22 @@ class JanelaPrincipal(QMainWindow):
         self.abas.addTab(self.aba_calibrar, "Calibrar")
         self.aba_cronograma = self._aba_cronograma()
         self.abas.addTab(self.aba_cronograma, "Cronograma")
+        # Aba Certificados (pedido de 2026-11-10): os PDFs das calibrações feitas no programa.
+        self.aba_certificados = AbaCertificados(repositorio)
+        self.abas.addTab(self.aba_certificados, "Certificados")
+        # Aba Indicadores (pedido de 2026-11-10): painel de gráficos montado pelo usuário.
+        self.aba_indicadores = AbaIndicadores(repositorio, self.hoje)
+        self.abas.addTab(self.aba_indicadores, "Indicadores")
+        # Aba Relatórios (pedido de 2026-11-10): do mês atual, finais guardados e do ano.
+        self.aba_relatorios = AbaRelatorios(repositorio, self.hoje)
+        self.abas.addTab(self.aba_relatorios, "Relatórios")
         self.aba_lixeira = AbaLixeira(repositorio)
         self.aba_lixeira.alterado.connect(self._lixeira_mudou)
         self.abas.addTab(self.aba_lixeira, "Lixeira")
+        # Ícones nas abas (aprovados por foto em 2026-11-10).
+        for indice, nome in enumerate(ICONES_DAS_ABAS):
+            self.abas.setTabIcon(indice, icone(nome, CORES["titulo"]))
+        self.abas.setIconSize(QSize(22, 22))
         self.abas.setCurrentWidget(self.aba_cronograma)  # abre no Cronograma
 
         tela = QVBoxLayout()
@@ -162,12 +200,13 @@ class JanelaPrincipal(QMainWindow):
         self.faixa_teste = QLabel(
             "VERSÃO DE TESTE — os dados daqui não valem: pode incluir, mudar e excluir à vontade",
             objectName="faixa_teste", alignment=Qt.AlignCenter)
-        self.faixa_teste.setStyleSheet(f"background: {CORES['aviso']}; color: #000000; "
+        self.faixa_teste.setStyleSheet(f"background: {CORES['aviso_fundo']}; color: #000000; "
                                        "padding: 4px; font-weight: bold;")
-        self.faixa_teste.setVisible(self.de_teste)
+        if not self.de_teste:  # só esconder: mostrar algo ainda sem "pai" pisca uma janela
+            self.faixa_teste.hide()
         tela.addWidget(self.faixa_teste)
         self.aviso_copia = RotuloClicavel(objectName="aviso_copia", wordWrap=True)
-        self.aviso_copia.setStyleSheet(f"background: {CORES['aviso']}; color: #000000; "
+        self.aviso_copia.setStyleSheet(f"background: {CORES['aviso_fundo']}; color: #000000; "
                                        "padding: 6px; font-weight: bold;")
         self.aviso_copia.setCursor(Qt.PointingHandCursor)
         self.aviso_copia.clicado.connect(self.mudar_pasta_oficial)
@@ -190,7 +229,8 @@ class JanelaPrincipal(QMainWindow):
         # 2026-11-03); some sozinho.
         # O mesmo lugar mostra a resposta do pedido de edição (verde/vermelho, item 7) e o
         # "Atualizado" do botão Atualizar (item 8).
-        self.aviso_salvo = QLabel("✔ Salvo", self, objectName="aviso_salvo")
+        self.aviso_salvo = RotuloAviso("✔ Salvo", self, cor_icone="#ffffff",
+                                       objectName="aviso_salvo")
         self.aviso_salvo.hide()
         self.relogio_salvo = QTimer(self, singleShot=True, interval=3500)
         self.relogio_salvo.timeout.connect(self._apagar_aviso)
@@ -239,14 +279,10 @@ class JanelaPrincipal(QMainWindow):
 
     def _cabecalho(self) -> QGridLayout:
         """Logo à esquerda, título centralizado; à direita, o modo (em cima) e a versão."""
-        arquivo_logo = recurso("logo_mg.png", self.pasta_dados)
-        if arquivo_logo.is_file():
-            logo = QLabel()
-            logo.setPixmap(QPixmap(str(arquivo_logo)).scaledToHeight(80, Qt.SmoothTransformation))
-        else:
-            logo = QLabel("MG Centro de Serviços")
+        self.logo = QLabel("MG Centro de Serviços")
+        self._pintar_logo()
         grade = QGridLayout()
-        grade.addWidget(logo, 0, 0, Qt.AlignLeft)
+        grade.addWidget(self.logo, 0, 0, Qt.AlignLeft)
         titulo = f"{TITULO} — TESTE" if self.de_teste else TITULO
         grade.addWidget(QLabel(titulo, objectName="titulo"), 0, 1)
         grade.addWidget(QLabel(f"versão {__version__}", objectName="dica"), 0, 2,
@@ -262,18 +298,62 @@ class JanelaPrincipal(QMainWindow):
         self.botao_pedir = QPushButton("Pedir edição", objectName="canto")
         self.botao_pedir.setToolTip("Pede para quem está editando liberar a edição para você.")
         self.botao_pedir.clicked.connect(self.pedir_edicao)
+        por_icone(self.botao_atualizar, "refresh", CORES["titulo"])
+        por_icone(self.botao_pedir, "back_hand", CORES["titulo"])
+        # Cadeado aberto (edição) ou fechado (consulta) antes do texto do canto.
+        self.cadeado = QLabel()
+        self.cadeado.setPixmap(pixmap("lock_open", CORES["titulo"], 16))
         for botao in (self.botao_atualizar, self.botao_pedir):
             botao.setCursor(Qt.PointingHandCursor)
             botao.hide()
+        # Sol/lua (pedido de 2026-11-10): troca entre claro e escuro na hora; a escolha fica
+        # guardada para a pessoa (usuário do Windows).
+        self.botao_tema = QToolButton(objectName="botao_tema")
+        self.botao_tema.setCursor(Qt.PointingHandCursor)
+        self.botao_tema.setIconSize(QSize(20, 20))
+        self.botao_tema.clicked.connect(self.trocar_tema)
+        self._pintar_botao_tema()
         canto = QHBoxLayout()
         canto.setSpacing(8)
         canto.addWidget(self.botao_atualizar)
         canto.addWidget(self.botao_pedir)
+        canto.addWidget(self.botao_tema)
+        canto.addSpacing(6)
+        canto.addWidget(self.cadeado)
         canto.addWidget(self.rotulo_modo)
         grade.addLayout(canto, 0, 2, Qt.AlignRight | Qt.AlignTop)
         grade.setColumnStretch(0, 1)
         grade.setColumnStretch(2, 1)  # coluna do mesmo tamanho da do logo → título no centro
         return grade
+
+    def _pintar_logo(self) -> None:
+        arquivo_logo = recurso("logo_mg.png", self.pasta_dados)
+        if arquivo_logo.is_file():
+            imagem = QPixmap(str(arquivo_logo)).scaledToHeight(80, Qt.SmoothTransformation)
+            self.logo.setPixmap(logo_com_letra_preta(imagem) if tema_claro() else imagem)
+
+    def _pintar_botao_tema(self) -> None:
+        """No escuro mostra o sol (vai para o claro); no claro, a lua."""
+        claro = tema_claro()
+        self.botao_tema.setIcon(icone("dark_mode" if claro else "light_mode", CORES["titulo"]))
+        self.botao_tema.setToolTip("Mudar para modo escuro" if claro
+                                   else "Mudar para modo claro")
+
+    def trocar_tema(self) -> None:
+        """Claro ↔ escuro na hora, sem fechar nada; guarda a escolha da pessoa."""
+        antigas = dict(CORES)
+        novo = "escuro" if tema_claro() else "claro"
+        aplicar_tema(novo)
+        gravar_tema(novo)
+        repintar_icones(antigas, CORES)
+        self.setStyleSheet(estilo())
+        self._pintar_logo()
+        self._pintar_botao_tema()
+        for indice, nome in enumerate(ICONES_DAS_ABAS):
+            self.abas.setTabIcon(indice, icone(nome, CORES["titulo"]))
+        self.cadeado.setPixmap(pixmap("lock_open" if self._pode_editar else "lock",
+                                      CORES["titulo"], 16))
+        self.atualizar()  # as tabelas são montadas de novo com as cores do tema
 
     def _faixa_indicadores(self) -> QHBoxLayout:
         proximo = somar_meses(self.hoje.replace(day=1), 1)
@@ -345,12 +425,12 @@ class JanelaPrincipal(QMainWindow):
         vencidas = contagem[Situacao.VENCIDA]
         pendentes = contagem[Situacao.PENDENTE_MES]
         total_mes = pendentes + contagem[Situacao.FEITA_MES]
-        cor_vencidas = CORES["erro"] if vencidas else "#f0f0f0"
-        cor_pendentes = CORES["aviso"] if pendentes else "#9e9e9e"
+        cor_vencidas = CORES["erro"] if vencidas else CORES["texto"]
+        cor_pendentes = CORES["aviso"] if pendentes else CORES["dica"]
         textos = {
             "instrumentos": str(len(self.repo.listar_instrumentos())),
             "vencidas": f'<span style="color:{cor_vencidas}">{vencidas}</span>',
-            "mes": f'{total_mes} <span style="color:#9e9e9e">|</span> '
+            "mes": f'{total_mes} <span style="color:{CORES["dica"]}">|</span> '
                    f'<span style="color:{cor_pendentes}">{pendentes} '
                    f'pendente{"s" if pendentes != 1 else ""}</span>',
             "proximo_mes": str(contagem[Situacao.PROXIMO_MES]),
@@ -361,6 +441,9 @@ class JanelaPrincipal(QMainWindow):
         situacoes = {linha.instrumento.id: linha.situacao for linha in self._cronograma}
         self.aba_instrumentos.atualizar(situacoes)
         self.aba_calibrar.atualizar(situacoes)
+        self.aba_certificados.atualizar()
+        self.aba_indicadores.atualizar()
+        self.aba_relatorios.atualizar()
         self.aba_lixeira.atualizar()
 
     # --- Trava de edição ---------------------------------------------------------------------
@@ -415,11 +498,15 @@ class JanelaPrincipal(QMainWindow):
     def aplicar_modo(self, dono: Trava | None) -> None:
         """dono None = esta janela edita; senão, modo consulta mostrando quem edita."""
         pode = dono is None and not self.repo.modo_consulta
+        self.cadeado.setPixmap(pixmap("lock_open" if pode else "lock", CORES["titulo"], 16))
         estava_consultando = not self._pode_editar
-        for aba in (self.aba_instrumentos, self.aba_calibrar, self.aba_lixeira):
+        for aba in (self.aba_instrumentos, self.aba_calibrar, self.aba_certificados,
+                    self.aba_indicadores, self.aba_relatorios, self.aba_lixeira):
             aba.definir_edicao(pode)
         self._pode_editar = pode
         self._ligar_informar_motivo()
+        if pode:
+            self.guardar_relatorios_pendentes()
         self.setWindowTitle(self.titulo_janela if pode
                             else f"{self.titulo_janela} — SOMENTE CONSULTA")
         # Quem consulta relê os dados a cada 10 s; quem edita dá sinal a cada 30 s (item 8).
@@ -595,7 +682,7 @@ class JanelaPrincipal(QMainWindow):
         """Botão "Atualizar" do modo consulta: o mesmo que acontece sozinho a cada 10 s."""
         self.a_cada_sinal()
         if self.repo.modo_consulta:
-            self.mostrar_aviso("↻ Atualizado", CORES["selecao"], CORES["borda"], 1500)
+            self.mostrar_aviso("↻ Atualizado", "#424242", CORES["borda"], 1500)
 
     def closeEvent(self, evento) -> None:  # noqa: N802 — nome exigido pelo Qt
         self.relogio.stop()
@@ -603,6 +690,18 @@ class JanelaPrincipal(QMainWindow):
         if self.identidade is not None and not self.repo.modo_consulta:
             self.repo.liberar_trava()
         super().closeEvent(evento)
+
+    def guardar_relatorios_pendentes(self) -> None:
+        """Relatório final de cada mês (e ano) que acabou: guardado sozinho, sem perguntar,
+        por quem está no modo edição (pedido de 2026-11-10). Sem conseguir (rede, banco
+        ocupado), tenta de novo na próxima vez."""
+        usuario = " - ".join(self.identidade) if getattr(self, "identidade", None) else None
+        try:
+            guardados = guardar_pendentes(self.repo, self.hoje, usuario)
+        except (ErroDeValidacao, OSError):
+            return
+        if guardados:
+            self.aba_relatorios.atualizar()
 
     def _calibracoes_mudaram(self) -> None:
         """Calibração registrada, corrigida ou na Lixeira: muda cronograma, condição e

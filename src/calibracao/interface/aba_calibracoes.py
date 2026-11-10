@@ -9,6 +9,7 @@ calibração salva (tudo menos a data); cada correção fica registrada e aparec
 import datetime
 import getpass
 import platform
+from pathlib import Path
 
 from PySide6.QtCore import QDate, Qt, Signal
 from PySide6.QtWidgets import (
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
     QDialog,
+    QFileDialog,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -29,6 +31,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from calibracao.dados import certificados as arquivos_pdf
 from calibracao.dados.repositorio import (
     Calibracao,
     CorrecaoCalibracao,
@@ -40,15 +43,20 @@ from calibracao.dados.repositorio import (
     PontoRegistrado,
     Repositorio,
 )
+from calibracao.interface.aba_certificados import abrir_certificado
 from calibracao.interface.componentes import (
+    RotuloAviso,
     aplicar_destaques,
     celula,
+    dinheiro,
     enter_desce,
     formatar_data,
+    reais_em_texto,
     tabela_somente_leitura,
 )
 from calibracao.interface.estilo import CORES, CORES_PARECER, CORES_RESULTADO
 from calibracao.interface.painel_plano import numero, numero_em_texto
+from calibracao.interface.tema_icones import por_icone
 from calibracao.regras.avaliacao import Resultado, desvio_final, resultado_geral
 from calibracao.regras.condicao import pareceres_permitidos, so_qualitativos
 from calibracao.regras.lixeira import Tipo
@@ -63,12 +71,6 @@ DICA_DESVIO_FINAL = ("Desvio encontrado ± Incerteza (U), do lado que fica mais 
 NUMERICOS = ("NUMERICO", "LIMITE")
 ESCOLHAS = {"— escolha —": None, "Aprovado": Resultado.APROVADO,
             "Reprovado": Resultado.REPROVADO}
-
-
-def dinheiro(valor: float | None) -> str:
-    if valor is None:
-        return "—"
-    return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def referencia(ponto) -> str:
@@ -170,6 +172,10 @@ class JanelaNovaCalibracao(QDialog):
         self.usuario = usuario
         self.calibracao_id: int | None = corrigir.id if corrigir else None
         self.mudancas: list[str] = []
+        self.pdf_escolhido: Path | None = None   # PDF novo escolhido nesta janela
+        self.erro_pdf: str | None = None          # salvou a calibração, mas o PDF não foi
+        self.pdf_atual = (repositorio.certificado_da_calibracao(corrigir.id) if corrigir
+                          else None)
         self.pontos: list[PontoPlano] | list[PontoRegistrado] = (
             repositorio.pontos_da_calibracao(corrigir.id) if corrigir
             else repositorio.pontos_para_calibrar(instrumento))
@@ -219,17 +225,31 @@ class JanelaNovaCalibracao(QDialog):
             grade.setColumnStretch(coluna * 2 + 1, 1)
         # Feita depois do mês previsto: campo opcional para o motivo (sem alarde).
         self.prevista = self._prevista_antes()
-        self.aviso_atraso = QLabel(objectName="avisos")
+        self.aviso_atraso = RotuloAviso(objectName="avisos")
         self.motivo_atraso = QLineEdit(placeholderText="Motivo do atraso (opcional)")
         if self.corrigindo is None:
             pendente = self.repo.motivos_atraso_pendentes().get(self.instrumento.id)
             self.motivo_atraso.setText(pendente or "")
         grade.addWidget(self.aviso_atraso, 2, 0, 1, 2)
         grade.addWidget(self.motivo_atraso, 2, 2, 1, 4)
-        self.data.dateChanged.connect(lambda _: self._mostrar_atraso())
-        self._mostrar_atraso()
+        # PDF do certificado (pedido de 2026-11-10): opcional; um por calibração, trocável.
+        self.nome_pdf = QLabel(wordWrap=True)
+        self.escolher_pdf = QPushButton("Substituir certificado (PDF)" if self.pdf_atual
+                                        else "Adicionar certificado (PDF)")
+        por_icone(self.escolher_pdf, "attach_file", CORES["titulo"])
+        self.escolher_pdf.setToolTip(
+            "PDF do certificado (opcional). Ele é copiado para a pasta dos certificados do "
+            "programa; o seu arquivo continua onde está. Trocar manda o anterior para a Lixeira.")
+        self.escolher_pdf.clicked.connect(self.procurar_pdf)
+        grade.addWidget(QLabel("Certificado (PDF)"), 3, 0)
+        grade.addWidget(self.nome_pdf, 3, 1, 1, 3)
+        grade.addWidget(self.escolher_pdf, 3, 4, 1, 2)
+        # A caixa primeiro: mostrar um campo ainda sem "pai" pisca uma janela solta na tela.
         caixa = QGroupBox("Dados da calibração")
         caixa.setLayout(grade)
+        self._mostrar_pdf()
+        self.data.dateChanged.connect(lambda _: self._mostrar_atraso())
+        self._mostrar_atraso()
         return caixa
 
     def _prevista_antes(self) -> datetime.date | None:
@@ -363,7 +383,7 @@ class JanelaNovaCalibracao(QDialog):
                                 "indicativa → Em uso e com a marca de orientação indicativa; "
                                 "Reprovado - Desativado → sai do cronograma.")
         self.motivo = QLineEdit(placeholderText="Motivo / observação do parecer (opcional)")
-        self.avisos = QLabel(wordWrap=True, objectName="avisos")
+        self.avisos = RotuloAviso(wordWrap=True, objectName="avisos")
         self.cancelar = QPushButton("Cancelar")
         self.cancelar.clicked.connect(self.reject)
         self.salvar = QPushButton("SALVAR CORREÇÃO" if self.corrigindo
@@ -395,7 +415,7 @@ class JanelaNovaCalibracao(QDialog):
         for campo, valor in [(self.laboratorio, calibracao.laboratorio),
                              (self.certificado, calibracao.certificado),
                              (self.responsavel, calibracao.responsavel),
-                             (self.custo, numero_em_texto(calibracao.custo)),
+                             (self.custo, reais_em_texto(calibracao.custo)),  # sempre com centavos
                              (self.observacoes, calibracao.observacoes),
                              (self.motivo, calibracao.motivo_parecer),
                              (self.motivo_atraso, calibracao.motivo_atraso)]:
@@ -540,11 +560,14 @@ class JanelaNovaCalibracao(QDialog):
             custo=custo, observacoes=self.observacoes.text().strip() or None,
             motivo_atraso=self._motivo_atraso(),
         )
+        if not self._pdf_ainda_serve():
+            return
         try:
             self.calibracao_id = self.repo.registrar_calibracao(nova, self.hoje)
         except ErroDeValidacao as erro:
             self._aviso(erro.mensagens)
             return
+        self._guardar_pdf()
         self.accept()
 
     def _motivo_atraso(self) -> str | None:
@@ -564,13 +587,75 @@ class JanelaNovaCalibracao(QDialog):
             custo=custo, observacoes=self.observacoes.text().strip() or None,
             motivo_atraso=self._motivo_atraso(),
         )
+        if not self._pdf_ainda_serve():
+            return
         try:
             self.mudancas = self.repo.corrigir_calibracao(
                 self.corrigindo.id, correcao, self.usuario, datetime.datetime.now())
         except ErroDeValidacao as erro:
-            self._aviso(erro.mensagens)
-            return
+            # Só trocou o PDF: não é erro (a troca fica registrada no próprio PDF guardado).
+            if not (self.pdf_escolhido and erro.mensagens == ["Nada foi alterado."]):
+                self._aviso(erro.mensagens)
+                return
+        self._guardar_pdf()
         self.accept()
+
+    # --- PDF do certificado -------------------------------------------------------------------
+
+    def _mostrar_pdf(self) -> None:
+        if self.pdf_escolhido:
+            texto = f"<b>{self.pdf_escolhido.name}</b> — será guardado ao salvar"
+            if self.pdf_atual:
+                texto += f" (o atual, {self.pdf_atual.nome_original}, vai para a Lixeira)"
+        elif self.pdf_atual:
+            enviado = datetime.datetime.fromisoformat(self.pdf_atual.enviado_em)
+            texto = (f"<b>{self.pdf_atual.nome_original}</b> — guardado em "
+                     f"{enviado:%d/%m/%Y %H:%M}")
+        else:
+            texto = f'<span style="color:{CORES["dica"]}"><i>Nenhum PDF (opcional)</i></span>'
+        self.nome_pdf.setText(texto)
+
+    def procurar_pdf(self) -> None:
+        arquivo, _ = QFileDialog.getOpenFileName(
+            self, "Escolher o PDF do certificado", str(Path.home()), "PDF (*.pdf)")
+        if arquivo:
+            self.usar_pdf(Path(arquivo))
+
+    def usar_pdf(self, arquivo: Path) -> bool:
+        """Confere o arquivo na hora (PDF de verdade, tamanho) e guarda a escolha."""
+        try:
+            arquivos_pdf.conferir_pdf(arquivo)
+        except arquivos_pdf.ErroDoArquivo as erro:
+            self._aviso([str(erro)])
+            return False
+        self.pdf_escolhido = arquivo
+        self.avisos.setText("")
+        self._mostrar_pdf()
+        return True
+
+    def _pdf_ainda_serve(self) -> bool:
+        """Confere de novo antes de salvar (o arquivo pode ter sumido ou mudado)."""
+        if self.pdf_escolhido is None:
+            return True
+        try:
+            arquivos_pdf.conferir_pdf(self.pdf_escolhido)
+        except arquivos_pdf.ErroDoArquivo as erro:
+            self._aviso([f"PDF do certificado: {erro}"])
+            return False
+        return True
+
+    def _guardar_pdf(self) -> None:
+        """Depois que a calibração foi salva. Se o PDF falhar (ex.: rede caiu), a calibração
+        fica salva e quem abriu a janela mostra o aviso para anexar pelo EDITAR."""
+        if self.pdf_escolhido is None:
+            return
+        try:
+            self.repo.anexar_certificado(self.calibracao_id, self.pdf_escolhido,
+                                         self.usuario or None, datetime.datetime.now())
+        except (ErroDeValidacao, OSError) as erro:
+            motivo = " ".join(erro.mensagens) if isinstance(erro, ErroDeValidacao) else str(erro)
+            self.erro_pdf = (f"A calibração foi salva, mas o PDF não foi guardado: {motivo} "
+                             "Anexe de novo pelo EDITAR da calibração.")
 
     def _aviso(self, mensagens: list[str]) -> None:
         self.avisos.setStyleSheet(f"color: {CORES['erro']};")
@@ -607,6 +692,10 @@ class JanelaVerCalibracao(QDialog):
                   if calibracao.parecer_final else "—"),
                  ("Motivo do parecer", calibracao.motivo_parecer or "—"),
                  ("Observações", calibracao.observacoes or "—")]
+        self.repo = repositorio
+        self.pdf = repositorio.certificado_da_calibracao(calibracao.id)
+        dados.append(("Certificado (PDF)", self.pdf.nome_original if self.pdf
+                      else "nenhum PDF guardado"))
         grade = QGridLayout()
         for indice, (rotulo, valor) in enumerate(dados):
             linha, coluna = divmod(indice, 3)
@@ -656,17 +745,28 @@ class JanelaVerCalibracao(QDialog):
                 self.tabela_correcoes.setItem(linha, coluna, celula(texto))
         caixa_correcoes = QGroupBox(f"Correções feitas — {len(correcoes)}")
         QVBoxLayout(caixa_correcoes).addWidget(self.tabela_correcoes)
-        caixa_correcoes.setVisible(bool(correcoes))
+        if not correcoes:  # só esconder aqui: mostrar algo ainda sem "pai" pisca uma janela
+            caixa_correcoes.hide()
 
         self.editar = QPushButton("EDITAR")
+        por_icone(self.editar, "edit", CORES["titulo"])
         self.editar.setToolTip("Corrigir valores, U, parecer ou dados do certificado desta "
                                "calibração (a data não muda). A correção fica registrada.")
         self.editar.clicked.connect(lambda: self.done(self.EDITAR))
-        self.editar.setVisible(pode_editar)
+        if not pode_editar:
+            self.editar.hide()
+        self.abrir_pdf = QPushButton("Abrir PDF")
+        por_icone(self.abrir_pdf, "picture_as_pdf", CORES["titulo"])
+        self.abrir_pdf.setToolTip("Abre o PDF do certificado no programa de PDF do Windows.")
+        self.abrir_pdf.clicked.connect(self.abrir_o_pdf)
+        if self.pdf is None:
+            self.abrir_pdf.hide()
+        self.aviso_pdf = RotuloAviso(wordWrap=True, objectName="avisos")
         fechar = QPushButton("Fechar")
         fechar.clicked.connect(self.accept)
         rodape = QHBoxLayout()
-        rodape.addStretch(2)
+        rodape.addWidget(self.aviso_pdf, 2)
+        rodape.addWidget(self.abrir_pdf, 1)
         rodape.addWidget(self.editar, 1)
         rodape.addWidget(fechar, 1)
         coluna = QVBoxLayout(self)
@@ -678,6 +778,12 @@ class JanelaVerCalibracao(QDialog):
         coluna.addWidget(caixa_pontos, 3)
         coluna.addWidget(caixa_correcoes, 1)
         coluna.addLayout(rodape)
+
+    def abrir_o_pdf(self) -> None:
+        texto, tipo = abrir_certificado(self.repo, self.pdf)
+        cor = {"certo": CORES["certo"], "erro": CORES["erro"]}.get(tipo, CORES["aviso"])
+        self.aviso_pdf.setStyleSheet(f"color: {cor};")
+        self.aviso_pdf.setText(texto)
 
 
 class PainelCalibracoes(QWidget):
@@ -707,19 +813,22 @@ class PainelCalibracoes(QWidget):
         self.tabela.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.tabela.horizontalHeader().setStretchLastSection(True)
         self.tabela.clicked.connect(self.ver_calibracao)
-        self.avisos = QLabel(wordWrap=True, objectName="avisos")
+        self.avisos = RotuloAviso(wordWrap=True, objectName="avisos")
 
         self.registrar = QPushButton("NOVA CALIBRAÇÃO", objectName="principal")
         self.registrar.clicked.connect(self.registrar_calibracao)
         self.ver = QPushButton("Ver calibração")
+        por_icone(self.ver, "visibility", CORES["titulo"])
         self.ver.setToolTip("Abre a calibração escolhida (a mais recente, se nenhuma estiver "
                             "escolhida). Também abre clicando na linha.")
         self.ver.clicked.connect(self.ver_calibracao)
         self.grafico = QPushButton("Gráfico de tendência")
+        por_icone(self.grafico, "show_chart", CORES["titulo"])
         self.grafico.setToolTip("Erro de cada ponto ao longo das calibrações, com a Incerteza "
                                 "(U) e a tolerância.")
         self.grafico.clicked.connect(self.abrir_grafico)
         self.lixeira = QPushButton("Enviar para a Lixeira")
+        por_icone(self.lixeira, "delete", CORES["titulo"])
         self.lixeira.setToolTip("Para calibração registrada por engano. A mudança de condição "
                                 "que ela fez é desfeita.")
         self.lixeira.clicked.connect(self.enviar_para_lixeira)
@@ -790,10 +899,14 @@ class PainelCalibracoes(QWidget):
     # --- Ações ------------------------------------------------------------------------------
 
     def registrar_calibracao(self) -> None:
-        janela = JanelaNovaCalibracao(self.repo, self.instrumento, self.hoje, parent=self)
+        janela = JanelaNovaCalibracao(self.repo, self.instrumento, self.hoje, parent=self,
+                                      usuario=self.usuario)
         if janela.exec():
             self.alterado.emit()
-            self._aviso("✔ Calibração registrada.", certo=True)
+            if janela.erro_pdf:
+                self._aviso(f"✖ {janela.erro_pdf}", erro=True)
+            else:
+                self._aviso("✔ Calibração registrada.", certo=True)
 
     def ver_calibracao(self) -> None:
         calibracao = self.selecionada()
@@ -812,9 +925,16 @@ class PainelCalibracoes(QWidget):
                                       corrigir=calibracao, usuario=self.usuario)
         if janela.exec():
             self.alterado.emit()
-            self._aviso(f"✔ Calibração de {formatar_data(calibracao.data_calibracao)} "
-                        f"corrigida ({len(janela.mudancas)} mudança(s), registradas em "
-                        "\"Ver calibração\").", certo=True)
+            data = formatar_data(calibracao.data_calibracao)
+            if janela.erro_pdf:
+                self._aviso(f"✖ {janela.erro_pdf}", erro=True)
+            elif not janela.mudancas:
+                self._aviso(f"✔ PDF do certificado da calibração de {data} guardado.",
+                            certo=True)
+            else:
+                pdf = " e o PDF guardado" if janela.pdf_escolhido else ""
+                self._aviso(f"✔ Calibração de {data} corrigida ({len(janela.mudancas)} "
+                            f"mudança(s), registradas em \"Ver calibração\"){pdf}.", certo=True)
 
     def abrir_grafico(self) -> None:
         from calibracao.interface.grafico_tendencia import JanelaTendencia  # carrega o Matplotlib

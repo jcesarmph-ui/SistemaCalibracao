@@ -98,7 +98,7 @@ def test_cadastrar_instrumento_pela_tela(janela):
     assert texto(janela.valores_indicadores["instrumentos"]) == "5"
     salvo = next(i for i in janela.repo.listar_instrumentos() if i.codigo == "PAQ-950")
     assert (salvo.custo_compra, salvo.responsavel) == (350.5, "Fulano")
-    assert aba.valores["custo_compra"].text() == "<b>R$ 350,5</b>"
+    assert aba.valores["custo_compra"].text() == "<b>R$ 350,50</b>"  # sempre com centavos
 
 
 def test_ficha_e_so_apresentacao_e_editar_abre_a_janela(janela):
@@ -363,7 +363,7 @@ def test_banco_de_teste_mostra_titulo_e_faixa(app, tmp_path):
         assert tela.windowTitle().endswith("— TESTE")
         titulos = [r.text() for r in tela.findChildren(type(tela.faixa_teste))
                    if r.objectName() == "titulo"]
-        assert titulos == ["CALIBRAÇÃO DE INSTRUMENTOS — TESTE"]
+        assert titulos == ["DQ-05 CALIBRAÇÃO DE INSTRUMENTOS — TESTE"]
     finally:
         tela.close()
         repo.fechar()
@@ -447,7 +447,8 @@ def test_ficha_primeira_calibracao_prevista(janela):
 def test_aba_calibrar_tem_nova_calibracao(janela):
     """Pedido de 2026-11-03: aba Calibrar com a lista e o botão NOVA CALIBRAÇÃO."""
     nomes = [janela.abas.tabText(n) for n in range(janela.abas.count())]
-    assert nomes == ["Instrumentos", "Calibrar", "Cronograma", "Lixeira"]
+    assert nomes == ["Instrumentos", "Calibrar", "Cronograma", "Certificados",
+                     "Indicadores", "Relatórios", "Lixeira"]
     assert janela.abas.currentWidget() is janela.aba_cronograma  # abre no Cronograma
     aba = janela.aba_calibrar
     painel = aba.painel_calibracoes
@@ -465,8 +466,9 @@ def test_aba_calibrar_tem_nova_calibracao(janela):
         "Plano de calibração", "Histórico de condição"]
 
 
-def test_so_o_codigo_da_lista_e_clicavel(janela):
-    """Pedido de 2026-11-03: o código é como um botão; as outras colunas não respondem."""
+def test_a_linha_toda_da_lista_e_clicavel_e_sempre_abre(janela):
+    """Pedido de 2026-11-10 (antes só o código): clicar em qualquer parte da linha abre o
+    instrumento, mesmo que a linha já esteja selecionada (pesquisa com um só instrumento)."""
     from PySide6.QtCore import QEvent, QPointF
     from PySide6.QtGui import QMouseEvent
 
@@ -474,7 +476,8 @@ def test_so_o_codigo_da_lista_e_clicavel(janela):
     tabela = aba.tabela
     item = tabela.item(0, 0)
     assert not item.font().underline()
-    assert "Clique para abrir" in item.toolTip()
+    assert "Clique na linha para abrir" in item.toolTip()
+    codigo = item.text()
 
     def clicar(coluna):
         retangulo = tabela.visualItemRect(tabela.item(0, coluna))
@@ -484,13 +487,19 @@ def test_so_o_codigo_da_lista_e_clicavel(janela):
                                  Qt.NoModifier)
             QApplication.sendEvent(tabela.viewport(), evento)
 
-    clicar(1)  # Localização: nada acontece
-    assert aba.atual is None
-    clicar(0)  # Código: abre o instrumento
-    assert aba.atual is not None and aba.atual.codigo == item.text()
-    aba.lista._mouse_sobre(tabela.model().index(1, 0))  # mouse sobre o código: clareia
+    clicar(1)  # Localização: também abre
+    assert aba.atual is not None and aba.atual.codigo == codigo
+    aba.busca.setText(codigo)  # a pesquisa deixa só ele, já selecionado
+    assert tabela.rowCount() == 1
+    tabela.selectRow(0)
+    aba.atual = None  # a ficha mostrava outro (como no problema que o usuário viu)
+    clicar(2)  # linha já selecionada: abre de novo
+    assert aba.atual is not None and aba.atual.codigo == codigo
+    aba.busca.setText("")
+    aba.lista._mouse_sobre(tabela.model().index(1, 1))  # mouse sobre a linha: clareia toda
     assert tabela.item(1, 0).background().color().name() == "#2e2e2e"
-    aba.lista._mouse_sobre(tabela.model().index(1, 2))  # sobre outra coluna: apaga
+    assert tabela.item(1, 1).background().color().name() == "#2e2e2e"
+    aba.lista._apagar_clareado()
     assert tabela.item(1, 0).background().style() == Qt.NoBrush
 
 
@@ -581,3 +590,11 @@ def test_shift_roda_rola_para_os_lados(app):
     QApplication.sendEvent(tabela.viewport(), evento)
     assert barra.value() > 0
     tabela.close()
+
+
+def test_reais_sempre_com_centavos():
+    from calibracao.interface.componentes import dinheiro, reais_em_texto
+    assert dinheiro(1350) == "R$ 1.350,00"
+    assert reais_em_texto(350) == "350,00"
+    assert reais_em_texto(350.5) == "350,50"
+    assert reais_em_texto(None) == ""

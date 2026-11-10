@@ -33,15 +33,19 @@ from calibracao.dados.repositorio import (
     Repositorio,
 )
 from calibracao.interface.componentes import (
+    RotuloAviso,
     aplicar_destaques,
     celula,
+    data_livre_para_tela,
+    dinheiro,
     formatar_data,
     tabela_somente_leitura,
 )
-from calibracao.interface.estilo import CORES_CONDICAO, destacar, tem_destaque
+from calibracao.interface.estilo import CORES, CORES_CONDICAO, destacar, tem_destaque
 from calibracao.interface.janela_instrumento import JanelaEditarInstrumento
 from calibracao.interface.lista_instrumentos import ListaInstrumentos
-from calibracao.interface.painel_plano import ResumoPlano, numero_em_texto
+from calibracao.interface.painel_plano import ResumoPlano
+from calibracao.interface.tema_icones import por_icone
 from calibracao.regras.condicao import Condicao
 from calibracao.regras.lixeira import Tipo
 
@@ -54,8 +58,8 @@ EXPLICACAO_CONDICAO = {
 
 
 # Dados mostrados na ficha (só apresentação), em duas colunas: (chave, rótulo).
-DADOS = [("codigo", "Código"), ("tipo", "Tipo"), ("localizacao", "Localização"),
-         ("faixa", "Faixa"), ("resolucao", "Resolução"), ("fabricante", "Fabricante"),
+DADOS = [("codigo", "Código"), ("tipo", "Tipo de instrumento"), ("localizacao", "Localização"),
+         ("faixa", "Faixa de utilização"), ("resolucao", "Resolução"), ("fabricante", "Fabricante"),
          ("data_compra", "Data de compra"), ("periodicidade_meses", "Periodicidade"),
          ("custo_compra", "Custo de compra"), ("responsavel", "Responsável"),
          ("primeira_prevista", "1ª calibração prevista"), ("plano", "Plano"),
@@ -145,6 +149,7 @@ class AbaInstrumentos(QWidget):
         # Só o resumo do plano; VER PLANO e EDITAR PLANO abrem janelas grandes (item 12).
         self.painel_plano = ResumoPlano(repositorio)
         self.painel_plano.alterado.connect(self.alterado)
+        self.painel_plano.alterado.connect(self.recarregar_atual)
         self.painel_plano.plano_descartado.connect(self.recarregar_atual)
         self.tabela_historico = tabela_somente_leitura(
             ["Data", "Condição", "Observação", "Origem"])
@@ -198,6 +203,9 @@ class AbaInstrumentos(QWidget):
         self.mudar_condicao.clicked.connect(self.mudar_condicao_instrumento)
         self.lixeira = QPushButton("Enviar para a Lixeira")
         self.lixeira.clicked.connect(self.enviar_para_lixeira)
+        for botao, nome in ((self.editar, "edit"), (self.novo, "add"),
+                            (self.mudar_condicao, "swap_horiz"), (self.lixeira, "delete")):
+            por_icone(botao, nome, CORES["titulo"])
         botoes = QHBoxLayout()
         botoes.addWidget(self.novo, 1)
         botoes.addWidget(self.mudar_condicao, 1)
@@ -205,7 +213,7 @@ class AbaInstrumentos(QWidget):
         botoes.addWidget(self.editar, 2)
 
         self.titulo_dados = QLabel(objectName="dica")
-        self.avisos = QLabel(wordWrap=True, objectName="avisos")
+        self.avisos = RotuloAviso(wordWrap=True, objectName="avisos")
         caixa = QGroupBox("Dados do instrumento")
         coluna = QVBoxLayout(caixa)
         coluna.addWidget(self.titulo_dados)
@@ -251,10 +259,11 @@ class AbaInstrumentos(QWidget):
         textos = {
             "codigo": instrumento.codigo, "tipo": instrumento.tipo,
             "faixa": instrumento.faixa, "resolucao": instrumento.resolucao,
-            "fabricante": instrumento.fabricante, "data_compra": instrumento.data_compra,
+            "fabricante": instrumento.fabricante,
+            "data_compra": data_livre_para_tela(instrumento.data_compra),
             "periodicidade_meses": (f"{instrumento.periodicidade_meses} meses"
                                     if instrumento.periodicidade_meses else None),
-            "custo_compra": (f"R$ {numero_em_texto(instrumento.custo_compra)}"
+            "custo_compra": (dinheiro(instrumento.custo_compra)
                              if instrumento.custo_compra is not None else None),
             "responsavel": instrumento.responsavel,
             "primeira_prevista": (formatar_data(instrumento.primeira_prevista)
@@ -266,8 +275,8 @@ class AbaInstrumentos(QWidget):
         }
         for nome, texto in textos.items():
             self.valores[nome].setText(f"<b>{html.escape(texto)}</b>" if texto else "—")
-        self.valores["localizacao"].setText(destacar(local) if tem_destaque(local)
-                                            else html.escape(local))
+        self.valores["localizacao"].setText(
+            f"<b>{destacar(local) if tem_destaque(local) else html.escape(local)}</b>")
 
     def _mostrar_condicao(self, instrumento: Instrumento | None) -> None:
         historico = self.repo.historico_condicao(instrumento.id) if instrumento else []
@@ -383,6 +392,6 @@ class AbaInstrumentos(QWidget):
         self._aviso(f"✔ {codigo} enviado para a Lixeira.", certo=True)
 
     def _aviso(self, texto: str, erro: bool = False, certo: bool = False) -> None:
-        cor = "#ef5350" if erro else "#43a047" if certo else "#ffd54f"
+        cor = CORES["erro"] if erro else CORES["certo"] if certo else CORES["aviso"]
         self.avisos.setStyleSheet(f"color: {cor};")
         self.avisos.setText(texto)

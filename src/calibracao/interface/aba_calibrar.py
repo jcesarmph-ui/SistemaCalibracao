@@ -12,14 +12,14 @@ from PySide6.QtWidgets import QGridLayout, QGroupBox, QHBoxLayout, QLabel, QVBox
 
 from calibracao.dados.repositorio import Instrumento, Repositorio
 from calibracao.interface.aba_calibracoes import PainelCalibracoes
-from calibracao.interface.componentes import formatar_data
+from calibracao.interface.componentes import RotuloAviso, formatar_data
 from calibracao.interface.estilo import CORES_SITUACAO, destacar, tem_destaque
 from calibracao.interface.lista_instrumentos import ListaInstrumentos
 from calibracao.regras.condicao import so_qualitativos
 from calibracao.regras.lixeira import Tipo
 
 # (chave, rótulo) dos dados mostrados do instrumento escolhido, em duas colunas.
-DADOS = [("codigo", "Código"), ("tipo", "Tipo"), ("localizacao", "Localização"),
+DADOS = [("codigo", "Código"), ("tipo", "Tipo de instrumento"), ("localizacao", "Localização"),
          ("condicao", "Condição"), ("plano", "Plano"), ("periodicidade", "Periodicidade"),
          ("proxima", "Próxima calibração"), ("situacao", "Situação")]
 
@@ -47,7 +47,7 @@ class AbaCalibrar(QWidget):
             grade.addWidget(QLabel(f"{rotulo}:"), linha, coluna * 2)
             grade.addWidget(self.valores[chave], linha, coluna * 2 + 1)
             grade.setColumnStretch(coluna * 2 + 1, 1)
-        self.aviso_trena = QLabel(objectName="dica", wordWrap=True)
+        self.aviso_trena = RotuloAviso(objectName="dica", wordWrap=True)
         caixa_instrumento = QGroupBox("Instrumento escolhido")
         coluna_instrumento = QVBoxLayout(caixa_instrumento)
         coluna_instrumento.addWidget(QLabel(
@@ -111,8 +111,7 @@ class AbaCalibrar(QWidget):
             "situacao": situacao.value if situacao else "—",
         }
         for chave, texto in textos.items():
-            self.valores[chave].setText(f"<b>{texto}</b>" if chave != "localizacao"
-                                        else texto)
+            self.valores[chave].setText(f"<b>{texto}</b>")
         cores = CORES_SITUACAO.get(situacao) if situacao else None
         self.valores["situacao"].setStyleSheet(
             f"background: {cores[0]}; color: {cores[1]}; padding: 2px 6px;" if cores else "")

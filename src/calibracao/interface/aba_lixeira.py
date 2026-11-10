@@ -22,14 +22,21 @@ from PySide6.QtWidgets import (
 )
 
 from calibracao.dados.repositorio import ErroDeValidacao, ItemLixeira, Repositorio
-from calibracao.interface.componentes import altura_do_conteudo, celula, tabela_somente_leitura
+from calibracao.interface.componentes import (
+    RotuloAviso,
+    altura_do_conteudo,
+    celula,
+    tabela_somente_leitura,
+)
 from calibracao.interface.estilo import CORES
+from calibracao.interface.tema_icones import lupa, por_icone
 from calibracao.regras.lixeira import CONFIRMACAO_EXCLUSAO, Tipo
 
 TODOS = "Tudo"
 # Opções do filtro "Mostrar:" (texto no plural → tipo)
 FILTROS = {TODOS: None, "Instrumentos": Tipo.INSTRUMENTO, "Planos": Tipo.PLANO,
-           "Pontos do plano": Tipo.PONTO, "Calibrações": Tipo.CALIBRACAO}
+           "Pontos do plano": Tipo.PONTO, "Calibrações": Tipo.CALIBRACAO,
+           "Certificados (PDF)": Tipo.CERTIFICADO}
 
 
 def quando(texto_iso: str) -> str:
@@ -82,6 +89,7 @@ class AbaLixeira(QWidget):
         topo.addWidget(self.filtro)
         self.busca = QLineEdit(placeholderText="Pesquisar por código, descrição ou motivo")
         self.busca.textChanged.connect(self._preencher)
+        lupa(self.busca, CORES["dica"])
         topo.addWidget(self.busca, 1)
         topo.addWidget(QLabel("Use a Lixeira para o que foi registrado por engano. Restaurar "
                               "devolve o item para onde estava.", objectName="dica"), 1)
@@ -92,11 +100,13 @@ class AbaLixeira(QWidget):
         self.tabela.viewport().setCursor(Qt.PointingHandCursor)
         self.tabela.setSelectionMode(QAbstractItemView.SingleSelection)
         self.tabela.itemSelectionChanged.connect(self._habilitar)
-        self.avisos = QLabel(wordWrap=True, objectName="avisos")
+        self.avisos = RotuloAviso(wordWrap=True, objectName="avisos")
 
         self.restaurar = QPushButton("Restaurar")
+        por_icone(self.restaurar, "restore_from_trash", CORES["titulo"])
         self.restaurar.clicked.connect(self.restaurar_item)
         self.excluir = QPushButton("Excluir permanentemente")
+        por_icone(self.excluir, "delete_forever", CORES["erro"])
         self.excluir.setToolTip(f"Apaga para sempre (pede para digitar {CONFIRMACAO_EXCLUSAO}).")
         self.excluir.clicked.connect(self.excluir_item)
         # Botões logo abaixo da lista, com a dica (pedido de 2026-11-03).

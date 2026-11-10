@@ -138,6 +138,119 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    Git). Cópia do programa **com o banco real e o logo**, só para o usuário baixar em casa:
    repositório **PRIVADO** `jcesarmph-ui/calibracao-programa`, uma Release com `.zip` por cópia
    (como fazer: memória local `copia-programa-repo-privado`). Nunca torná-lo público.
+   **Versão `1.2.0` em andamento (2026-11-10, branch `melhorias-1.2.0`, sem README e sem cópia
+   em `programas-executaveis`, a pedido do usuário)**: título "DQ-05 CALIBRAÇÃO DE INSTRUMENTOS";
+   cadastro com "Tipo de instrumento", "Faixa de utilização" (dica da unidade), Calendário na data
+   de compra, custo com centavos, localização em negrito; código com lista "Tipo (SIGLA)" e
+   próximo número; tipo e localização com sugestões (sem maiúsculas/acentos), vários locais com
+   " / " (filtro mostra em cada um), pergunta ao criar nome novo; tipos juntados
+   (`regras/padronizacao.TIPOS_JUNTADOS`: Régua graduada para furos, Paquímetro analógico,
+   Balança Suspensa) — o banco da rede é acertado uma vez ao abrir (`metadados.nomes_unificados`,
+   simulado numa cópia só leitura); lista com a linha toda clicável; botão Renomear plano.
+   Fotos: `dados/fotos/foto_1_2_0.py`, `foto_icone_data.py`, `foto_icones.py` (banco: cópia só
+   leitura da rede no scratchpad). **Feito e aprovado também:** ícones do Google (Material
+   Symbols, `interface/icones/` + `LICENSE`, `tema_icones.py`): calendário em todas as datas, abas,
+   botões, lupa, cadeado e avisos ✔✖⚠ (`componentes.RotuloAviso`); Renomear plano na janela do
+   EDITAR PLANO; lista com linha toda clicável.
+   **Próximos (combinados em 2026-11-10, nesta ordem salvo mudança):**
+   1. **PDF dos certificados**: campo "Certificado (PDF)" na Nova calibração e no EDITAR da
+      calibração (opcional); arquivos na pasta `dados/certificados` da rede (a1), banco guarda só
+      a ligação; **um PDF por calibração**, trocável, o antigo vai para a Lixeira (d1); **aba nova
+      "Certificados"** com só **código do instrumento | nº do certificado | data da calibração**
+      (b), clicar abre o PDF; **só calibrações feitas no programa** — certificados antigos de
+      papel não entram (c2; a pasta física é só descontinuada, não destruída).
+   2. **Modo claro e escuro** escolhido pela pessoa (como no Windows), no lugar de trocar tudo
+      para claro; mostrar foto antes; cuidar de calendário, listas, logo com letra preta, gráfico.
+   3. **Aviso de atualização** (pergunta do usuário em 2026-11-10): o programa avisa que há versão
+      nova e a pessoa escolhe atualizar agora ou depois; ver se dá para publicar a atualização na
+      rede sem ele trocar a pasta à mão (sempre com a confirmação dele).
+   Essas três **vão para o README** (pedido do usuário em 2026-11-10). Depois: PR, tag `v1.2.0`
+   (ou dividir em versões) e pacote para trocar a pasta `programa` na rede.
+   **Onde parei (2026-11-10, antes do /clear):** PDF — parte de dados **pronta e enviada**
+   (commit "Certificados em PDF…": `dados/certificados.py`, tabela `certificados` sem mudar a
+   versão do esquema, `Repositorio.anexar_certificado`/`certificado_da_calibracao`/
+   `listar_certificados`/`conferir_certificado`, Lixeira `Tipo.CERTIFICADO`, backup espelha em
+   `backup/certificados/`; testes em `tests/test_certificados.py`). **Falta a tela:** linha
+   "Certificado (PDF)" + botão "Escolher PDF" em `aba_calibracoes.JanelaNovaCalibracao._caixa_dados`
+   (conferir o PDF antes de salvar; anexar depois de `registrar_calibracao`/`corrigir_calibracao`;
+   na correção mostrar o atual e "Trocar PDF"); "Abrir PDF" em `JanelaVerCalibracao`; **aba nova
+   "Certificados"** (lupa + Código | Nº do certificado | Data; clicar abre com
+   `QDesktopServices`); ícones novos (ex.: `attach_file`, `picture_as_pdf`) **só com foto
+   aprovada**. Rodar a bateria inteira de testes **em segundo plano** (o chat caiu 2× com ela).
+   **PDF dos certificados: FEITO e aprovado (2026-11-10)** — botões "Adicionar certificado
+   (PDF)" / "Substituir certificado (PDF)", "Abrir PDF" no Ver calibração, aba Certificados,
+   filtro na Lixeira; ícones `picture_as_pdf` e `attach_file` aprovados; PDF mexido depois
+   abre com aviso amarelo (aprovado). Fotos: `dados/fotos/foto_certificados.py`.
+   **Ordem combinada em 2026-11-10:** implementar os itens 2 e 3 acima, **intercalando**
+   conversas sobre as perguntas extras (são "implementações superiores": conversar, não
+   implementar sem o usuário pedir).
+   **Modo claro/escuro: FEITO (2026-11-10, commits "Modo claro/escuro parte 1 e 2")** — claro
+   cinza escolhido por foto; botão sol/lua; troca na hora; escolha por usuário do Windows;
+   traço do logo preto no claro. Fotos: `dados/fotos/foto_temas.py`. Falta só o usuário ver as
+   fotos finais. **Próximo: aviso de atualização** (item 3).
+   **Aviso de atualização: NÃO fazer** (2026-11-10: ~1 pessoa por dia; eu atualizo e pronto).
+   **Próximo: abas Indicadores e Relatórios** (pedido de 2026-11-10; layout por foto antes):
+   - Indicadores (dashboard): mais perto do limite; custo de calibração por mês; custo 12 meses
+     e médio; calibrações por mês (no prazo / vencida); custo por laboratório.
+   - Relatórios: relatório do mês **atual** (muda sozinho a cada calibração/alteração); no fim
+     do mês vira "relatório final do mês X", **guardado sozinho** numa lista; botão do relatório
+     do **ano atual** (o anual só fica registrado quando o ano acaba). Conteúdo: os painéis acima
+     com base no mês + números (previstas, feitas, vencidas, custo do mês) + calibrações do mês +
+     **"ALTERAÇÕES"** (era "Pontos de atenção"); **sem** previstas do mês seguinte; de
+     preferência em **uma folha**.
+   **No fim da 1.2.0 (pedido de 2026-11-10):** o README mostra as coisas grandes (PDF dos
+   certificados, modo claro/escuro, Indicadores, Relatórios) e vai uma **cópia nova para o
+   `programas-executaveis`** (repositório privado).
+   **E-mail automático: NÃO vai ter** (decisão de 2026-11-10).
+   **ONDE PAREI (2026-11-10, antes do /clear): Indicadores e Relatórios prontos e enviados
+   (407 testes). Próximo: mostrar ao usuário as fotos em `dados/fotos/versao_1.2.0/indicadores`
+   (indicadores_escuro/claro, montador, relatorios_escuro, relatorio_setembro_2027.pdf) e
+   pedir aprovação dos ícones novos; depois fechar a 1.2.0 (README com as coisas grandes, PR,
+   tag, pacote para a rede, cópia no programas-executaveis).**
+   **Indicadores e Relatórios: FEITOS (2026-11-10, 3 etapas)** — `regras/indicadores.py`,
+   `regras/relatorio.py`, `interface/aba_indicadores.py`, `aba_relatorios.py`,
+   `desenho_grafico.py`, `relatorio_pdf.py`; tabelas `graficos_painel` e `relatorios` (sem mudar a
+   versão do esquema); PDFs finais em `dados/relatorios/` (backup espelha). Sem "ver como sai no
+   relatório" e sem "voltar ao painel inicial" (pedido do usuário); setinha ↶ desfaz as 3
+   últimas mudanças nos gráficos. Pontos que estavam em aberto ficaram como proposto (o usuário
+   pode mudar): limite = desvio final ÷ tolerância do lado (relatório: calibrações do período;
+   aba: última de cada instrumento); relatório final não muda depois; anual com a tabela.
+   Fotos: `dados/fotos/foto_indicadores.py`. Falta: o usuário ver as fotos e aprovar os ícones
+   novos (bar_chart, description, add_chart, undo).
+   **Decisões de 2026-11-10 sobre Indicadores/Relatórios:**
+   - Painel **montado pelo usuário** (como Power BI, sem IA): botão **ADICIONAR GRÁFICO** abre
+     um **montador com listas** (o que ver · separado por · só os que… · dividir em cores ·
+     período · jeito do gráfico · título automático), prévia na hora; no painel cada gráfico
+     tem mover ◀ ▶, Maior/Menor, Editar, Tirar (com desfazer). **Um painel só para todos**
+     (no banco; mexer só no modo edição). **O relatório do mês sai com os gráficos do painel.**
+   - Relatório final do mês: **criado sozinho na 1ª abertura do mês novo** (sem clicar), com
+     "dados até o último dia do mês". Na lista de relatórios guardados, **botão "Abrir PDF" na
+     linha** — só ele abre.
+   - **Protótipo para o usuário brincar** (fora do Git, dados fictícios):
+     `.venv/Scripts/python dados/prototipo_painel/painel_teste.py` (painel guardado só em
+     `%TEMP%/teste_painel_calibracao.json`). Correções dele (2026-11-10): **sem setas e sem
+     Maior/Menor** (lugar e tamanho fixos, 2 por linha, na ordem em que entraram); roda do mouse
+     rola a tela (gráfico não engole); gráfico sem dados **não pode ser adicionado** (botão
+     bloqueado com cara de bloqueado) e o montador **só oferece o que faz sentido**; legenda
+     fora do gráfico, no máximo 12 itens com aviso. `.exe` do protótipo para a pasta
+     particular dele na rede: `dados/prototipo_painel/Teste Painel de Indicadores.zip`.
+   - Ainda em aberto: conta do "mais perto do limite" (proposta: desvio final ÷ tolerância do
+     lado, pior ponto; relatório = calibrações do mês, aba = última de cada instrumento);
+     relatório final não muda depois de correção? (proposto: não muda); relatório do ano com a
+     tabela de todas as calibrações ou só números/gráficos/ALTERAÇÕES.
+   - **QR Code**: não vai implementar agora. Quer **no celular** e **sempre atualizado** (etiqueta
+     impressa uma vez). Caminho: QR com endereço fixo + página só de consulta que o programa
+     atualiza ao salvar, guardada no OneDrive/SharePoint da empresa (celular só precisa de
+     internet). Teste feito: QR com texto do PAQ-004 (funcionou na tela) e folha A4 em tamanho
+     real com adesivos de 10 a 30 mm, QR com texto × com endereço (falta ele testar impresso).
+     Script do teste: só no scratchpad (não versionado).
+   - **IA lendo o certificado**: só interessa se for **de graça**; senão, esquecer. Alternativa
+     gratuita proposta: ler o texto do PDF sem IA (PDF digital, modelo fixo por laboratório).
+   - **Relatório do mês em PDF**: 3 exemplos fictícios em `dados/fotos/exemplos/`
+     (`exemplos_relatorios_paineis.py`): resumo do mês, detalhado, indicadores do ano.
+   - **Painel de indicadores**: 3 exemplos (prazos; qualidade; custos e instrumentos). Se for
+     feito, **usar os dados que já estão no banco** (calibrações feitas e instrumentos desde a
+     implantação), para mostrar a melhoria.
 3. Pendências que continuam: confidencialidade do repositório público (só quando o usuário
    pedir); limpeza dos arquivos do protótipo na árvore (perguntar antes de remover).
 4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,

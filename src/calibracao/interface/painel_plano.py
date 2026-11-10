@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QPushButton,
     QTableWidget,
@@ -25,7 +26,9 @@ from PySide6.QtWidgets import (
 )
 
 from calibracao.dados.repositorio import ErroDeValidacao, PontoPlano, Repositorio
-from calibracao.interface.componentes import enter_desce
+from calibracao.interface.componentes import RotuloAviso, enter_desce
+from calibracao.interface.estilo import CORES
+from calibracao.interface.tema_icones import por_icone
 from calibracao.regras.lixeira import Tipo
 
 # Tipos de ponto com nome amigável (o banco guarda a sigla da esquerda).
@@ -121,10 +124,13 @@ class PainelPlano(QWidget):
         self.descartar_plano.setToolTip("Para plano criado por engano. Instrumentos ligados a "
                                         "ele não podem ser calibrados até restaurar.")
         self.descartar_plano.clicked.connect(self.enviar_plano_para_lixeira)
+        for botao, nome in ((self.adicionar, "add"), (self.remover, "delete"),
+                            (self.descartar_plano, "delete")):
+            por_icone(botao, nome, CORES["titulo"])
         botoes.addWidget(self.descartar_plano)
         botoes.addStretch()
         botoes.addWidget(self.salvar)
-        self.avisos = QLabel(wordWrap=True)
+        self.avisos = RotuloAviso(wordWrap=True)
 
         coluna = QVBoxLayout(self)
         coluna.addWidget(self.titulo)
@@ -319,7 +325,7 @@ class PainelPlano(QWidget):
         self.mostrar(self.plano_id)
 
     def _aviso(self, texto: str, erro: bool = False, certo: bool = False) -> None:
-        cor = "#ef5350" if erro else "#43a047" if certo else "#ffd54f"
+        cor = CORES["erro"] if erro else CORES["certo"] if certo else CORES["aviso"]
         self.avisos.setStyleSheet(f"color: {cor};")
         self.avisos.setText(texto)
 
@@ -343,16 +349,58 @@ class JanelaEditarPlano(QDialog):
         self.painel.plano_descartado.connect(self.accept)
         faixa = QLabel("Você está editando o plano: clique numa célula e digite; depois clique em "
                        "SALVAR PLANO (ou em Cancelar para desistir).", alignment=Qt.AlignCenter)
-        faixa.setStyleSheet("background: #ffd54f; color: #000000; padding: 6px; "
+        faixa.setStyleSheet(f"background: {CORES['aviso_fundo']}; color: #000000; padding: 6px; "
                             "font-weight: bold;")
         self.cancelar = QPushButton("Cancelar")
         self.cancelar.clicked.connect(self.reject)
         self.painel.botoes.insertWidget(self.painel.botoes.count() - 1, self.cancelar)
+        # Renomear o plano (pedido de 2026-11-10): plano reaproveitado de outro instrumento fica
+        # com o nome do outro, o que confunde. Grava na hora (não depende de SALVAR PLANO).
+        self.repo = repositorio
+        self.plano_id = plano_id
+        self.renomear_plano = QPushButton("Renomear plano")
+        self.renomear_plano.setToolTip("Troca o nome deste plano (vale para todos os "
+                                       "instrumentos que usam este plano).")
+        self.renomear_plano.clicked.connect(self.pedir_novo_nome)
+        por_icone(self.renomear_plano, "edit", CORES["titulo"])
+        self.painel.botoes.insertWidget(2, self.renomear_plano)
+        self.titulo = QLabel(f"EDITAR PLANO — {nome}", objectName="titulo",
+                             alignment=Qt.AlignCenter)
         coluna = QVBoxLayout(self)
-        coluna.addWidget(QLabel(f"EDITAR PLANO — {nome}", objectName="titulo",
-                                alignment=Qt.AlignCenter))
+        coluna.addWidget(self.titulo)
         coluna.addWidget(faixa)
         coluna.addWidget(self.painel, 1)
+
+
+    def pedir_novo_nome(self) -> None:
+        plano = self.repo.obter_plano(self.plano_id)
+        usam = [i.codigo for i in self.repo.listar_instrumentos(incluir_desativados=True)
+                if i.plano_id == self.plano_id]
+        aviso = (f"\n\nUsado por: {', '.join(usam)}. O nome muda para todos." if len(usam) > 1
+                 else "")
+        nome, ok = QInputDialog.getText(self, "Renomear plano",
+                                        f'Novo nome do plano "{plano.nome}":{aviso}',
+                                        text=plano.nome)
+        if ok:
+            self.renomear(nome)
+
+    def renomear(self, nome: str) -> None:
+        """Grava o nome novo na hora; o título da janela e a tela por trás acompanham."""
+        plano = self.repo.obter_plano(self.plano_id)
+        antigo = plano.nome
+        plano.nome = nome
+        try:
+            self.repo.atualizar_plano(plano)
+        except ErroDeValidacao as erro:
+            self.painel.avisos.setStyleSheet(f"color: {CORES['erro']};")
+            self.painel.avisos.setText("\n".join(f"✖ {m}" for m in erro.mensagens))
+            return
+        novo = self.repo.obter_plano(self.plano_id).nome
+        self.setWindowTitle(f"Editar plano — {novo}")
+        self.titulo.setText(f"EDITAR PLANO — {novo}")
+        self.painel.avisos.setStyleSheet(f"color: {CORES['aviso']};")
+        self.painel.avisos.setText(f'Plano "{antigo}" renomeado para "{novo}".')
+        self.painel.alterado.emit()
 
 
 class JanelaVerPlano(QDialog):
@@ -394,8 +442,10 @@ class JanelaVerPlano(QDialog):
         sem_u = sum(1 for p in pontos if falta_incerteza(p))
 
         self.editar = QPushButton("EDITAR PLANO", objectName="principal")
+        por_icone(self.editar, "edit", CORES["titulo"])
         self.editar.clicked.connect(lambda: self.done(self.EDITAR))
-        self.editar.setVisible(pode_editar)
+        if not pode_editar:  # só esconder aqui: mostrar algo ainda sem "pai" pisca uma janela
+            self.editar.hide()
         fechar = QPushButton("Fechar")
         fechar.clicked.connect(self.accept)
         rodape = QHBoxLayout()
@@ -428,12 +478,14 @@ class ResumoPlano(QWidget):
         self.janela_edicao: JanelaEditarPlano | None = None
 
         self.titulo = QLabel(wordWrap=True)
-        self.avisos = QLabel(wordWrap=True, objectName="avisos")
+        self.avisos = RotuloAviso(wordWrap=True, objectName="avisos")
         self.ver = QPushButton("VER PLANO")
+        por_icone(self.ver, "visibility", CORES["titulo"])
         self.ver.setToolTip("Abre o plano inteiro numa janela grande, só para ver.")
         self.ver.setStyleSheet("font-size: 16pt; font-weight: bold; padding: 14px;")
         self.ver.clicked.connect(self.ver_plano)
         self.editar = QPushButton("EDITAR PLANO", objectName="principal")
+        por_icone(self.editar, "edit", CORES["titulo"])
         self.editar.setToolTip("Abre a janela para mudar os pontos, tolerâncias e incertezas.")
         self.editar.clicked.connect(self.editar_plano)
         botoes = QHBoxLayout()

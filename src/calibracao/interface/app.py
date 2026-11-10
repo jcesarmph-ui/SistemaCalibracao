@@ -14,7 +14,9 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 from calibracao.dados.local_banco import eh_copia, local_do_banco
 from calibracao.dados.repositorio import Repositorio
+from calibracao.interface.estilo import aplicar_tema
 from calibracao.interface.janela import JanelaPrincipal
+from calibracao.interface.preferencias import ler_tema
 from calibracao.interface.recursos import ocultar_pasta, recurso
 
 
@@ -64,6 +66,7 @@ def main() -> int:
         # Sem isso o Windows agrupa a janela sob o python.exe e mostra o ícone do Python.
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("MG.CalibracaoInstrumentos")
     app = QApplication(sys.argv)
+    aplicar_tema(ler_tema())  # claro ou escuro, como a pessoa deixou da última vez
     pasta = pasta_dados_padrao()
     try:
         repositorio, oficial = abrir_banco(pasta)

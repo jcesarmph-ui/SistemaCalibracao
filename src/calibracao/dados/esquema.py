@@ -15,12 +15,21 @@ Versão 8: data prevista da 1ª calibração no programa, digitada na ficha olha
 2026-11-03): o programa não guarda as calibrações antigas da planilha, só essa data.
 Versão 9: ponto com "U não se aplica" (na DQ05, "-" ou "N/A" onde vai a incerteza), no plano e na
 "foto" guardada com cada calibração.
+Sem mudar a versão (2026-11-10): tipos e locais com um nome só (`_unificar_nomes`), uma vez, marcado
+em `metadados.nomes_unificados` — o banco continua abrindo na versão anterior do programa.
 """
 
 import sqlite3
 from pathlib import Path
 
 from calibracao.regras.localizacao import com_marcas
+from calibracao.regras.padronizacao import (
+    localizacao_padrao,
+    preferidas_dos_locais,
+    preferidas_dos_tipos,
+    tipo_juntado,
+    tipo_padrao,
+)
 
 VERSAO_ESQUEMA = 9
 
@@ -185,6 +194,50 @@ CREATE INDEX IF NOT EXISTS idx_correcoes_calibracao ON correcoes_calibracao(cali
 # Versão 7. Histórico da marca de orientação indicativa (a marca em si é o " - Orientação
 # indicativa" da localização). Linha de uma calibração na Lixeira deixa de valer, como nas
 # condições; `calibracao_id` preenchido = veio do parecer final.
+# PDF do certificado de cada calibração (pedido de 2026-11-10), sem mudar a versão do esquema: a
+# versão anterior do programa abre o banco e só não vê esta tabela. O arquivo fica na pasta
+# `certificados/` ao lado do banco; aqui, a ligação e a conferência (SHA-256).
+TABELA_CERTIFICADOS = """
+CREATE TABLE IF NOT EXISTS certificados (
+    id INTEGER PRIMARY KEY,
+    calibracao_id INTEGER NOT NULL REFERENCES calibracoes(id),
+    arquivo TEXT NOT NULL,          -- nome dentro da pasta certificados/
+    nome_original TEXT NOT NULL,    -- nome do arquivo que a pessoa escolheu
+    tamanho INTEGER NOT NULL,
+    sha256 TEXT NOT NULL,
+    enviado_em TEXT NOT NULL,
+    enviado_por TEXT,               -- "usuário - PC"
+    excluido_em TEXT,
+    motivo_exclusao TEXT
+);
+CREATE INDEX IF NOT EXISTS certificados_da_calibracao ON certificados(calibracao_id);
+"""
+
+# Painel de indicadores montado pelo usuário (pedido de 2026-11-10), sem mudar a versão do
+# esquema. Um painel só para todos; cada gráfico guarda a definição (JSON de
+# `regras.indicadores.DefinicaoGrafico`). Tirar = `excluido_em` (o "desfazer" volta).
+TABELA_PAINEL = """
+CREATE TABLE IF NOT EXISTS graficos_painel (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    definicao TEXT NOT NULL,
+    criado_em TEXT NOT NULL,
+    excluido_em TEXT
+);
+"""
+
+# Relatórios finais guardados (pedido de 2026-11-10), sem mudar a versão do esquema: um por
+# mês que acabou e um por ano que acabou. O PDF fica em `relatorios/` ao lado do banco.
+TABELA_RELATORIOS = """
+CREATE TABLE IF NOT EXISTS relatorios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    periodo TEXT NOT NULL UNIQUE,   -- "2027-10" (mês) ou "2027" (ano)
+    arquivo TEXT NOT NULL,          -- nome dentro da pasta relatorios/
+    sha256 TEXT NOT NULL,
+    gerado_em TEXT NOT NULL,
+    gerado_por TEXT
+);
+"""
+
 TABELAS_V7 = """
 CREATE TABLE IF NOT EXISTS marcas_indicativa (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -257,6 +310,10 @@ def criar_tabelas(conexao: sqlite3.Connection) -> None:
     if "motivo_atraso_pendente" not in _colunas(conexao, "instrumentos"):
         conexao.execute("ALTER TABLE instrumentos ADD COLUMN motivo_atraso_pendente TEXT")
     conexao.executescript(TABELAS_V7)
+    conexao.executescript(TABELA_CERTIFICADOS)
+    conexao.executescript(TABELA_PAINEL)
+    conexao.executescript(TABELA_RELATORIOS)
+    _painel_inicial(conexao)
     if "primeira_prevista" not in _colunas(conexao, "instrumentos"):
         conexao.execute("ALTER TABLE instrumentos ADD COLUMN primeira_prevista TEXT")
     for tabela in ("pontos_plano", "pontos_calibracao"):
@@ -264,10 +321,37 @@ def criar_tabelas(conexao: sqlite3.Connection) -> None:
             conexao.execute(f"ALTER TABLE {tabela} ADD COLUMN incerteza_nao_aplica "
                             "INTEGER NOT NULL DEFAULT 0")
     _migrar_condicao_indicativa(conexao)
+    _unificar_nomes(conexao)
     conexao.execute(
         "INSERT OR REPLACE INTO metadados (chave, valor) VALUES ('versao_esquema', ?)",
         (str(VERSAO_ESQUEMA),),
     )
+
+
+def _unificar_nomes(conexao: sqlite3.Connection) -> None:
+    """Uma vez por banco (pedido de 2026-11-10): tipos e locais que só mudam nas maiúsculas ficam
+    com a grafia da maioria, "Régua graduada para furos" vira "Régua graduada" e cada local de
+    "Serralheria / Manutenção" fica com o nome que os outros instrumentos usam."""
+    feito = conexao.execute(
+        "SELECT 1 FROM metadados WHERE chave = 'nomes_unificados'").fetchone()
+    if feito:
+        return
+    linhas = conexao.execute(
+        "SELECT id, tipo, localizacao, observacoes FROM instrumentos").fetchall()
+    tipos = preferidas_dos_tipos(linha["tipo"] for linha in linhas)
+    locais = preferidas_dos_locais(linha["localizacao"] for linha in linhas)
+    for linha in linhas:
+        tipo = tipo_padrao(linha["tipo"], tipos)
+        local = localizacao_padrao(linha["localizacao"], locais)
+        observacoes = linha["observacoes"]
+        if tipo_juntado(linha["tipo"]):  # o nome antigo (ex.: o modelo da balança) não se perde
+            nota = f"Tipo antes da unificação: {linha['tipo']}"
+            observacoes = f"{observacoes} | {nota}" if observacoes else nota
+        if (tipo, local, observacoes) != (linha["tipo"], linha["localizacao"],
+                                          linha["observacoes"]):
+            conexao.execute("UPDATE instrumentos SET tipo = ?, localizacao = ?, observacoes = ? "
+                            "WHERE id = ?", (tipo, local, observacoes, linha["id"]))
+    conexao.execute("INSERT INTO metadados (chave, valor) VALUES ('nomes_unificados', '1')")
 
 
 def _migrar_desativacoes(conexao: sqlite3.Connection) -> None:
@@ -315,3 +399,19 @@ def _migrar_condicao_indicativa(conexao: sqlite3.Connection) -> None:
                             (com_marcas(local, indicativa=True), instrumento_id))
     conexao.execute("UPDATE condicoes SET condicao = 'Em uso' "
                     "WHERE condicao = 'Orientação indicativa'")
+
+
+def _painel_inicial(conexao: sqlite3.Connection) -> None:
+    """Na 1ª vez, o painel começa com os gráficos escolhidos pelo usuário (uma vez só: se ele
+    tirar todos, o painel fica vazio — marcado em `metadados`)."""
+    import datetime
+
+    from calibracao.regras.indicadores import PAINEL_INICIAL
+
+    if conexao.execute("SELECT 1 FROM metadados WHERE chave = 'painel_iniciado'").fetchone():
+        return
+    agora = datetime.datetime.now().isoformat(timespec="seconds")
+    for definicao in PAINEL_INICIAL:
+        conexao.execute("INSERT INTO graficos_painel (definicao, criado_em) VALUES (?, ?)",
+                        (definicao.para_json(), agora))
+    conexao.execute("INSERT INTO metadados (chave, valor) VALUES ('painel_iniciado', 'sim')")

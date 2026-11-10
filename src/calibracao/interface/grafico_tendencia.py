@@ -37,19 +37,18 @@ from PySide6.QtWidgets import (  # noqa: E402
 )
 
 from calibracao.dados.repositorio import MedicaoTendencia, SerieTendencia  # noqa: E402
-from calibracao.interface.componentes import formatar_data  # noqa: E402
-from calibracao.interface.estilo import CORES  # noqa: E402
+from calibracao.interface.componentes import (
+    RotuloAviso,
+    formatar_data,  # noqa: E402
+)
+from calibracao.interface.estilo import CORES, tema_claro  # noqa: E402
 from calibracao.interface.painel_plano import numero_em_texto  # noqa: E402
+from calibracao.interface.tema_icones import por_icone
 from calibracao.regras.avaliacao import Resultado  # noqa: E402
 
-# Cores do gráfico no tema escuro: série em azul (1ª cor da paleta categórica validada para fundo
-# escuro), tolerância em cinza (recessiva), reprovado no vermelho de erro do programa.
+# Série em azul, tolerância em cinza (recessiva), reprovado no vermelho de erro do programa. O
+# resto (texto, grade, fundo) vem do tema na hora de desenhar (modo claro/escuro, 2026-11-10).
 COR_SERIE = "#3987e5"
-COR_TOLERANCIA = "#9e9e9e"
-COR_REPROVADO = CORES["erro"]
-COR_TEXTO = "#f0f0f0"
-COR_GRADE = "#3a3a3a"
-COR_FUNDO = CORES["caixa"]
 # Todos juntos: 17 cores bem diferentes entre si (o maior plano tem 17 pontos), sempre na mesma
 # ordem — nada de dois tons da mesma cor (pedido de 2026-11-04). Verde e amarelo podem aparecer:
 # aqui cada cor é só um ponto, a legenda diz qual. Sem vermelho, que marca o reprovado. Só passando
@@ -78,8 +77,20 @@ TODOS = "Todos os pontos juntos"
 MAXIMO_DE_DATAS = 12  # até aqui, cada data de calibração aparece embaixo do gráfico
 
 
+# Tema claro: as mesmas cores, trocando as que somem no fundo claro por tons escuros.
+TROCA_NO_CLARO = {"#ffe119": "#c9a400", "#42d4f4": "#0097a7", "#bfef45": "#7cb342",
+                  "#f5f5f5": "#212121", "#fabed4": "#d81b60", "#dcbeff": "#6a1b9a",
+                  "#ffd8b1": "#e65100", "#aaffc3": "#00897b", "#fffac8": "#5d4037"}
+
+
+def cores_dos_pontos() -> list[str]:
+    if tema_claro():
+        return [TROCA_NO_CLARO.get(cor, cor) for cor in CORES_PONTOS]
+    return CORES_PONTOS
+
+
 def cor_e_marcador(indice: int) -> tuple[str, str]:
-    return (CORES_PONTOS[indice % len(CORES_PONTOS)],
+    return (cores_dos_pontos()[indice % len(CORES_PONTOS)],
             MARCADORES[indice // len(CORES_PONTOS) % len(MARCADORES)])
 
 
@@ -140,6 +151,7 @@ class JanelaTendencia(QDialog):
             self.ponto.addItem(f"{serie.nome} ({len(serie.medicoes)} calibração(ões))", indice)
         self.ponto.currentIndexChanged.connect(self.desenhar)
         self.exportar = QPushButton("Salvar imagem (PNG)")
+        por_icone(self.exportar, "download", CORES["titulo"])
         self.exportar.clicked.connect(self._escolher_arquivo)
         self.exportar.setEnabled(bool(series))
         fechar = QPushButton("Fechar")
@@ -150,11 +162,11 @@ class JanelaTendencia(QDialog):
         topo.addWidget(self.exportar)
         topo.addWidget(fechar)
 
-        self.figura = Figure(figsize=(12, 6), facecolor=COR_FUNDO)
+        self.figura = Figure(figsize=(12, 6), facecolor=CORES["caixa"])
         self.tela = FigureCanvasQTAgg(self.figura)
         self.tela.mpl_connect("motion_notify_event", self._passou_o_mouse)
         self.tela.mpl_connect("pick_event", self._clicou_na_legenda)
-        self.aviso = QLabel(objectName="dica", wordWrap=True)
+        self.aviso = RotuloAviso(objectName="dica", wordWrap=True)
 
         coluna = QVBoxLayout(self)
         coluna.addLayout(topo)
@@ -168,7 +180,7 @@ class JanelaTendencia(QDialog):
 
     def desenhar(self) -> None:
         self.figura.clear()
-        eixo = self.figura.add_subplot(facecolor=COR_FUNDO)
+        eixo = self.figura.add_subplot(facecolor=CORES["caixa"])
         self._eixo = eixo
         self._desenhados: list[_Desenhado] = []
         # Todos juntos: o que foi desenhado de cada ponto, para esconder/mostrar pela legenda.
@@ -179,7 +191,7 @@ class JanelaTendencia(QDialog):
         if not self.series:
             eixo.set_axis_off()
             eixo.text(0.5, 0.5, "Ainda não há pontos numéricos medidos para o gráfico.",
-                      ha="center", va="center", color=COR_TEXTO, fontsize=14,
+                      ha="center", va="center", color=CORES["texto"], fontsize=14,
                       transform=eixo.transAxes)
             self.aviso.setText("")
             self.tela.draw_idle()
@@ -188,8 +200,8 @@ class JanelaTendencia(QDialog):
             self._desenhar_todos(eixo)
         else:
             self._desenhar_um(eixo, self.series[self.ponto.currentData()])
-        eixo.axhline(0, color=COR_GRADE, linewidth=1)
-        eixo.set_xlabel("Data da calibração", color=COR_TEXTO, fontsize=12)
+        eixo.axhline(0, color=CORES["campo_borda"], linewidth=1)
+        eixo.set_xlabel("Data da calibração", color=CORES["texto"], fontsize=12)
         eixo.xaxis.set_major_formatter(mdates.DateFormatter("%d/%m/%Y"))
         # No eixo, as datas das próprias calibrações (pedido de 2026-11-04); com muitas, o
         # Matplotlib escolhe algumas para não encavalar.
@@ -198,16 +210,17 @@ class JanelaTendencia(QDialog):
             eixo.set_xticks(datas)
         else:
             eixo.xaxis.set_major_locator(mdates.AutoDateLocator(maxticks=8))
-        eixo.tick_params(colors=COR_TEXTO, labelsize=11)
-        eixo.grid(True, color=COR_GRADE, linewidth=0.8, alpha=0.6)
+        eixo.tick_params(colors=CORES["texto"], labelsize=11)
+        eixo.grid(True, color=CORES["campo_borda"], linewidth=0.8, alpha=0.6)
         for lado in eixo.spines.values():
-            lado.set_color(COR_GRADE)
+            lado.set_color(CORES["campo_borda"])
         self.figura.autofmt_xdate()
         self.figura.tight_layout()
 
         self._dica = eixo.annotate("", xy=(0, 0), xytext=(12, 12), textcoords="offset points",
-                                   color=COR_TEXTO, fontsize=11,
-                                   bbox={"boxstyle": "round", "fc": "#161616", "ec": "#e0e0e0"})
+                                   color=CORES["texto"], fontsize=11,
+                                   bbox={"boxstyle": "round", "fc": CORES["campo"],
+                                         "ec": CORES["borda"]})
         self._dica.set_visible(False)
         self.tela.draw_idle()
 
@@ -220,29 +233,29 @@ class JanelaTendencia(QDialog):
 
         eixo.errorbar(datas, erros, yerr=barras, color=COR_SERIE, linewidth=2, marker="o",
                       markersize=8, capsize=6, elinewidth=1.5, zorder=3,
-                      markeredgecolor=COR_FUNDO, markeredgewidth=2)
+                      markeredgecolor=CORES["caixa"], markeredgewidth=2)
         reprovados = [m for m in medicoes if m.resultado == Resultado.REPROVADO]
         if reprovados:
             eixo.scatter([m.data for m in reprovados], [m.erro for m in reprovados], s=110,
-                         color=COR_REPROVADO, edgecolors=COR_FUNDO, linewidths=2, zorder=4)
+                         color=CORES["erro"], edgecolors=CORES["caixa"], linewidths=2, zorder=4)
         inferior, superior = _tolerancias(serie)
         self._linhas_de_tolerancia(eixo, inferior, superior, numero_em_texto)
         self._desenhados = [_Desenhado(mdates.date2num(m.data), m.erro, None, m)
                             for m in medicoes]
 
-        eixo.set_title(f"Tendência — {self.codigo} — {serie.nome}", color=COR_TEXTO,
+        eixo.set_title(f"Tendência — {self.codigo} — {serie.nome}", color=CORES["texto"],
                        fontsize=15, fontweight="bold", pad=12)
-        eixo.set_ylabel(f"Desvio encontrado{unidade}", color=COR_TEXTO, fontsize=12)
+        eixo.set_ylabel(f"Desvio encontrado{unidade}", color=CORES["texto"], fontsize=12)
         eixo.yaxis.set_major_formatter(FuncFormatter(lambda v, _: _texto(v)))
         eixo.margins(x=0.15, y=0.25)
         legenda = [Line2D([], [], color=COR_SERIE, marker="o", linewidth=2,
                           label="Desvio encontrado ± Incerteza (U)"),
-                   Line2D([], [], color=COR_TOLERANCIA, linestyle="--", label="Tolerância")]
+                   Line2D([], [], color=CORES["dica"], linestyle="--", label="Tolerância")]
         if reprovados:
-            legenda.append(Line2D([], [], color=COR_REPROVADO, marker="o", linestyle="",
+            legenda.append(Line2D([], [], color=CORES["erro"], marker="o", linestyle="",
                                   markersize=9, label="Ponto reprovado"))
-        eixo.legend(handles=legenda, loc="upper left", fontsize=10, facecolor=COR_FUNDO,
-                    edgecolor=COR_GRADE, labelcolor=COR_TEXTO)
+        eixo.legend(handles=legenda, loc="upper left", fontsize=10, facecolor=CORES["caixa"],
+                    edgecolor=CORES["campo_borda"], labelcolor=CORES["texto"])
         self.aviso.setText("Passe o mouse sobre um ponto para ver os valores. A barra vertical "
                            "é a Incerteza (U): o ponto só é aprovado se a barra inteira ficar "
                            "dentro da tolerância.")
@@ -276,7 +289,7 @@ class JanelaTendencia(QDialog):
                 if m.resultado == Resultado.REPROVADO:
                     algum_reprovado = True
                     grupo.append(eixo.scatter([x], [y], s=190, facecolors="none",
-                                              edgecolors=COR_REPROVADO, linewidths=2, zorder=5))
+                                              edgecolors=CORES["erro"], linewidths=2, zorder=5))
             if not xs:
                 sem_tolerancia.append(serie.nome)
                 continue
@@ -285,7 +298,7 @@ class JanelaTendencia(QDialog):
                                    elinewidth=1.2, capsize=3, alpha=0.7, zorder=2)
             grupo += [*barras.lines[1], *barras.lines[2]]
             grupo.append(eixo.scatter(xs, ys, s=46, color=cor, marker=marcador,
-                                      edgecolors=COR_FUNDO, linewidths=1.5, zorder=4))
+                                      edgecolors=CORES["caixa"], linewidths=1.5, zorder=4))
             self._grupos[indice] = grupo
             nome = serie.nome
             if not comum and (inferior is not None or superior is not None):
@@ -298,29 +311,29 @@ class JanelaTendencia(QDialog):
             inferior, superior = _tolerancias(self.series[0])
             self._linhas_de_tolerancia(eixo, inferior, superior, numero_em_texto)
             eixo.set_ylabel(f"Desvio encontrado {unidade}" if unidade
-                            else "Desvio encontrado", color=COR_TEXTO, fontsize=12)
+                            else "Desvio encontrado", color=CORES["texto"], fontsize=12)
             eixo.yaxis.set_major_formatter(FuncFormatter(lambda v, _: _texto(v)))
             explicacao = (f"Tolerância igual em todos os pontos "
                           f"({self._faixa(inferior, superior, unidade)}): eixo em desvio")
         else:
             self._linhas_de_tolerancia(eixo, -100, 100, lambda v: f"{_texto(v)}%")
-            eixo.set_ylabel("Desvio em % da tolerância", color=COR_TEXTO, fontsize=12)
+            eixo.set_ylabel("Desvio em % da tolerância", color=CORES["texto"], fontsize=12)
             eixo.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{_texto(v)}%"))
             explicacao = ("Tolerâncias diferentes entre os pontos: eixo em % da tolerância "
                           "usada (100% = no limite)")
         eixo.set_title(f"Tendência — {self.codigo} — todos os pontos\n{explicacao}",
-                       color=COR_TEXTO, fontsize=14, fontweight="bold", pad=12)
+                       color=CORES["texto"], fontsize=14, fontweight="bold", pad=12)
         eixo.margins(x=0.06, y=0.25)
-        legenda.append(Line2D([], [], color=COR_TOLERANCIA, linestyle="--", label="Tolerância"))
+        legenda.append(Line2D([], [], color=CORES["dica"], linestyle="--", label="Tolerância"))
         if algum_reprovado:
-            legenda.append(Line2D([], [], color=COR_REPROVADO, marker="o", linestyle="",
+            legenda.append(Line2D([], [], color=CORES["erro"], marker="o", linestyle="",
                                   markerfacecolor="none", markeredgewidth=2, markersize=11,
                                   label="Reprovado"))
         caixa = eixo.legend(handles=legenda, loc="upper left", bbox_to_anchor=(1.01, 1),
-                            fontsize=10, facecolor=COR_FUNDO, edgecolor=COR_GRADE,
-                            labelcolor=COR_TEXTO, title="Ponto (clique para esconder)",
+                            fontsize=10, facecolor=CORES["caixa"], edgecolor=CORES["campo_borda"],
+                            labelcolor=CORES["texto"], title="Ponto (clique para esconder)",
                             title_fontsize=11)
-        caixa.get_title().set_color(COR_TEXTO)
+        caixa.get_title().set_color(CORES["texto"])
         # Clicar no nome (ou no traço) de um ponto na legenda esconde/mostra esse ponto.
         for indice, linha, texto in zip(self._grupos, caixa.get_lines(), caixa.get_texts(),
                                         strict=False):
@@ -368,10 +381,10 @@ class JanelaTendencia(QDialog):
     def _linhas_de_tolerancia(eixo, inferior, superior, formato) -> None:
         for valor, nome in ((superior, "Tol. superior"), (inferior, "Tol. inferior")):
             if valor is not None:
-                eixo.axhline(valor, color=COR_TOLERANCIA, linestyle="--", linewidth=1.5)
+                eixo.axhline(valor, color=CORES["dica"], linestyle="--", linewidth=1.5)
                 eixo.annotate(f"{nome} {formato(valor)}", xy=(1, valor),
                               xycoords=("axes fraction", "data"), xytext=(-6, 4),
-                              textcoords="offset points", ha="right", color=COR_TEXTO,
+                              textcoords="offset points", ha="right", color=CORES["texto"],
                               fontsize=10)
 
     def _passou_o_mouse(self, evento) -> None:
@@ -406,7 +419,7 @@ class JanelaTendencia(QDialog):
     def salvar_png(self, caminho: Path) -> None:
         if self._desenhados:
             self._dica.set_visible(False)  # a dica do mouse não vai para a imagem
-        self.figura.savefig(caminho, format="png", dpi=180, facecolor=COR_FUNDO,
+        self.figura.savefig(caminho, format="png", dpi=180, facecolor=CORES["caixa"],
                             bbox_inches="tight")
 
     def _escolher_arquivo(self) -> None:
