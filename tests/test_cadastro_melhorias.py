@@ -61,3 +61,21 @@ def test_calendario_da_data_de_compra(janela):
     salvo = aba.repo.obter_instrumento(edicao.instrumento.id)
     assert salvo.data_compra == "2024-02-05"
     assert aba.valores["data_compra"].text() == "<b>05/02/2024</b>"
+
+
+def test_filtro_mostra_o_instrumento_em_cada_local(janela):
+    aba = janela.aba_instrumentos
+    opcoes = [aba.filtro_local.itemText(i) for i in range(aba.filtro_local.count())]
+    assert "Serralheria / Manutenção" not in opcoes
+    assert {"Serralheria", "Manutenção", "CT-01"} <= set(opcoes)
+    aba.filtro_local.setCurrentText("Manutenção")
+    assert {aba.tabela.item(n, 0).text() for n in range(aba.tabela.rowCount())} == {
+        "PAQ-018", "TRE-009"}
+    aba.filtro_local.setCurrentText("Serralheria")
+    assert [aba.tabela.item(n, 0).text() for n in range(aba.tabela.rowCount())] == ["PAQ-018"]
+
+
+def test_titulo_com_dq05(janela):
+    titulos = [r.text() for r in janela.findChildren(type(janela.faixa_teste))
+               if r.objectName() == "titulo"]
+    assert titulos == ["DQ-05 CALIBRAÇÃO DE INSTRUMENTOS"]

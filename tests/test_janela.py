@@ -363,7 +363,7 @@ def test_banco_de_teste_mostra_titulo_e_faixa(app, tmp_path):
         assert tela.windowTitle().endswith("— TESTE")
         titulos = [r.text() for r in tela.findChildren(type(tela.faixa_teste))
                    if r.objectName() == "titulo"]
-        assert titulos == ["CALIBRAÇÃO DE INSTRUMENTOS — TESTE"]
+        assert titulos == ["DQ-05 CALIBRAÇÃO DE INSTRUMENTOS — TESTE"]
     finally:
         tela.close()
         repo.fechar()

@@ -76,7 +76,7 @@ from calibracao.regras.trava import (
     ObservadorDeSinal,
 )
 
-TITULO = "CALIBRAÇÃO DE INSTRUMENTOS"
+TITULO = "DQ-05 CALIBRAÇÃO DE INSTRUMENTOS"  # "DQ-05" pedido de 2026-11-10
 
 # (texto do indicador, dica ao passar o mouse)
 INDICADORES = {
