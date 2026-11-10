@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QPushButton,
     QTableWidget,
@@ -348,11 +349,52 @@ class JanelaEditarPlano(QDialog):
         self.cancelar = QPushButton("Cancelar")
         self.cancelar.clicked.connect(self.reject)
         self.painel.botoes.insertWidget(self.painel.botoes.count() - 1, self.cancelar)
+        # Renomear o plano (pedido de 2026-11-10): plano reaproveitado de outro instrumento fica
+        # com o nome do outro, o que confunde. Grava na hora (não depende de SALVAR PLANO).
+        self.repo = repositorio
+        self.plano_id = plano_id
+        self.renomear_plano = QPushButton("Renomear plano")
+        self.renomear_plano.setToolTip("Troca o nome deste plano (vale para todos os "
+                                       "instrumentos que usam este plano).")
+        self.renomear_plano.clicked.connect(self.pedir_novo_nome)
+        self.painel.botoes.insertWidget(2, self.renomear_plano)
+        self.titulo = QLabel(f"EDITAR PLANO — {nome}", objectName="titulo",
+                             alignment=Qt.AlignCenter)
         coluna = QVBoxLayout(self)
-        coluna.addWidget(QLabel(f"EDITAR PLANO — {nome}", objectName="titulo",
-                                alignment=Qt.AlignCenter))
+        coluna.addWidget(self.titulo)
         coluna.addWidget(faixa)
         coluna.addWidget(self.painel, 1)
+
+
+    def pedir_novo_nome(self) -> None:
+        plano = self.repo.obter_plano(self.plano_id)
+        usam = [i.codigo for i in self.repo.listar_instrumentos(incluir_desativados=True)
+                if i.plano_id == self.plano_id]
+        aviso = (f"\n\nUsado por: {', '.join(usam)}. O nome muda para todos." if len(usam) > 1
+                 else "")
+        nome, ok = QInputDialog.getText(self, "Renomear plano",
+                                        f'Novo nome do plano "{plano.nome}":{aviso}',
+                                        text=plano.nome)
+        if ok:
+            self.renomear(nome)
+
+    def renomear(self, nome: str) -> None:
+        """Grava o nome novo na hora; o título da janela e a tela por trás acompanham."""
+        plano = self.repo.obter_plano(self.plano_id)
+        antigo = plano.nome
+        plano.nome = nome
+        try:
+            self.repo.atualizar_plano(plano)
+        except ErroDeValidacao as erro:
+            self.painel.avisos.setStyleSheet("color: #ef5350;")
+            self.painel.avisos.setText("\n".join(f"✖ {m}" for m in erro.mensagens))
+            return
+        novo = self.repo.obter_plano(self.plano_id).nome
+        self.setWindowTitle(f"Editar plano — {novo}")
+        self.titulo.setText(f"EDITAR PLANO — {novo}")
+        self.painel.avisos.setStyleSheet("color: #ffd54f;")
+        self.painel.avisos.setText(f'Plano "{antigo}" renomeado para "{novo}".')
+        self.painel.alterado.emit()
 
 
 class JanelaVerPlano(QDialog):

@@ -147,6 +147,7 @@ class AbaInstrumentos(QWidget):
         # Só o resumo do plano; VER PLANO e EDITAR PLANO abrem janelas grandes (item 12).
         self.painel_plano = ResumoPlano(repositorio)
         self.painel_plano.alterado.connect(self.alterado)
+        self.painel_plano.alterado.connect(self.recarregar_atual)
         self.painel_plano.plano_descartado.connect(self.recarregar_atual)
         self.tabela_historico = tabela_somente_leitura(
             ["Data", "Condição", "Observação", "Origem"])
@@ -319,11 +320,7 @@ class AbaInstrumentos(QWidget):
         return janela
 
     def _fechou_edicao(self, _resultado: int) -> None:
-        renomeou = self.janela_edicao is not None and self.janela_edicao.plano_renomeado
         self.janela_edicao = None
-        if renomeou:  # o nome do plano já mudou no banco: a ficha e o resto da tela acompanham
-            self.alterado.emit()
-            self.recarregar_atual()
 
     def editar_instrumento(self) -> None:
         if self.atual is not None:
