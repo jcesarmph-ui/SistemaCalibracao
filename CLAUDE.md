@@ -177,12 +177,22 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    "Certificados"** (lupa + Código | Nº do certificado | Data; clicar abre com
    `QDesktopServices`); ícones novos (ex.: `attach_file`, `picture_as_pdf`) **só com foto
    aprovada**. Rodar a bateria inteira de testes **em segundo plano** (o chat caiu 2× com ela).
-   **Perguntas do usuário ainda sem resposta** (responder quando retomar): QR Code (por
-   instrumento ou certificado, como abre no celular); conferir o PDF contra o plano sozinho com IA
-   (ele quer testar; como provar confiabilidade e defender numa auditoria, IA ajudando a análise
-   crítica humana, não substituindo); o que o relatório do mês em PDF mostraria (com exemplo
-   fictício); e-mail automático (ele diz o e-mail e eu configuro o envio); o que seria o painel de
-   indicadores.
+   **PDF dos certificados: FEITO e aprovado (2026-11-10)** — botões "Adicionar certificado
+   (PDF)" / "Substituir certificado (PDF)", "Abrir PDF" no Ver calibração, aba Certificados,
+   filtro na Lixeira; ícones `picture_as_pdf` e `attach_file` aprovados; PDF mexido depois
+   abre com aviso amarelo (aprovado). Fotos: `dados/fotos/foto_certificados.py`.
+   **Ordem combinada em 2026-11-10:** primeiro implementar os itens 2 e 3 acima (modo
+   claro/escuro, aviso de atualização), **intercalando** conversas sobre as perguntas extras do
+   usuário (são "implementações superiores", para depois — conversar, não implementar ainda):
+   - **QR Code** (ideia do usuário): um por **instrumento**, impresso e colado nele, para saber
+     qual instrumento está na mão; ler e ver os dados do instrumento (principalmente situação,
+     próxima calibração e localização). Expliquei: no celular só dá texto fixo dentro do QR
+     (dados do dia da impressão; reimprimir ao calibrar/mudar local); no PC (leitor USB/webcam)
+     abre a ficha atual. Falta ele escolher: 1 = os dois, 2 = só celular, 3 = só PC.
+   - Ainda sem resposta: conferir o PDF contra o plano com IA (ele quer testar; como provar
+     confiabilidade e defender numa auditoria, IA ajudando a análise crítica humana, não
+     substituindo); o que o relatório do mês em PDF mostraria (com exemplo fictício); e-mail
+     automático (ele diz o e-mail e eu configuro o envio); o que seria o painel de indicadores.
 3. Pendências que continuam: confidencialidade do repositório público (só quando o usuário
    pedir); limpeza dos arquivos do protótipo na árvore (perguntar antes de remover).
 4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,
