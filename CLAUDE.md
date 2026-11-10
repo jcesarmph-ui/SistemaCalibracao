@@ -188,7 +188,21 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    cinza escolhido por foto; botão sol/lua; troca na hora; escolha por usuário do Windows;
    traço do logo preto no claro. Fotos: `dados/fotos/foto_temas.py`. Falta só o usuário ver as
    fotos finais. **Próximo: aviso de atualização** (item 3).
-   **A MG usa Outlook (Microsoft 365)** (resposta de 2026-11-10).
+   **Aviso de atualização: NÃO fazer** (2026-11-10: ~1 pessoa por dia; eu atualizo e pronto).
+   **Próximo: abas Indicadores e Relatórios** (pedido de 2026-11-10; layout por foto antes):
+   - Indicadores (dashboard): mais perto do limite; custo de calibração por mês; custo 12 meses
+     e médio; calibrações por mês (no prazo / vencida); custo por laboratório.
+   - Relatórios: relatório do mês **atual** (muda sozinho a cada calibração/alteração); no fim
+     do mês vira "relatório final do mês X", **guardado sozinho** numa lista; botão do relatório
+     do **ano atual** (o anual só fica registrado quando o ano acaba). Conteúdo: os painéis acima
+     com base no mês + números (previstas, feitas, vencidas, custo do mês) + calibrações do mês +
+     **"ALTERAÇÕES"** (era "Pontos de atenção"); **sem** previstas do mês seguinte; de
+     preferência em **uma folha**.
+   **No fim da 1.2.0 (pedido de 2026-11-10):** o README mostra as coisas grandes (PDF dos
+   certificados, modo claro/escuro, Indicadores, Relatórios) e vai uma **cópia nova para o
+   `programas-executaveis`** (repositório privado).
+   **A MG usa o NOVO Outlook** (2026-11-10): o programa não consegue enviar por ele (o novo
+   Outlook não deixa outros programas enviarem). E-mail automático só com outra via (ver abaixo).
    - **QR Code**: não vai implementar agora. Quer **no celular** e **sempre atualizado** (etiqueta
      impressa uma vez). Caminho: QR com endereço fixo + página só de consulta que o programa
      atualiza ao salvar, guardada no OneDrive/SharePoint da empresa (celular só precisa de
