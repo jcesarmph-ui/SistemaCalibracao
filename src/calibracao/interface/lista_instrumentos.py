@@ -28,7 +28,15 @@ from calibracao.interface.componentes import (
 )
 from calibracao.interface.estilo import CORES, CORES_CONDICAO, CORES_SITUACAO
 from calibracao.regras.condicao import Condicao
-from calibracao.regras.localizacao import eh_indicativa, local_do_filtro
+from calibracao.regras.localizacao import eh_indicativa
+from calibracao.regras.padronizacao import (
+    chave,
+    locais,
+    ordem,
+    preferidas_dos_locais,
+    preferidas_dos_tipos,
+    tipo_padrao,
+)
 
 # Filtro "Condição" da lista: condições mostradas em cada opção (pedido do usuário em 2026-10-29).
 # A lista abre na primeira; os desativados só aparecem escolhendo o filtro. "Orientação
@@ -55,6 +63,8 @@ class ListaInstrumentos(QGroupBox):
         self.condicoes: dict[int, MudancaCondicao] = {}
         self.instrumentos: list[Instrumento] = []
         self.atual_id: int | None = None
+        self._tipo_de: dict[int, str] = {}
+        self._locais_de: dict[int, set[str]] = {}
 
         self.filtro_condicao = QComboBox()
         self.filtro_condicao.addItems(FILTROS_CONDICAO)
@@ -99,10 +109,16 @@ class ListaInstrumentos(QGroupBox):
                   condicoes: dict[int, MudancaCondicao], situacoes: dict) -> None:
         """Recarrega a lista (mantendo filtros e o instrumento escolhido)."""
         self.instrumentos, self.condicoes, self.situacoes = instrumentos, condicoes, situacoes
-        self._recarregar_opcoes(self.filtro_tipo, TODOS_OS_TIPOS, {i.tipo for i in instrumentos})
-        self._recarregar_opcoes(self.filtro_local, TODAS_AS_LOCALIZACOES,
-                                {local_do_filtro(i.localizacao) for i in instrumentos
-                                 if i.localizacao})
+        # Um nome só para cada tipo e cada local; instrumento em "Serralheria / Manutenção"
+        # aparece nos dois locais (pedido de 2026-11-10).
+        tipos = preferidas_dos_tipos(i.tipo for i in instrumentos)
+        self._tipo_de = {i.id: chave(tipo_padrao(i.tipo, tipos) or "") for i in instrumentos}
+        self._locais_de = {i.id: {chave(local) for local in locais(i.localizacao)}
+                           for i in instrumentos}
+        self._recarregar_opcoes(self.filtro_tipo, TODOS_OS_TIPOS, set(tipos.values()))
+        self._recarregar_opcoes(
+            self.filtro_local, TODAS_AS_LOCALIZACOES,
+            set(preferidas_dos_locais(i.localizacao for i in instrumentos).values()))
         self.preencher()
 
     @staticmethod
@@ -111,7 +127,7 @@ class ListaInstrumentos(QGroupBox):
         escolhido = filtro.currentText()
         filtro.blockSignals(True)
         filtro.clear()
-        filtro.addItems([todos, *sorted(opcoes, key=str.lower)])
+        filtro.addItems([todos, *sorted(opcoes, key=ordem)])
         filtro.setCurrentText(escolhido if escolhido in opcoes else todos)
         filtro.blockSignals(False)
 
@@ -128,8 +144,8 @@ class ListaInstrumentos(QGroupBox):
             if self.condicao(i.id).condicao in condicoes
             and (self.filtro_condicao.currentText() != SO_INDICATIVA
                  or eh_indicativa(i.localizacao))
-            and tipo in (TODOS_OS_TIPOS, i.tipo)
-            and local in (TODAS_AS_LOCALIZACOES, local_do_filtro(i.localizacao))
+            and (tipo == TODOS_OS_TIPOS or self._tipo_de.get(i.id) == chave(tipo))
+            and (local == TODAS_AS_LOCALIZACOES or chave(local) in self._locais_de.get(i.id, ()))
             and (not termo or termo in f"{i.codigo} {i.tipo} {i.localizacao or ''}".lower())
         ]
 

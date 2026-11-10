@@ -15,12 +15,20 @@ Versão 8: data prevista da 1ª calibração no programa, digitada na ficha olha
 2026-11-03): o programa não guarda as calibrações antigas da planilha, só essa data.
 Versão 9: ponto com "U não se aplica" (na DQ05, "-" ou "N/A" onde vai a incerteza), no plano e na
 "foto" guardada com cada calibração.
+Sem mudar a versão (2026-11-10): tipos e locais com um nome só (`_unificar_nomes`), uma vez, marcado
+em `metadados.nomes_unificados` — o banco continua abrindo na versão anterior do programa.
 """
 
 import sqlite3
 from pathlib import Path
 
 from calibracao.regras.localizacao import com_marcas
+from calibracao.regras.padronizacao import (
+    localizacao_padrao,
+    preferidas_dos_locais,
+    preferidas_dos_tipos,
+    tipo_padrao,
+)
 
 VERSAO_ESQUEMA = 9
 
@@ -264,10 +272,31 @@ def criar_tabelas(conexao: sqlite3.Connection) -> None:
             conexao.execute(f"ALTER TABLE {tabela} ADD COLUMN incerteza_nao_aplica "
                             "INTEGER NOT NULL DEFAULT 0")
     _migrar_condicao_indicativa(conexao)
+    _unificar_nomes(conexao)
     conexao.execute(
         "INSERT OR REPLACE INTO metadados (chave, valor) VALUES ('versao_esquema', ?)",
         (str(VERSAO_ESQUEMA),),
     )
+
+
+def _unificar_nomes(conexao: sqlite3.Connection) -> None:
+    """Uma vez por banco (pedido de 2026-11-10): tipos e locais que só mudam nas maiúsculas ficam
+    com a grafia da maioria, "Régua graduada para furos" vira "Régua graduada" e cada local de
+    "Serralheria / Manutenção" fica com o nome que os outros instrumentos usam."""
+    feito = conexao.execute(
+        "SELECT 1 FROM metadados WHERE chave = 'nomes_unificados'").fetchone()
+    if feito:
+        return
+    linhas = conexao.execute("SELECT id, tipo, localizacao FROM instrumentos").fetchall()
+    tipos = preferidas_dos_tipos(linha["tipo"] for linha in linhas)
+    locais = preferidas_dos_locais(linha["localizacao"] for linha in linhas)
+    for linha in linhas:
+        tipo = tipo_padrao(linha["tipo"], tipos)
+        local = localizacao_padrao(linha["localizacao"], locais)
+        if (tipo, local) != (linha["tipo"], linha["localizacao"]):
+            conexao.execute("UPDATE instrumentos SET tipo = ?, localizacao = ? WHERE id = ?",
+                            (tipo, local, linha["id"]))
+    conexao.execute("INSERT INTO metadados (chave, valor) VALUES ('nomes_unificados', '1')")
 
 
 def _migrar_desativacoes(conexao: sqlite3.Connection) -> None:

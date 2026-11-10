@@ -8,6 +8,7 @@ de `calibracao.regras` — aqui só se guarda e se busca.
 import dataclasses
 import datetime
 import functools
+import re
 import sqlite3
 import uuid
 from dataclasses import asdict, dataclass, fields
@@ -42,6 +43,13 @@ from calibracao.regras.cronograma import (
 )
 from calibracao.regras.lixeira import Tipo, bloqueio_exclusao_permanente, bloqueio_restaurar
 from calibracao.regras.localizacao import com_marcas, eh_indicativa, padronizar_localizacao
+from calibracao.regras.padronizacao import (
+    localizacao_padrao,
+    ordem,
+    preferidas_dos_locais,
+    preferidas_dos_tipos,
+    tipo_padrao,
+)
 from calibracao.regras.trava import sinal_antigo
 
 MENSAGEM_CONSULTA = ("Modo consulta: outra pessoa está editando. Nada foi salvo.")
@@ -403,6 +411,15 @@ def _mudanca(linha: sqlite3.Row) -> MudancaCondicao:
                            linha["calibracao_id"])
 
 
+_CODIGO = re.compile(r"^\s*([A-Za-zÀ-ÿ]+)\s*-\s*(\d+)\s*$")
+
+
+def dividir_codigo(codigo: str | None) -> tuple[str, str] | None:
+    """"PAQ-018" → ("PAQ", "018"); código fora do padrão sigla-número → None."""
+    achado = _CODIGO.match(codigo or "")
+    return (achado.group(1).upper(), achado.group(2)) if achado else None
+
+
 def _instrumento(linha: sqlite3.Row) -> Instrumento:
     dados = {campo: linha[campo] for campo in ["id", *_CAMPOS_INSTRUMENTO]}
     dados["exige_calibracao"] = bool(dados["exige_calibracao"])
@@ -625,11 +642,64 @@ class Repositorio:
         if erros:
             raise ErroDeValidacao(erros)
 
+    def _padronizar_nomes(self, dados: dict) -> None:
+        """Tipo e locais com o nome que os outros instrumentos já usam (pedido de 2026-11-10):
+        "lâmina de Folga" vira "Lâmina de folga", "ct-01" vira "CT-01"; nome novo fica como
+        foi digitado."""
+        outros = self._conexao.execute(
+            "SELECT tipo, localizacao FROM instrumentos WHERE excluido_em IS NULL AND id IS NOT ?",
+            (dados.get("id"),)).fetchall()
+        dados["tipo"] = tipo_padrao(dados["tipo"],
+                                    preferidas_dos_tipos(linha["tipo"] for linha in outros))
+        dados["localizacao"] = localizacao_padrao(
+            dados["localizacao"], preferidas_dos_locais(linha["localizacao"] for linha in outros))
+
+    def tipos_cadastrados(self) -> list[str]:
+        """Os tipos dos instrumentos (fora da Lixeira), um nome só para cada, em ordem."""
+        tipos = [linha[0] for linha in self._conexao.execute(
+            "SELECT tipo FROM instrumentos WHERE excluido_em IS NULL")]
+        return sorted(set(preferidas_dos_tipos(tipos).values()), key=ordem)
+
+    def locais_cadastrados(self) -> list[str]:
+        """Cada local já usado (fora da Lixeira), separado ("Serralheria / Manutenção" conta
+        como Serralheria e Manutenção), um nome só para cada, em ordem."""
+        localizacoes = [linha[0] for linha in self._conexao.execute(
+            "SELECT localizacao FROM instrumentos WHERE excluido_em IS NULL")]
+        return sorted(set(preferidas_dos_locais(localizacoes).values()), key=ordem)
+
+    def siglas_dos_tipos(self) -> list[tuple[str, str]]:
+        """(tipo, sigla) de cada sigla usada nos códigos: "Paquímetro (PAQ)". Tipo com duas
+        siglas aparece duas vezes (Manômetro MAN e MN). Conta todos, até os da Lixeira."""
+        linhas = self._conexao.execute("SELECT codigo, tipo FROM instrumentos").fetchall()
+        preferidas = preferidas_dos_tipos(linha["tipo"] for linha in linhas)
+        pares = set()
+        for linha in linhas:
+            partes = dividir_codigo(linha["codigo"])
+            if partes:
+                pares.add((tipo_padrao(linha["tipo"], preferidas), partes[0]))
+        return sorted(pares, key=lambda par: (ordem(par[0]), par[1]))
+
+    def proximo_codigo(self, sigla: str) -> str | None:
+        """O código seguinte ao maior número da sigla ("PAQ-018" → "PAQ-019"), contando todos os
+        instrumentos (desativados e na Lixeira também, para um código não voltar). None se a
+        sigla ainda não existe."""
+        maior = None
+        for (codigo,) in self._conexao.execute("SELECT codigo FROM instrumentos"):
+            partes = dividir_codigo(codigo)
+            if partes and partes[0].casefold() == sigla.strip().casefold():
+                if maior is None or int(partes[1]) > int(maior[1]):
+                    maior = partes
+        if maior is None:
+            return None
+        numero = str(int(maior[1]) + 1).zfill(len(maior[1]))
+        return f"{maior[0]}-{numero}"
+
     @_escrita
     def incluir_instrumento(self, instrumento: Instrumento,
                             hoje: datetime.date | None = None) -> int:
         self._validar_instrumento(instrumento)
         dados = _dados_instrumento(instrumento)
+        self._padronizar_nomes(dados)
         with self._conexao:
             cursor = self._conexao.execute(
                 f"INSERT INTO instrumentos ({', '.join(_CAMPOS_INSTRUMENTO)}) "
@@ -649,6 +719,7 @@ class Repositorio:
             raise ValueError("Instrumento sem id: use incluir_instrumento.")
         self._validar_instrumento(instrumento)
         dados = _dados_instrumento(instrumento)
+        self._padronizar_nomes(dados)
         antes = self._conexao.execute("SELECT localizacao FROM instrumentos WHERE id = ?",
                                       (instrumento.id,)).fetchone()[0]
         with self._conexao:
