@@ -164,6 +164,59 @@ def enter_desce(tabela: QTableWidget) -> None:
     tabela._enter_desce = _EnterDesce(tabela)
 
 
+def data_livre_para_tela(texto: str | None) -> str:
+    """Data guardada como aaaa-mm-dd aparece como dd/mm/aaaa; qualquer outro texto (ex.: "-" ou
+    uma frase vinda da planilha) aparece como está."""
+    if not texto:
+        return ""
+    try:
+        return datetime.date.fromisoformat(texto.strip()).strftime("%d/%m/%Y")
+    except ValueError:
+        return texto
+
+
+def data_livre_para_banco(texto: str | None) -> str | None:
+    """O contrário: dd/mm/aaaa vira aaaa-mm-dd (como as datas já guardadas); o resto fica igual."""
+    texto = (texto or "").strip()
+    if not texto:
+        return None
+    try:
+        return datetime.datetime.strptime(texto, "%d/%m/%Y").date().isoformat()
+    except ValueError:
+        return texto
+
+
+class BotaoCalendario(QPushButton):
+    """Botão "Calendário" ao lado de um campo de texto de data (pedido de 2026-11-10): abre o
+    mesmo calendário das outras datas e escreve o dia escolhido (dd/mm/aaaa) no campo. O campo
+    continua aceitando digitação, para quem preferir escrever."""
+
+    def __init__(self, campo, parent=None) -> None:
+        super().__init__("Calendário", parent)
+        self.campo = campo
+        self.setToolTip("Escolher a data num calendário.")
+        self.calendario = QCalendarWidget()
+        self.calendario.setWindowFlags(Qt.Popup)
+        self.calendario.setGridVisible(False)
+        self.calendario.clicked.connect(self._escolheu)
+        self.clicked.connect(self.abrir)
+
+    def abrir(self) -> None:
+        texto = self.campo.text().strip()
+        try:
+            dia = datetime.datetime.strptime(texto, "%d/%m/%Y").date()
+        except ValueError:
+            dia = datetime.date.today()
+        self.calendario.setSelectedDate(dia)
+        self.calendario.adjustSize()
+        self.calendario.move(self.campo.mapToGlobal(QPoint(0, self.campo.height())))
+        self.calendario.show()
+
+    def _escolheu(self, data) -> None:
+        self.campo.setText(data.toPython().strftime("%d/%m/%Y"))
+        self.calendario.hide()
+
+
 def dinheiro(valor: float | None) -> str:
     """R$ com centavos e ponto no milhar (ex.: R$ 1.350,00)."""
     if valor is None:

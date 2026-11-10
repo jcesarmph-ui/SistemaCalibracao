@@ -23,7 +23,13 @@ from PySide6.QtWidgets import (
 )
 
 from calibracao.dados.repositorio import ErroDeValidacao, Instrumento, Plano, Repositorio
-from calibracao.interface.componentes import formatar_data, reais_em_texto
+from calibracao.interface.componentes import (
+    BotaoCalendario,
+    data_livre_para_banco,
+    data_livre_para_tela,
+    formatar_data,
+    reais_em_texto,
+)
 from calibracao.interface.estilo import CORES
 from calibracao.interface.painel_plano import numero
 from calibracao.regras.localizacao import com_marcas, eh_indicativa, eh_reserva
@@ -126,11 +132,21 @@ class JanelaEditarInstrumento(QDialog):
                                    "Plano de calibração.")
         self.novo_plano.clicked.connect(self.pedir_nome_do_plano)
 
+        self.campos["data_compra"].setPlaceholderText("dd/mm/aaaa")
+        self.calendario_compra = BotaoCalendario(self.campos["data_compra"])
+        data_compra = QHBoxLayout()
+        data_compra.setContentsMargins(0, 0, 0, 0)
+        data_compra.addWidget(self.campos["data_compra"], 1)
+        data_compra.addWidget(self.calendario_compra)
+
         grade = QGridLayout()
         for indice, (nome, rotulo) in enumerate(ROTULOS):
             linha, coluna = divmod(indice, 2)
             grade.addWidget(QLabel(rotulo), linha, coluna * 2)
-            grade.addWidget(self.campos[nome], linha, coluna * 2 + 1)
+            if nome == "data_compra":
+                grade.addLayout(data_compra, linha, coluna * 2 + 1)
+            else:
+                grade.addWidget(self.campos[nome], linha, coluna * 2 + 1)
         rotulo_primeira = QLabel("1ª calibração prevista")
         rotulo_primeira.setToolTip(DICA_PRIMEIRA)
         grade.addWidget(rotulo_primeira, 5, 0)
@@ -165,8 +181,7 @@ class JanelaEditarInstrumento(QDialog):
         dados = self.instrumento or Instrumento(codigo="", tipo="")
         for nome, campo in self.campos.items():
             valor = getattr(dados, nome)
-            campo.setText(reais_em_texto(valor) if nome == "custo_compra"
-                          else "" if valor is None else str(valor))
+            campo.setText(self._para_tela(nome, valor))
             campo.setCursorPosition(0)  # texto longo mostra o começo, não o fim
         if dados.plano_id is not None and self.plano.findData(dados.plano_id) < 0:
             # plano na Lixeira: continua aparecendo, para não sumir sem ninguém perceber
@@ -196,14 +211,20 @@ class JanelaEditarInstrumento(QDialog):
         self.reserva.setChecked(eh_reserva(texto))
         self.indicativa.setChecked(eh_indicativa(texto))
 
+    @staticmethod
+    def _para_tela(nome: str, valor) -> str:
+        if nome == "custo_compra":
+            return reais_em_texto(valor)
+        if nome == "data_compra":
+            return data_livre_para_tela(valor)
+        return "" if valor is None else str(valor)
+
     def tem_alteracao(self) -> bool:
         """Algo digitado e ainda não salvo."""
         dados = self.instrumento or Instrumento(codigo="", tipo="")
         for nome, campo in self.campos.items():
             valor = getattr(dados, nome)
-            salvo = (reais_em_texto(valor) if nome == "custo_compra"
-                     else "" if valor is None else str(valor))
-            if campo.text().strip() != salvo.strip():
+            if campo.text().strip() != self._para_tela(nome, valor).strip():
                 return True
         primeira = formatar_data(dados.primeira_prevista) if dados.primeira_prevista else ""
         return (self.primeira.text().strip() != primeira
@@ -252,7 +273,7 @@ class JanelaEditarInstrumento(QDialog):
             faixa=_texto(self.campos["faixa"]),
             resolucao=_texto(self.campos["resolucao"]),
             fabricante=_texto(self.campos["fabricante"]),
-            data_compra=_texto(self.campos["data_compra"]),
+            data_compra=data_livre_para_banco(self.campos["data_compra"].text()),
             periodicidade_meses=int(texto_meses) if texto_meses else None,
             plano_id=self.plano.currentData(),
             exige_calibracao=self.exige.isChecked(),

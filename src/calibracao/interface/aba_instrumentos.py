@@ -35,6 +35,7 @@ from calibracao.dados.repositorio import (
 from calibracao.interface.componentes import (
     aplicar_destaques,
     celula,
+    data_livre_para_tela,
     dinheiro,
     formatar_data,
     tabela_somente_leitura,
@@ -252,7 +253,8 @@ class AbaInstrumentos(QWidget):
         textos = {
             "codigo": instrumento.codigo, "tipo": instrumento.tipo,
             "faixa": instrumento.faixa, "resolucao": instrumento.resolucao,
-            "fabricante": instrumento.fabricante, "data_compra": instrumento.data_compra,
+            "fabricante": instrumento.fabricante,
+            "data_compra": data_livre_para_tela(instrumento.data_compra),
             "periodicidade_meses": (f"{instrumento.periodicidade_meses} meses"
                                     if instrumento.periodicidade_meses else None),
             "custo_compra": (dinheiro(instrumento.custo_compra)
