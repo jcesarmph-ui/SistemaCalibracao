@@ -201,8 +201,23 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    **No fim da 1.2.0 (pedido de 2026-11-10):** o README mostra as coisas grandes (PDF dos
    certificados, modo claro/escuro, Indicadores, Relatórios) e vai uma **cópia nova para o
    `programas-executaveis`** (repositório privado).
-   **A MG usa o NOVO Outlook** (2026-11-10): o programa não consegue enviar por ele (o novo
-   Outlook não deixa outros programas enviarem). E-mail automático só com outra via (ver abaixo).
+   **E-mail automático: NÃO vai ter** (decisão de 2026-11-10).
+   **Decisões de 2026-11-10 sobre Indicadores/Relatórios:**
+   - Painel **montado pelo usuário** (como Power BI, sem IA): botão **ADICIONAR GRÁFICO** abre
+     um **montador com listas** (o que ver · separado por · só os que… · dividir em cores ·
+     período · jeito do gráfico · título automático), prévia na hora; no painel cada gráfico
+     tem mover ◀ ▶, Maior/Menor, Editar, Tirar (com desfazer). **Um painel só para todos**
+     (no banco; mexer só no modo edição). **O relatório do mês sai com os gráficos do painel.**
+   - Relatório final do mês: **criado sozinho na 1ª abertura do mês novo** (sem clicar), com
+     "dados até o último dia do mês". Na lista de relatórios guardados, **botão "Abrir PDF" na
+     linha** — só ele abre.
+   - **Protótipo para o usuário brincar** (fora do Git, dados fictícios):
+     `.venv/Scripts/python dados/prototipo_painel/painel_teste.py` (painel guardado só em
+     `%TEMP%/teste_painel_calibracao.json`). Esperando o retorno dele antes de programar.
+   - Ainda em aberto: conta do "mais perto do limite" (proposta: desvio final ÷ tolerância do
+     lado, pior ponto; relatório = calibrações do mês, aba = última de cada instrumento);
+     relatório final não muda depois de correção? (proposto: não muda); relatório do ano com a
+     tabela de todas as calibrações ou só números/gráficos/ALTERAÇÕES.
    - **QR Code**: não vai implementar agora. Quer **no celular** e **sempre atualizado** (etiqueta
      impressa uma vez). Caminho: QR com endereço fixo + página só de consulta que o programa
      atualiza ao salvar, guardada no OneDrive/SharePoint da empresa (celular só precisa de
@@ -216,9 +231,6 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    - **Painel de indicadores**: 3 exemplos (prazos; qualidade; custos e instrumentos). Se for
      feito, **usar os dados que já estão no banco** (calibrações feitas e instrumentos desde a
      implantação), para mostrar a melhoria.
-   - **E-mail automático**: o usuário quer só digitar o e-mail na tela e o envio sair todo mês.
-     Proposta: o programa envia pelo **Outlook do PC** de quem abrir (sem senha); falta saber se é
-     o Outlook clássico (o "novo Outlook" não permite) e para quem enviar.
 3. Pendências que continuam: confidencialidade do repositório público (só quando o usuário
    pedir); limpeza dos arquivos do protótipo na árvore (perguntar antes de remover).
 4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,
