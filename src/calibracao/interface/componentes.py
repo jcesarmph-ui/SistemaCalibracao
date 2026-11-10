@@ -2,8 +2,9 @@
 
 import contextlib
 import datetime
+import difflib
 
-from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QPoint, QStringListModel, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QTextCharFormat
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -14,11 +15,13 @@ from PySide6.QtWidgets import (
     QApplication,
     QCalendarWidget,
     QComboBox,
+    QCompleter,
     QDialog,
     QFrame,
     QGroupBox,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QPushButton,
     QTabBar,
     QTableWidget,
@@ -28,6 +31,7 @@ from PySide6.QtWidgets import (
 )
 
 from calibracao.interface.estilo import abreviar_indicativa, destacar, tem_destaque
+from calibracao.regras.padronizacao import chave, locais
 
 
 class FiltroRodaDoMouse(QObject):
@@ -382,3 +386,95 @@ def preenchendo(tabela: QTableWidget):
         for coluna, modo in enumerate(modos):
             cabecalho.setSectionResizeMode(coluna, modo)
         tabela.setUpdatesEnabled(True)
+
+
+class CampoComSugestoes(QLineEdit):
+    """Campo de texto com sugestões enquanto se digita, como a pesquisa do Google (pedido de
+    2026-11-10): mostra os nomes já usados que têm o que foi digitado em qualquer parte, sem ligar
+    para maiúsculas nem acentos ("paqui" acha "Paquímetro"). Clicar (ou Enter) numa sugestão
+    escreve o nome do jeito certo. Dá para escrever um nome novo, mas `nomes_novos` diz quais não
+    existem, para a tela avisar e pedir confirmação.
+
+    Com `varios=True` (localização) aceita mais de um nome separado por " / ": as sugestões valem
+    para o trecho depois da última barra.
+    """
+
+    def __init__(self, varios: bool = False, parent=None) -> None:
+        super().__init__(parent)
+        self.varios = varios
+        self.opcoes: list[str] = []
+        self._modelo = QStringListModel(self)
+        self.sugestoes = QCompleter(self._modelo, self)
+        self.sugestoes.setWidget(self)
+        self.sugestoes.setCompletionMode(QCompleter.UnfilteredPopupCompletion)
+        self.sugestoes.setMaxVisibleItems(12)
+        self.sugestoes.activated.connect(self.escolher)
+        self.textEdited.connect(self.mostrar_sugestoes)
+
+    def definir_opcoes(self, opcoes: list[str]) -> None:
+        self.opcoes = list(opcoes)
+
+    def _trecho(self) -> tuple[str, str]:
+        """(o que vem antes, o trecho que está sendo digitado)."""
+        texto = self.text()
+        if self.varios and "/" in texto:
+            antes, _, trecho = texto.rpartition("/")
+            return antes.rstrip() + " / ", trecho.strip()
+        return "", texto.strip()
+
+    def filtradas(self) -> list[str]:
+        _, trecho = self._trecho()
+        procurado = chave(trecho)
+        return [opcao for opcao in self.opcoes if procurado in chave(opcao)]
+
+    def mostrar_sugestoes(self, _texto: str = "") -> None:
+        filtradas = self.filtradas()
+        self._modelo.setStringList(filtradas)
+        if filtradas:
+            self.sugestoes.complete()
+        else:
+            self.sugestoes.popup().hide()
+
+    def escolher(self, opcao: str) -> None:
+        antes, _ = self._trecho()
+        self.setText(antes + opcao)
+        self.sugestoes.popup().hide()
+
+    def mais_um(self) -> None:
+        """Botão "Mais um local": põe a barra e já mostra todas as opções."""
+        texto = self.text().rstrip()
+        if texto and not texto.endswith("/"):
+            self.setText(texto + " / ")
+        self.setFocus()
+        self.mostrar_sugestoes()
+
+    def nomes(self) -> list[str]:
+        if not self.text().strip():
+            return []
+        return locais(self.text()) if self.varios else [" ".join(self.text().split())]
+
+    def nomes_novos(self) -> list[str]:
+        """Os nomes digitados que nenhum instrumento usa ainda."""
+        existentes = {chave(opcao) for opcao in self.opcoes}
+        return [nome for nome in self.nomes() if chave(nome) not in existentes]
+
+    def parecidos(self, nome: str) -> list[str]:
+        """Nomes já usados parecidos com um nome novo ("CT - 1" → "CT-01")."""
+        k = chave(nome)
+        compactos = {o: chave(o).replace(" ", "").replace("-", "") for o in self.opcoes}
+        k_compacto = k.replace(" ", "").replace("-", "")
+        achados = [o for o in self.opcoes
+                   if k and (k in chave(o) or chave(o) in k
+                             or difflib.SequenceMatcher(None, k_compacto,
+                                                        compactos[o]).ratio() >= 0.75)]
+        return achados[:4]
+
+    def aviso_de_novos(self, oque: str) -> str:
+        """Texto do aviso amarelo para os nomes novos (vazio se não há)."""
+        partes = []
+        for nome in self.nomes_novos():
+            parecidos = self.parecidos(nome)
+            parece = (f" Parece com: {', '.join(parecidos)} — se for o mesmo, escolha na lista."
+                      if parecidos else "")
+            partes.append(f"⚠ \"{nome}\" é {oque} novo (nenhum instrumento usa).{parece}")
+        return "\n".join(partes)

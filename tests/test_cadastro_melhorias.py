@@ -79,3 +79,72 @@ def test_titulo_com_dq05(janela):
     titulos = [r.text() for r in janela.findChildren(type(janela.faixa_teste))
                if r.objectName() == "titulo"]
     assert titulos == ["DQ-05 CALIBRAÇÃO DE INSTRUMENTOS"]
+
+
+def novo_cadastro(janela):
+    return janela.aba_instrumentos.criar_janela_edicao(None)
+
+
+def test_lista_de_tipos_no_codigo_preenche_o_proximo_numero(janela):
+    edicao = novo_cadastro(janela)
+    itens = [edicao.lista_codigo.itemText(i) for i in range(edicao.lista_codigo.count())]
+    assert itens == ["Paquímetro (PAQ)", "Trena (TRE)"]
+    assert edicao.campos["codigo"].text() == ""  # a lista não escreve nada sozinha
+    edicao.escolher_sigla(0)
+    assert edicao.campos["codigo"].text() == "PAQ-019"
+    assert edicao.campos["tipo"].text() == "Paquímetro"
+
+
+def test_digitar_a_sigla_sugere_e_enter_completa(janela):
+    edicao = novo_cadastro(janela)
+    edicao.campos["codigo"].setText("paq-")
+    assert "PAQ-019" in edicao.dica_codigo.text() and "Enter" in edicao.dica_codigo.text()
+    edicao.usar_proximo_codigo()
+    assert edicao.campos["codigo"].text() == "PAQ-019"
+    assert "próximo número livre" in edicao.dica_codigo.text()
+    edicao.campos["codigo"].setText("PAQ-030")  # outro número: é escolha do usuário
+    assert edicao.dica_codigo.text() == ""
+    edicao.usar_proximo_codigo()
+    assert edicao.campos["codigo"].text() == "PAQ-030"
+    edicao.campos["codigo"].setText("PAQ-018")
+    assert "Já existe" in edicao.dica_codigo.text()
+
+
+def test_tipo_e_local_com_sugestoes_sem_ligar_para_acento(janela):
+    edicao = novo_cadastro(janela)
+    tipo = edicao.campos["tipo"]
+    tipo.setText("paqui")
+    assert tipo.filtradas() == ["Paquímetro"]
+    tipo.escolher("Paquímetro")
+    assert tipo.text() == "Paquímetro" and edicao.aviso_tipo.text() == ""
+    local = edicao.campos["localizacao"]
+    local.setText("serra")
+    assert local.filtradas() == ["Serralheria"]
+    local.escolher("Serralheria")
+    local.mais_um()
+    assert local.text() == "Serralheria / "
+    local.setText("Serralheria / manu")
+    assert local.filtradas() == ["Manutenção"]
+    local.escolher("Manutenção")
+    assert local.text() == "Serralheria / Manutenção"
+    assert edicao.aviso_local.text() == ""
+
+
+def test_nome_novo_avisa_parecidos_e_pergunta_ao_salvar(janela, nome_novo_confirmado):
+    perguntas, respostas = nome_novo_confirmado
+    edicao = novo_cadastro(janela)
+    edicao.campos["codigo"].setText("PAQ-019")
+    edicao.campos["tipo"].setText("Paquímetro")
+    edicao.campos["localizacao"].setText("CT - 1")
+    assert "local novo" in edicao.aviso_local.text()
+    assert "Parece com: CT-01" in edicao.aviso_local.text()
+    respostas.append(False)  # "Voltar e escolher da lista"
+    edicao.salvar_instrumento()
+    assert perguntas == [['local "CT - 1"']]
+    assert not edicao.result()  # não salvou
+    assert all(i.codigo != "PAQ-019" for i in janela.repo.listar_instrumentos())
+    edicao.campos["localizacao"].setText("Almoxarifado")  # local realmente novo
+    edicao.salvar_instrumento()  # responde "Criar novo"
+    assert edicao.result()
+    salvo = next(i for i in janela.repo.listar_instrumentos() if i.codigo == "PAQ-019")
+    assert salvo.localizacao == "Almoxarifado"
