@@ -49,6 +49,7 @@ from calibracao.dados.repositorio import (
 from calibracao.interface.aba_calibracoes import dinheiro
 from calibracao.interface.aba_calibrar import AbaCalibrar
 from calibracao.interface.aba_certificados import AbaCertificados
+from calibracao.interface.aba_indicadores import AbaIndicadores
 from calibracao.interface.aba_instrumentos import AbaInstrumentos
 from calibracao.interface.aba_lixeira import AbaLixeira
 from calibracao.interface.componentes import (
@@ -127,7 +128,8 @@ def celula_motivo(motivo: str | None):
     return item
 
 
-ICONES_DAS_ABAS = ["straighten", "tune", "event_note", "picture_as_pdf", "delete"]
+ICONES_DAS_ABAS = ["straighten", "tune", "event_note", "picture_as_pdf", "bar_chart",
+                   "delete"]
 INICIO_DAS_LETRAS = 0.30  # o símbolo vai até ~27% da largura; o traço (31%) e as letras mudam
 
 
@@ -176,6 +178,9 @@ class JanelaPrincipal(QMainWindow):
         # Aba Certificados (pedido de 2026-11-10): os PDFs das calibrações feitas no programa.
         self.aba_certificados = AbaCertificados(repositorio)
         self.abas.addTab(self.aba_certificados, "Certificados")
+        # Aba Indicadores (pedido de 2026-11-10): painel de gráficos montado pelo usuário.
+        self.aba_indicadores = AbaIndicadores(repositorio, self.hoje)
+        self.abas.addTab(self.aba_indicadores, "Indicadores")
         self.aba_lixeira = AbaLixeira(repositorio)
         self.aba_lixeira.alterado.connect(self._lixeira_mudou)
         self.abas.addTab(self.aba_lixeira, "Lixeira")
@@ -432,6 +437,7 @@ class JanelaPrincipal(QMainWindow):
         self.aba_instrumentos.atualizar(situacoes)
         self.aba_calibrar.atualizar(situacoes)
         self.aba_certificados.atualizar()
+        self.aba_indicadores.atualizar()
         self.aba_lixeira.atualizar()
 
     # --- Trava de edição ---------------------------------------------------------------------
@@ -489,7 +495,7 @@ class JanelaPrincipal(QMainWindow):
         self.cadeado.setPixmap(pixmap("lock_open" if pode else "lock", CORES["titulo"], 16))
         estava_consultando = not self._pode_editar
         for aba in (self.aba_instrumentos, self.aba_calibrar, self.aba_certificados,
-                    self.aba_lixeira):
+                    self.aba_indicadores, self.aba_lixeira):
             aba.definir_edicao(pode)
         self._pode_editar = pode
         self._ligar_informar_motivo()
