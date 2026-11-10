@@ -181,18 +181,30 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    (PDF)" / "Substituir certificado (PDF)", "Abrir PDF" no Ver calibração, aba Certificados,
    filtro na Lixeira; ícones `picture_as_pdf` e `attach_file` aprovados; PDF mexido depois
    abre com aviso amarelo (aprovado). Fotos: `dados/fotos/foto_certificados.py`.
-   **Ordem combinada em 2026-11-10:** primeiro implementar os itens 2 e 3 acima (modo
-   claro/escuro, aviso de atualização), **intercalando** conversas sobre as perguntas extras do
-   usuário (são "implementações superiores", para depois — conversar, não implementar ainda):
-   - **QR Code** (ideia do usuário): um por **instrumento**, impresso e colado nele, para saber
-     qual instrumento está na mão; ler e ver os dados do instrumento (principalmente situação,
-     próxima calibração e localização). Expliquei: no celular só dá texto fixo dentro do QR
-     (dados do dia da impressão; reimprimir ao calibrar/mudar local); no PC (leitor USB/webcam)
-     abre a ficha atual. Falta ele escolher: 1 = os dois, 2 = só celular, 3 = só PC.
-   - Ainda sem resposta: conferir o PDF contra o plano com IA (ele quer testar; como provar
-     confiabilidade e defender numa auditoria, IA ajudando a análise crítica humana, não
-     substituindo); o que o relatório do mês em PDF mostraria (com exemplo fictício); e-mail
-     automático (ele diz o e-mail e eu configuro o envio); o que seria o painel de indicadores.
+   **Ordem combinada em 2026-11-10:** implementar os itens 2 e 3 acima, **intercalando**
+   conversas sobre as perguntas extras (são "implementações superiores": conversar, não
+   implementar sem o usuário pedir).
+   **Modo claro/escuro: FEITO (2026-11-10, commits "Modo claro/escuro parte 1 e 2")** — claro
+   cinza escolhido por foto; botão sol/lua; troca na hora; escolha por usuário do Windows;
+   traço do logo preto no claro. Fotos: `dados/fotos/foto_temas.py`. Falta só o usuário ver as
+   fotos finais. **Próximo: aviso de atualização** (item 3).
+   **A MG usa Outlook (Microsoft 365)** (resposta de 2026-11-10).
+   - **QR Code**: não vai implementar agora. Quer **no celular** e **sempre atualizado** (etiqueta
+     impressa uma vez). Caminho: QR com endereço fixo + página só de consulta que o programa
+     atualiza ao salvar, guardada no OneDrive/SharePoint da empresa (celular só precisa de
+     internet). Teste feito: QR com texto do PAQ-004 (funcionou na tela) e folha A4 em tamanho
+     real com adesivos de 10 a 30 mm, QR com texto × com endereço (falta ele testar impresso).
+     Script do teste: só no scratchpad (não versionado).
+   - **IA lendo o certificado**: só interessa se for **de graça**; senão, esquecer. Alternativa
+     gratuita proposta: ler o texto do PDF sem IA (PDF digital, modelo fixo por laboratório).
+   - **Relatório do mês em PDF**: 3 exemplos fictícios em `dados/fotos/exemplos/`
+     (`exemplos_relatorios_paineis.py`): resumo do mês, detalhado, indicadores do ano.
+   - **Painel de indicadores**: 3 exemplos (prazos; qualidade; custos e instrumentos). Se for
+     feito, **usar os dados que já estão no banco** (calibrações feitas e instrumentos desde a
+     implantação), para mostrar a melhoria.
+   - **E-mail automático**: o usuário quer só digitar o e-mail na tela e o envio sair todo mês.
+     Proposta: o programa envia pelo **Outlook do PC** de quem abrir (sem senha); falta saber se é
+     o Outlook clássico (o "novo Outlook" não permite) e para quem enviar.
 3. Pendências que continuam: confidencialidade do repositório público (só quando o usuário
    pedir); limpeza dos arquivos do protótipo na árvore (perguntar antes de remover).
 4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,
