@@ -1807,8 +1807,9 @@ class Repositorio:
         return conteudo
 
     def _alteracoes(self, inicio, fim, feitas, nao_feitas, atrasadas) -> list[tuple[str, str]]:
-        """O que mudou no período: reprovados, orientação indicativa, atrasos, vencidas,
-        instrumentos novos, mudanças de condição feitas à mão e correções de calibração."""
+        """O que mudou no período: reprovados, atrasos, vencidas, instrumentos novos, mudanças
+        de condição feitas à mão e correções de calibração. Instrumento que passou a ser
+        orientação indicativa NÃO entra (pedido do usuário em 2026-11-10)."""
         def dia(data) -> str:
             return f"{data:%d/%m/%Y}"
 
@@ -1821,10 +1822,6 @@ class Repositorio:
                 itens.append(("erro", com_motivo(f"{instrumento.codigo} reprovado e desativado "
                                                  f"em {dia(c.data_calibracao)}",
                                                  c.motivo_parecer)))
-            elif c.parecer_final == ParecerFinal.ORIENTACAO_INDICATIVA:
-                itens.append(("aviso", com_motivo(f"{instrumento.codigo} passou a ser "
-                                                  "Orientação indicativa em "
-                                                  f"{dia(c.data_calibracao)}", c.motivo_parecer)))
             if (instrumento.codigo, c.data_calibracao) in atrasadas:
                 itens.append(("aviso", com_motivo(f"{instrumento.codigo} calibrado com atraso "
                                                   f"em {dia(c.data_calibracao)}",

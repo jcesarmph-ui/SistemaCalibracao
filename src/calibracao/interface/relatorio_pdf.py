@@ -111,7 +111,9 @@ def _imagem_do_grafico(definicao, resultado, largura_mm: float, altura_mm: float
 def gerar_pdf(conteudo: ConteudoRelatorio, graficos: list[ind.DefinicaoGrafico],
               calibracoes: list[ind.CalibracaoParaIndicador],
               instrumentos: list[ind.InstrumentoParaIndicador], destino: Path) -> Path:
-    """Escreve o PDF em `destino` e devolve o caminho."""
+    """Escreve o PDF em `destino` e devolve o caminho. O do ano tem só os gráficos do painel
+    (pedido do usuário em 2026-11-10); o do mês tem também números, calibrações e ALTERAÇÕES."""
+    anual = conteudo.periodo.tipo != MENSAL
     folha = _Folha(destino, "DQ-05 Calibração de Instrumentos · MG Centro de Serviços")
     f = folha
     # --- cabeçalho
@@ -120,10 +122,11 @@ def gerar_pdf(conteudo: ConteudoRelatorio, graficos: list[ind.DefinicaoGrafico],
     f.texto(MARGEM, f.y + 8, LARGURA, 5, conteudo.subtitulo, 7.5, cor="#555555")
     f.linha(f.y + 14)
     f.y += 17
-    # --- números
-    quantos = len(conteudo.numeros)
+    # --- números (só no do mês)
+    numeros = [] if anual else conteudo.numeros
+    quantos = max(len(numeros), 1)
     largura = (LARGURA - 2 * (quantos - 1)) / quantos
-    for n, numero in enumerate(conteudo.numeros):
+    for n, numero in enumerate(numeros):
         x = MARGEM + n * (largura + 2)
         f.p.setPen(QPen(QColor("#9e9e9e"), 0.25 * MM))
         f.p.setBrush(Qt.NoBrush)
@@ -132,7 +135,8 @@ def gerar_pdf(conteudo: ConteudoRelatorio, graficos: list[ind.DefinicaoGrafico],
                 alinhar=Qt.AlignHCenter)
         f.texto(x, f.y + 5, largura, 9, numero.valor, 10 if len(numero.valor) > 6 else 15, True,
                 CORES_NUMERO[numero.cor], alinhar=Qt.AlignHCenter)
-    f.y += 19
+    if numeros:
+        f.y += 19
     # --- gráficos do painel (2 por linha)
     inicio = conteudo.periodo.inicio
     for posicao, definicao in enumerate(graficos):
@@ -152,6 +156,12 @@ def gerar_pdf(conteudo: ConteudoRelatorio, graficos: list[ind.DefinicaoGrafico],
                       _imagem_do_grafico(definicao, resultado, largura, ALTURA_GRAFICO))
     if graficos:
         f.y += ALTURA_GRAFICO + 5
+    if anual:
+        if not graficos:
+            f.texto(MARGEM + 1, f.y, LARGURA, 5, "O painel da aba Indicadores está vazio.", 7.5,
+                    cor="#555555", italico=True)
+        f.terminar()
+        return destino
     # --- tabela das calibrações
     nome = "Calibrações do mês" if conteudo.periodo.tipo == MENSAL else "Calibrações do ano"
     if not f.cabe(7 + 2 * ALTURA_LINHA):

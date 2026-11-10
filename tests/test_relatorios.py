@@ -206,3 +206,41 @@ def test_janela_guarda_sozinha_ao_entrar_no_modo_edicao(app, repo, abertos):
     assert len(repo.relatorios_guardados()) == 3
     assert janela.aba_relatorios.tabela.rowCount() == 3
     janela.close()
+
+
+def test_orientacao_indicativa_nao_entra_nas_alteracoes(repo):
+    """Pedido do usuário (2026-11-10): o relatório não avisa que um instrumento (ex.: trena)
+    passou a ser orientação indicativa."""
+    ponto = repo.listar_pontos(repo.listar_planos()[0].id)[0].id
+    repo.registrar_calibracao(NovaCalibracao(
+        repo.ids["PAQ-903"], date(2026, 12, 20), [PontoMedido(ponto, valor=50.0, incerteza=0.01)],
+        parecer_final=ParecerFinal.ORIENTACAO_INDICATIVA, motivo_parecer="Escala apagada",
+        laboratorio="Lab A", custo=100.0), HOJE)
+    conteudo = repo.conteudo_do_relatorio(OUTUBRO, HOJE, AGORA)
+    assert "PAQ-903" in [linha.codigo for linha in conteudo.linhas]
+    assert not any("indicativa" in texto.lower() for _, texto in conteudo.alteracoes)
+
+
+def test_relatorio_do_ano_so_com_os_graficos(app, repo, tmp_path, monkeypatch):
+    """Pedido do usuário (2026-11-10): o do ano tem só os gráficos do painel (sem números,
+    tabela de calibrações e ALTERAÇÕES); o do mês continua completo."""
+    from calibracao.interface import relatorio_pdf
+
+    escritos: list[str] = []
+    original = relatorio_pdf._Folha.texto
+
+    def anotar(folha, x, y, w, h, conteudo, *args, **kwargs):
+        escritos.append(conteudo)
+        return original(folha, x, y, w, h, conteudo, *args, **kwargs)
+
+    monkeypatch.setattr(relatorio_pdf._Folha, "texto", anotar)
+    graficos = [d for _, d in repo.listar_graficos()]
+    dados = repo.dados_dos_indicadores()
+    ano = repo.conteudo_do_relatorio(Periodo(ANUAL, 2026), HOJE, AGORA)
+    relatorio_pdf.gerar_pdf(ano, graficos, *dados, tmp_path / "ano.pdf")
+    assert graficos and "ALTERAÇÕES" not in escritos and "Calibrações do ano" not in escritos
+    assert "Custo médio/mês" not in escritos
+    escritos.clear()
+    mes = repo.conteudo_do_relatorio(OUTUBRO, HOJE, AGORA)
+    relatorio_pdf.gerar_pdf(mes, graficos, *dados, tmp_path / "mes.pdf")
+    assert "ALTERAÇÕES" in escritos and "Calibrações do mês" in escritos

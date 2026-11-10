@@ -226,8 +226,6 @@ class CartaoGrafico(QGroupBox):
         por_icone(self.tirar, "delete", CORES["titulo"])
         self.tirar.setToolTip("Tirar este gráfico do painel (sai também do relatório do mês)")
         self.tirar.clicked.connect(lambda: aba.tirar_grafico(grafico_id))
-        for botao in (self.editar, self.tirar):
-            botao.setVisible(aba.pode_editar)
         barra = QHBoxLayout()
         barra.addStretch(1)
         barra.addWidget(self.editar)
@@ -237,6 +235,10 @@ class CartaoGrafico(QGroupBox):
         coluna = QVBoxLayout(self)
         coluna.addLayout(barra)
         coluna.addWidget(desenho.TelaDoGrafico(figura), 1)
+        # Só depois de dentro do cartão: botão sem "pai" com setVisible(True) vira uma janela
+        # solta que pisca na tela (achado do usuário em 2026-11-10).
+        for botao in (self.editar, self.tirar):
+            botao.setHidden(not aba.pode_editar)
 
 
 class AbaIndicadores(QWidget):

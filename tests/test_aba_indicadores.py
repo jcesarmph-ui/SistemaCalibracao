@@ -134,3 +134,31 @@ def test_modo_consulta_so_ve(aba):
     aba.redesenhar()
     assert aba.adicionar.isHidden() and aba.desfazer.isHidden()
     assert all(c.editar.isHidden() and c.tirar.isHidden() for c in cartoes(aba))
+
+
+def test_redesenhar_nao_pisca_janela_solta(app, aba):
+    """Achado do usuário (2026-11-10): ao abrir a aba ou trocar a cor, os botões Editar/Tirar
+    apareciam por um instante como janelas soltas (mostrados antes de entrar no cartão)."""
+    from PySide6.QtCore import QEvent, QObject
+    from PySide6.QtWidgets import QWidget
+
+    soltas = []
+
+    class Sonda(QObject):
+        def eventFilter(self, objeto, evento):  # noqa: N802 — nome do Qt
+            if (evento.type() == QEvent.Show and isinstance(objeto, QWidget)
+                    and objeto.isWindow() and objeto is not aba):
+                soltas.append(type(objeto).__name__)
+            return False
+
+    sonda = Sonda()
+    app.installEventFilter(sonda)
+    try:
+        aba.show()
+        aba.redesenhar()
+        app.processEvents()
+    finally:
+        app.removeEventFilter(sonda)
+        aba.hide()
+    assert aba.pode_editar and cartoes(aba)
+    assert soltas == []

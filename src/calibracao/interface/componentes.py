@@ -221,6 +221,8 @@ class BotaoCalendario(QToolButton):
 
     def setEnabled(self, ligado: bool) -> None:  # noqa: N802 — nome do Qt
         super().setEnabled(ligado)
+        if ligado and self.parentWidget() is None:
+            return  # mostrar ainda sem "pai" pisca uma janela solta; aparece junto com o campo
         self.setVisible(ligado)  # campo só de consulta: o ícone some
 
     def abrir(self) -> None:

@@ -444,7 +444,8 @@ class JanelaVerPlano(QDialog):
         self.editar = QPushButton("EDITAR PLANO", objectName="principal")
         por_icone(self.editar, "edit", CORES["titulo"])
         self.editar.clicked.connect(lambda: self.done(self.EDITAR))
-        self.editar.setVisible(pode_editar)
+        if not pode_editar:  # só esconder aqui: mostrar algo ainda sem "pai" pisca uma janela
+            self.editar.hide()
         fechar = QPushButton("Fechar")
         fechar.clicked.connect(self.accept)
         rodape = QHBoxLayout()

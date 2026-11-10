@@ -202,7 +202,8 @@ class JanelaPrincipal(QMainWindow):
             objectName="faixa_teste", alignment=Qt.AlignCenter)
         self.faixa_teste.setStyleSheet(f"background: {CORES['aviso_fundo']}; color: #000000; "
                                        "padding: 4px; font-weight: bold;")
-        self.faixa_teste.setVisible(self.de_teste)
+        if not self.de_teste:  # só esconder: mostrar algo ainda sem "pai" pisca uma janela
+            self.faixa_teste.hide()
         tela.addWidget(self.faixa_teste)
         self.aviso_copia = RotuloClicavel(objectName="aviso_copia", wordWrap=True)
         self.aviso_copia.setStyleSheet(f"background: {CORES['aviso_fundo']}; color: #000000; "

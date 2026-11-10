@@ -244,11 +244,12 @@ class JanelaNovaCalibracao(QDialog):
         grade.addWidget(QLabel("Certificado (PDF)"), 3, 0)
         grade.addWidget(self.nome_pdf, 3, 1, 1, 3)
         grade.addWidget(self.escolher_pdf, 3, 4, 1, 2)
+        # A caixa primeiro: mostrar um campo ainda sem "pai" pisca uma janela solta na tela.
+        caixa = QGroupBox("Dados da calibração")
+        caixa.setLayout(grade)
         self._mostrar_pdf()
         self.data.dateChanged.connect(lambda _: self._mostrar_atraso())
         self._mostrar_atraso()
-        caixa = QGroupBox("Dados da calibração")
-        caixa.setLayout(grade)
         return caixa
 
     def _prevista_antes(self) -> datetime.date | None:
@@ -744,19 +745,22 @@ class JanelaVerCalibracao(QDialog):
                 self.tabela_correcoes.setItem(linha, coluna, celula(texto))
         caixa_correcoes = QGroupBox(f"Correções feitas — {len(correcoes)}")
         QVBoxLayout(caixa_correcoes).addWidget(self.tabela_correcoes)
-        caixa_correcoes.setVisible(bool(correcoes))
+        if not correcoes:  # só esconder aqui: mostrar algo ainda sem "pai" pisca uma janela
+            caixa_correcoes.hide()
 
         self.editar = QPushButton("EDITAR")
         por_icone(self.editar, "edit", CORES["titulo"])
         self.editar.setToolTip("Corrigir valores, U, parecer ou dados do certificado desta "
                                "calibração (a data não muda). A correção fica registrada.")
         self.editar.clicked.connect(lambda: self.done(self.EDITAR))
-        self.editar.setVisible(pode_editar)
+        if not pode_editar:
+            self.editar.hide()
         self.abrir_pdf = QPushButton("Abrir PDF")
         por_icone(self.abrir_pdf, "picture_as_pdf", CORES["titulo"])
         self.abrir_pdf.setToolTip("Abre o PDF do certificado no programa de PDF do Windows.")
         self.abrir_pdf.clicked.connect(self.abrir_o_pdf)
-        self.abrir_pdf.setVisible(self.pdf is not None)
+        if self.pdf is None:
+            self.abrir_pdf.hide()
         self.aviso_pdf = RotuloAviso(wordWrap=True, objectName="avisos")
         fechar = QPushButton("Fechar")
         fechar.clicked.connect(self.accept)
