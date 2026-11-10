@@ -34,7 +34,8 @@ _CLARO = {
     "botao": "#c62828", "botao_mouse": "#e53935", "certo": "#2e7d32", "aviso": "#8d6e00",
     "erro": "#c62828", "dentro": "#1b5e20", "fora": "#b71c1c", "aviso_fundo": "#ffd54f",
 }
-CLARO_CINZA = {
+# Escolhido pelo usuário por foto em 2026-11-10 (entre cinza, gelo e branco).
+CLARO = {
     **_CLARO,
     "fundo": "#c9c9c9", "caixa": "#dedede", "campo": "#f5f5f5", "campo_borda": "#8a8a8a",
     "borda": "#2b2b2b", "titulo": "#111111", "selecao": "#a9a9a9", "mouse": "#cfcfcf",
@@ -43,26 +44,7 @@ CLARO_CINZA = {
     "desativado_dia": "#9a9a9a", "selecao_texto": "#000000", "selecao_linha": "#2b2b2b",
     "neutra_fundo": "#bdbdbd", "neutra_letra": "#424242",
 }
-CLARO_GELO = {
-    **_CLARO,
-    "fundo": "#e3e9ee", "caixa": "#f3f6f8", "campo": "#ffffff", "campo_borda": "#a7b4bf",
-    "borda": "#37474f", "titulo": "#1c2a33", "selecao": "#c9d6df", "mouse": "#dde6ec",
-    "mouse_tabela": "#e8eef2", "mouse_painel": "#e8eef2", "texto": "#1c2a33",
-    "texto_campo": "#000000", "dica": "#5f6f7a", "desativado": "#9aa7b0",
-    "desativado_dia": "#b0bcc4", "selecao_texto": "#000000", "selecao_linha": "#37474f",
-    "neutra_fundo": "#dfe5ea", "neutra_letra": "#4f5d66",
-}
-CLARO_BRANCO = {
-    **_CLARO,
-    "fundo": "#ffffff", "caixa": "#fbfbfb", "campo": "#ffffff", "campo_borda": "#bdbdbd",
-    "borda": "#5f5f5f", "titulo": "#000000", "selecao": "#dcdcdc", "mouse": "#eeeeee",
-    "mouse_tabela": "#f2f2f2", "mouse_painel": "#f4f4f4", "texto": "#1a1a1a",
-    "texto_campo": "#000000", "dica": "#666666", "desativado": "#a0a0a0",
-    "desativado_dia": "#b5b5b5", "selecao_texto": "#000000", "selecao_linha": "#5f5f5f",
-    "neutra_fundo": "#ececec", "neutra_letra": "#555555",
-}
-TEMAS = {"escuro": ESCURO, "claro_cinza": CLARO_CINZA, "claro_gelo": CLARO_GELO,
-         "claro_branco": CLARO_BRANCO}
+TEMAS = {"escuro": ESCURO, "claro": CLARO}
 
 # As telas leem daqui; `aplicar_tema` troca o conteúdo (o mesmo dicionário, então quem já
 # importou CORES enxerga a troca). Deve ser chamado antes de montar as janelas.
@@ -147,6 +129,11 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0px; }}
 #principal {{ background: {botao}; color: #ffffff; border: none; font-size: 20pt;
               font-weight: bold; letter-spacing: 4px; }}
 #principal:hover {{ background: {botao_mouse}; }}
+/* Botão sol/lua do tema: contorno de botão, clareia com o mouse, afunda ao clicar. */
+QToolButton#botao_tema {{ background: {campo}; border: 1px solid {borda}; border-radius: 6px;
+    padding: 3px; }}
+QToolButton#botao_tema:hover {{ background: {mouse}; }}
+QToolButton#botao_tema:pressed {{ background: {selecao}; padding: 4px 2px 2px 4px; }}
 #indicador {{ font-size: 28pt; font-weight: bold; }}
 #dica {{ color: {dica}; font-style: italic; }}
 #avisos {{ color: {aviso}; }}

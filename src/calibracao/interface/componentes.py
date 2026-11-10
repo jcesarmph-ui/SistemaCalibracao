@@ -41,7 +41,7 @@ from PySide6.QtWidgets import (
 )
 
 from calibracao.interface.estilo import CORES, abreviar_indicativa, destacar, tem_destaque
-from calibracao.interface.tema_icones import html_com_icones, icone
+from calibracao.interface.tema_icones import html_com_icones, por_icone
 from calibracao.regras.padronizacao import chave, locais
 
 
@@ -210,7 +210,7 @@ class BotaoCalendario(QToolButton):
         super().__init__(parent)
         self.campo = campo
         self.setObjectName("calendario")
-        self.setIcon(icone("calendar_month", CORES["titulo"]))
+        por_icone(self, "calendar_month", CORES["titulo"])  # repintado na troca de tema
         self.setIconSize(QSize(24, 24))
         self.setToolTip("Abrir o calendário (ou digite a data no campo, dd/mm/aaaa).")
         self.calendario = QCalendarWidget()

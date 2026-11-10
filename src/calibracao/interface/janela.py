@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QTabWidget,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -67,11 +68,13 @@ from calibracao.interface.estilo import (
     CORES_PARECER,
     CORES_SITUACAO,
     CORES_SITUACAO_NO_MES,
+    aplicar_tema,
     estilo,
     tema_claro,
 )
+from calibracao.interface.preferencias import gravar_tema
 from calibracao.interface.recursos import recurso
-from calibracao.interface.tema_icones import icone, pixmap, por_icone
+from calibracao.interface.tema_icones import icone, pixmap, por_icone, repintar_icones
 from calibracao.regras.cronograma import Situacao, SituacaoNoMes, meses_do_seletor, somar_meses
 from calibracao.regras.trava import (
     INTERVALO_CONSULTA,
@@ -124,7 +127,8 @@ def celula_motivo(motivo: str | None):
     return item
 
 
-INICIO_DAS_LETRAS = 0.32  # o símbolo ocupa o primeiro terço do logo; depois vêm as letras
+ICONES_DAS_ABAS = ["straighten", "tune", "event_note", "picture_as_pdf", "delete"]
+INICIO_DAS_LETRAS = 0.30  # o símbolo vai até ~27% da largura; o traço (31%) e as letras mudam
 
 
 def logo_com_letra_preta(imagem: QPixmap) -> QPixmap:
@@ -176,8 +180,7 @@ class JanelaPrincipal(QMainWindow):
         self.aba_lixeira.alterado.connect(self._lixeira_mudou)
         self.abas.addTab(self.aba_lixeira, "Lixeira")
         # Ícones nas abas (aprovados por foto em 2026-11-10).
-        for indice, nome in enumerate(["straighten", "tune", "event_note", "picture_as_pdf",
-                                    "delete"]):
+        for indice, nome in enumerate(ICONES_DAS_ABAS):
             self.abas.setTabIcon(indice, icone(nome, CORES["titulo"]))
         self.abas.setIconSize(QSize(22, 22))
         self.abas.setCurrentWidget(self.aba_cronograma)  # abre no Cronograma
@@ -266,15 +269,10 @@ class JanelaPrincipal(QMainWindow):
 
     def _cabecalho(self) -> QGridLayout:
         """Logo à esquerda, título centralizado; à direita, o modo (em cima) e a versão."""
-        arquivo_logo = recurso("logo_mg.png", self.pasta_dados)
-        if arquivo_logo.is_file():
-            logo = QLabel()
-            imagem = QPixmap(str(arquivo_logo)).scaledToHeight(80, Qt.SmoothTransformation)
-            logo.setPixmap(logo_com_letra_preta(imagem) if tema_claro() else imagem)
-        else:
-            logo = QLabel("MG Centro de Serviços")
+        self.logo = QLabel("MG Centro de Serviços")
+        self._pintar_logo()
         grade = QGridLayout()
-        grade.addWidget(logo, 0, 0, Qt.AlignLeft)
+        grade.addWidget(self.logo, 0, 0, Qt.AlignLeft)
         titulo = f"{TITULO} — TESTE" if self.de_teste else TITULO
         grade.addWidget(QLabel(titulo, objectName="titulo"), 0, 1)
         grade.addWidget(QLabel(f"versão {__version__}", objectName="dica"), 0, 2,
@@ -298,16 +296,54 @@ class JanelaPrincipal(QMainWindow):
         for botao in (self.botao_atualizar, self.botao_pedir):
             botao.setCursor(Qt.PointingHandCursor)
             botao.hide()
+        # Sol/lua (pedido de 2026-11-10): troca entre claro e escuro na hora; a escolha fica
+        # guardada para a pessoa (usuário do Windows).
+        self.botao_tema = QToolButton(objectName="botao_tema")
+        self.botao_tema.setCursor(Qt.PointingHandCursor)
+        self.botao_tema.setIconSize(QSize(20, 20))
+        self.botao_tema.clicked.connect(self.trocar_tema)
+        self._pintar_botao_tema()
         canto = QHBoxLayout()
         canto.setSpacing(8)
         canto.addWidget(self.botao_atualizar)
         canto.addWidget(self.botao_pedir)
+        canto.addWidget(self.botao_tema)
+        canto.addSpacing(6)
         canto.addWidget(self.cadeado)
         canto.addWidget(self.rotulo_modo)
         grade.addLayout(canto, 0, 2, Qt.AlignRight | Qt.AlignTop)
         grade.setColumnStretch(0, 1)
         grade.setColumnStretch(2, 1)  # coluna do mesmo tamanho da do logo → título no centro
         return grade
+
+    def _pintar_logo(self) -> None:
+        arquivo_logo = recurso("logo_mg.png", self.pasta_dados)
+        if arquivo_logo.is_file():
+            imagem = QPixmap(str(arquivo_logo)).scaledToHeight(80, Qt.SmoothTransformation)
+            self.logo.setPixmap(logo_com_letra_preta(imagem) if tema_claro() else imagem)
+
+    def _pintar_botao_tema(self) -> None:
+        """No escuro mostra o sol (vai para o claro); no claro, a lua."""
+        claro = tema_claro()
+        self.botao_tema.setIcon(icone("dark_mode" if claro else "light_mode", CORES["titulo"]))
+        self.botao_tema.setToolTip("Mudar para modo escuro" if claro
+                                   else "Mudar para modo claro")
+
+    def trocar_tema(self) -> None:
+        """Claro ↔ escuro na hora, sem fechar nada; guarda a escolha da pessoa."""
+        antigas = dict(CORES)
+        novo = "escuro" if tema_claro() else "claro"
+        aplicar_tema(novo)
+        gravar_tema(novo)
+        repintar_icones(antigas, CORES)
+        self.setStyleSheet(estilo())
+        self._pintar_logo()
+        self._pintar_botao_tema()
+        for indice, nome in enumerate(ICONES_DAS_ABAS):
+            self.abas.setTabIcon(indice, icone(nome, CORES["titulo"]))
+        self.cadeado.setPixmap(pixmap("lock_open" if self._pode_editar else "lock",
+                                      CORES["titulo"], 16))
+        self.atualizar()  # as tabelas são montadas de novo com as cores do tema
 
     def _faixa_indicadores(self) -> QHBoxLayout:
         proximo = somar_meses(self.hoje.replace(day=1), 1)

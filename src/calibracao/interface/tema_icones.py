@@ -8,6 +8,7 @@ do Qt e para textos com <img> (que só aceitam imagem por arquivo).
 import html
 import re
 import tempfile
+import weakref
 from pathlib import Path
 
 PASTA = Path(__file__).parent / "icones"
@@ -43,19 +44,55 @@ def icone(nome: str, cor: str, tamanho: int = 48):
     return QIcon(pixmap(nome, cor, tamanho))
 
 
+# Onde cada ícone foi posto (botão ou ação da lupa), o nome e a cor: na troca de tema, o
+# ícone é pintado de novo na cor que ocupa o mesmo lugar no tema novo.
+_POSTOS: list[tuple[weakref.ref, str, list[str]]] = []
+
+
+def _lembrar(alvo, nome: str, cor: str) -> None:
+    _POSTOS.append((weakref.ref(alvo), nome, [cor]))
+
+
 def por_icone(botao, nome: str, cor: str) -> None:
     """Ícone na frente do texto do botão (o texto continua: ninguém precisa adivinhar)."""
     from PySide6.QtCore import QSize
 
-    botao.setIcon(icone(nome, cor))
     botao.setIconSize(QSize(TAMANHO_BOTAO, TAMANHO_BOTAO))
+    if botao.objectName() == "principal":
+        # Botão vermelho (EDITAR…): ícone sempre branco, como a letra, nos dois temas.
+        botao.setIcon(icone(nome, "#ffffff"))
+        return
+    botao.setIcon(icone(nome, cor))
+    _lembrar(botao, nome, cor)
 
 
 def lupa(campo, cor: str) -> None:
     """Lupa no começo do campo de pesquisa."""
     from PySide6.QtWidgets import QLineEdit
 
-    campo.addAction(icone("search", cor), QLineEdit.LeadingPosition)
+    acao = campo.addAction(icone("search", cor), QLineEdit.LeadingPosition)
+    _lembrar(acao, "search", cor)
+
+
+def repintar_icones(antigas: dict[str, str], novas: dict[str, str]) -> int:
+    """Troca de tema: cada ícone lembrado ganha a cor do mesmo nome no tema novo (ex.: o que
+    era "titulo" no escuro vira o "titulo" do claro). Devolve quantos foram repintados."""
+    import shiboken6
+
+    feitos = 0
+    for referencia, nome, cor in list(_POSTOS):
+        alvo = referencia()
+        if alvo is None or not shiboken6.isValid(alvo):
+            _POSTOS.remove((referencia, nome, cor))
+            continue
+        chave = next((c for c in ("titulo", "dica", "erro", "certo", "aviso", "texto")
+                      if antigas.get(c) == cor[0]), None)
+        if chave is None:
+            continue
+        cor[0] = novas[chave]
+        alvo.setIcon(icone(nome, cor[0]))
+        feitos += 1
+    return feitos
 
 
 def arquivo_do_icone(nome: str, cor: str) -> str:

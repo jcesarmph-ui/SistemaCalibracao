@@ -26,3 +26,4 @@ O SVG fica como foi baixado (preto); o programa pinta na cor do tema ao carregar
 | `refresh.svg`, `back_hand.svg` | Atualizar e Pedir edição (modo consulta) |
 | `picture_as_pdf.svg` | Aba Certificados e botão Abrir PDF |
 | `attach_file.svg` | Adicionar certificado (PDF) / Substituir certificado (PDF) (Nova calibração e EDITAR da calibração) |
+| `light_mode.svg`, `dark_mode.svg` | Botão sol/lua do canto de cima: mudar para modo claro / escuro |
