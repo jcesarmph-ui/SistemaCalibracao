@@ -138,6 +138,18 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    Git). Cópia do programa **com o banco real e o logo**, só para o usuário baixar em casa:
    repositório **PRIVADO** `jcesarmph-ui/calibracao-programa`, uma Release com `.zip` por cópia
    (como fazer: memória local `copia-programa-repo-privado`). Nunca torná-lo público.
+   **Versão `1.2.0` em andamento (2026-11-10, branch `melhorias-1.2.0`, sem README e sem cópia
+   em `programas-executaveis`, a pedido do usuário)**: título "DQ-05 CALIBRAÇÃO DE INSTRUMENTOS";
+   cadastro com "Tipo de instrumento", "Faixa de utilização" (dica da unidade), Calendário na data
+   de compra, custo com centavos, localização em negrito; código com lista "Tipo (SIGLA)" e
+   próximo número; tipo e localização com sugestões (sem maiúsculas/acentos), vários locais com
+   " / " (filtro mostra em cada um), pergunta ao criar nome novo; tipos juntados
+   (`regras/padronizacao.TIPOS_JUNTADOS`: Régua graduada para furos, Paquímetro analógico,
+   Balança Suspensa) — o banco da rede é acertado uma vez ao abrir (`metadados.nomes_unificados`,
+   simulado numa cópia só leitura); lista com a linha toda clicável; botão Renomear plano.
+   Fotos: `dados/fotos/foto_1_2_0.py`. **Falta:** aprovação das fotos e o **tema claro** (mostrar
+   foto antes; cuidar de calendário, listas, logo com letra preta, gráfico); depois PR, tag
+   `v1.2.0` e pacote para o usuário trocar a pasta `programa` na rede.
 3. Pendências que continuam: confidencialidade do repositório público (só quando o usuário
    pedir); limpeza dos arquivos do protótipo na árvore (perguntar antes de remover).
 4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,
