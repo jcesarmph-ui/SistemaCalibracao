@@ -447,7 +447,7 @@ def test_ficha_primeira_calibracao_prevista(janela):
 def test_aba_calibrar_tem_nova_calibracao(janela):
     """Pedido de 2026-11-03: aba Calibrar com a lista e o botão NOVA CALIBRAÇÃO."""
     nomes = [janela.abas.tabText(n) for n in range(janela.abas.count())]
-    assert nomes == ["Instrumentos", "Calibrar", "Cronograma", "Lixeira"]
+    assert nomes == ["Instrumentos", "Calibrar", "Cronograma", "Certificados", "Lixeira"]
     assert janela.abas.currentWidget() is janela.aba_cronograma  # abre no Cronograma
     aba = janela.aba_calibrar
     painel = aba.painel_calibracoes

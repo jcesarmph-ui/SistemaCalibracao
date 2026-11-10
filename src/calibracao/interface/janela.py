@@ -47,6 +47,7 @@ from calibracao.dados.repositorio import (
 )
 from calibracao.interface.aba_calibracoes import dinheiro
 from calibracao.interface.aba_calibrar import AbaCalibrar
+from calibracao.interface.aba_certificados import AbaCertificados
 from calibracao.interface.aba_instrumentos import AbaInstrumentos
 from calibracao.interface.aba_lixeira import AbaLixeira
 from calibracao.interface.componentes import (
@@ -153,11 +154,15 @@ class JanelaPrincipal(QMainWindow):
         self.abas.addTab(self.aba_calibrar, "Calibrar")
         self.aba_cronograma = self._aba_cronograma()
         self.abas.addTab(self.aba_cronograma, "Cronograma")
+        # Aba Certificados (pedido de 2026-11-10): os PDFs das calibrações feitas no programa.
+        self.aba_certificados = AbaCertificados(repositorio)
+        self.abas.addTab(self.aba_certificados, "Certificados")
         self.aba_lixeira = AbaLixeira(repositorio)
         self.aba_lixeira.alterado.connect(self._lixeira_mudou)
         self.abas.addTab(self.aba_lixeira, "Lixeira")
         # Ícones nas abas (aprovados por foto em 2026-11-10).
-        for indice, nome in enumerate(["straighten", "tune", "event_note", "delete"]):
+        for indice, nome in enumerate(["straighten", "tune", "event_note", "picture_as_pdf",
+                                    "delete"]):
             self.abas.setTabIcon(indice, icone(nome, CORES["titulo"]))
         self.abas.setIconSize(QSize(22, 22))
         self.abas.setCurrentWidget(self.aba_cronograma)  # abre no Cronograma
@@ -374,6 +379,7 @@ class JanelaPrincipal(QMainWindow):
         situacoes = {linha.instrumento.id: linha.situacao for linha in self._cronograma}
         self.aba_instrumentos.atualizar(situacoes)
         self.aba_calibrar.atualizar(situacoes)
+        self.aba_certificados.atualizar()
         self.aba_lixeira.atualizar()
 
     # --- Trava de edição ---------------------------------------------------------------------
@@ -430,7 +436,8 @@ class JanelaPrincipal(QMainWindow):
         pode = dono is None and not self.repo.modo_consulta
         self.cadeado.setPixmap(pixmap("lock_open" if pode else "lock", CORES["titulo"], 16))
         estava_consultando = not self._pode_editar
-        for aba in (self.aba_instrumentos, self.aba_calibrar, self.aba_lixeira):
+        for aba in (self.aba_instrumentos, self.aba_calibrar, self.aba_certificados,
+                    self.aba_lixeira):
             aba.definir_edicao(pode)
         self._pode_editar = pode
         self._ligar_informar_motivo()

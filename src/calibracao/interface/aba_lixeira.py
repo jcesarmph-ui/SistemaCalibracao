@@ -35,7 +35,8 @@ from calibracao.regras.lixeira import CONFIRMACAO_EXCLUSAO, Tipo
 TODOS = "Tudo"
 # Opções do filtro "Mostrar:" (texto no plural → tipo)
 FILTROS = {TODOS: None, "Instrumentos": Tipo.INSTRUMENTO, "Planos": Tipo.PLANO,
-           "Pontos do plano": Tipo.PONTO, "Calibrações": Tipo.CALIBRACAO}
+           "Pontos do plano": Tipo.PONTO, "Calibrações": Tipo.CALIBRACAO,
+           "Certificados (PDF)": Tipo.CERTIFICADO}
 
 
 def quando(texto_iso: str) -> str:

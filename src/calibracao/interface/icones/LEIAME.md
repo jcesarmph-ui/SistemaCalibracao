@@ -24,3 +24,5 @@ O SVG fica como foi baixado (preto); o programa pinta na cor do tema ao carregar
 | `lock_open.svg`, `lock.svg` | Modo edição / Modo consulta (canto superior direito) |
 | `check_circle.svg`, `error.svg`, `warning.svg` | Avisos ✔ (certo), ✖ (erro), ⚠ (aviso) |
 | `refresh.svg`, `back_hand.svg` | Atualizar e Pedir edição (modo consulta) |
+| `picture_as_pdf.svg` | Aba Certificados e botão Abrir PDF |
+| `attach_file.svg` | Escolher PDF / Trocar PDF (Nova calibração e EDITAR da calibração) |
