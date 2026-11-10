@@ -140,7 +140,8 @@ mindmap
 ## 📸 Telas
 
 > Imagens geradas com um **banco de dados fictício** (instrumentos, locais, fabricantes e pessoas
-> inventados), sem nenhuma informação real.
+> inventados), sem nenhuma informação real. Metade no **modo escuro** e metade no **modo claro**:
+> cada pessoa escolhe o seu no programa.
 
 <p align="center">
   <img src="docs/telas/01_cronograma.png" alt="Cronograma de calibrações" width="100%"/>
@@ -152,7 +153,7 @@ mindmap
   <tr>
     <td width="50%" align="center">
       <img src="docs/telas/02_instrumentos.png" alt="Cadastro de instrumentos"/>
-      <br/><em>Cadastro: lista com filtros, ficha do instrumento e plano de calibração.</em>
+      <br/><em>Cadastro: lista com filtros, ficha do instrumento e plano de calibração (modo claro).</em>
     </td>
     <td width="50%" align="center">
       <img src="docs/telas/03_nova_calibracao.png" alt="Registro de calibração"/>
@@ -164,7 +165,7 @@ mindmap
     <td width="50%" align="center">
       <img src="docs/telas/04_grafico_tendencia.png" alt="Gráfico de tendência"/>
       <br/><em>Gráfico de tendência: desvio de cada ponto ao longo das calibrações, com a barra
-      da incerteza e as linhas de tolerância.</em>
+      da incerteza e as linhas de tolerância (modo claro).</em>
     </td>
     <td width="50%" align="center">
       <img src="docs/telas/05_pedido_de_edicao.png" alt="Trava de edição entre computadores"/>
@@ -177,6 +178,14 @@ mindmap
       <img src="docs/telas/06_indicadores_modo_claro.png" alt="Painel de indicadores no modo claro"/>
       <br/><em>Versão 1.2.0: painel de indicadores montado pelo usuário (custo, prazo, laboratórios,
       instrumentos mais perto do limite), aqui no modo claro — cada pessoa escolhe claro ou escuro.</em>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">
+      <img src="docs/telas/07_relatorio_mensal.png" alt="Relatório mensal em PDF" width="70%"/>
+      <br/><em>Relatório final do mês em PDF, criado e guardado sozinho no primeiro dia do mês
+      seguinte: números, gráficos do painel, calibrações do mês e ALTERAÇÕES (atrasos, vencidas,
+      reprovados).</em>
     </td>
   </tr>
 </table>
