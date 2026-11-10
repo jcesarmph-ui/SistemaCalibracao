@@ -86,7 +86,7 @@ def preencher_e_salvar(janela):
 
 def test_nova_calibracao_guarda_o_pdf_escolhido(app, repo, instrumento, tmp_path):
     janela = JanelaNovaCalibracao(repo, instrumento, HOJE, usuario="ana - PC-01")
-    assert janela.escolher_pdf.text() == "Escolher PDF"
+    assert janela.escolher_pdf.text() == "Adicionar certificado (PDF)"
     assert "Nenhum PDF" in janela.nome_pdf.text()
     assert janela.usar_pdf(pdf(tmp_path, "cert do lab.pdf"))
     assert "cert do lab.pdf" in janela.nome_pdf.text()
@@ -131,7 +131,7 @@ def test_editar_so_para_trocar_o_pdf(app, repo, instrumento, tmp_path):
                             datetime.datetime(2026, 11, 10, 9, 0))
     calibracao = repo.obter_calibracao(calibracao_id)
     janela = JanelaNovaCalibracao(repo, instrumento, HOJE, corrigir=calibracao, usuario="bia")
-    assert janela.escolher_pdf.text() == "Trocar PDF"
+    assert janela.escolher_pdf.text() == "Substituir certificado (PDF)"
     assert "antigo.pdf" in janela.nome_pdf.text()
     janela.usar_pdf(pdf(tmp_path, "novo.pdf", "b"))
     assert "vai para a Lixeira" in janela.nome_pdf.text()

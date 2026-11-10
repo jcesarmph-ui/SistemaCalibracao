@@ -234,7 +234,8 @@ class JanelaNovaCalibracao(QDialog):
         grade.addWidget(self.motivo_atraso, 2, 2, 1, 4)
         # PDF do certificado (pedido de 2026-11-10): opcional; um por calibração, trocável.
         self.nome_pdf = QLabel(wordWrap=True)
-        self.escolher_pdf = QPushButton("Trocar PDF" if self.pdf_atual else "Escolher PDF")
+        self.escolher_pdf = QPushButton("Substituir certificado (PDF)" if self.pdf_atual
+                                        else "Adicionar certificado (PDF)")
         por_icone(self.escolher_pdf, "attach_file", CORES["titulo"])
         self.escolher_pdf.setToolTip(
             "PDF do certificado (opcional). Ele é copiado para a pasta dos certificados do "

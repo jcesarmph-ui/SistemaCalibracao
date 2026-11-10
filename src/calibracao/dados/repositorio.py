@@ -1492,8 +1492,9 @@ class Repositorio:
             calibracao_id = self._conexao.execute(
                 "SELECT calibracao_id FROM certificados WHERE id = ?", (item_id,)).fetchone()[0]
             if self.certificado_da_calibracao(calibracao_id) is not None:
-                bloqueio = ("Esta calibração já tem outro PDF. Para voltar este, troque o PDF "
-                            "pelo EDITAR da calibração (o atual vai para a Lixeira).")
+                bloqueio = ("Esta calibração já tem outro PDF. Para voltar este, use "
+                            "\"Substituir certificado (PDF)\" no EDITAR da calibração (o "
+                            "atual vai para a Lixeira).")
         if bloqueio:
             raise ErroDeValidacao([bloqueio])
         voltando = self.na_lixeira(tipo, item_id)
