@@ -5,6 +5,9 @@ instrumento → plano, calibração → instrumento); excluir permanentemente ex
 não é permitido com dependências — exceto a calibração, que pode ser apagada de vez junto com os
 seus pontos medidos (decisão do usuário em 2026-10-29: pode ter sido registrada por engano).
 
+O PDF do certificado (pedido de 2026-11-10) também vai para a Lixeira quando é trocado por outro;
+o "pai" dele é a calibração. Excluir de vez apaga o arquivo da pasta (a cópia do backup fica).
+
 Desativar não é Lixeira: ver `calibracao.regras.condicao`.
 """
 
@@ -18,9 +21,11 @@ class Tipo(StrEnum):
     PLANO = "Plano"
     PONTO = "Ponto do plano"
     CALIBRACAO = "Calibração"
+    CERTIFICADO = "Certificado (PDF)"
 
 
-PAI = {Tipo.PONTO: Tipo.PLANO, Tipo.INSTRUMENTO: Tipo.PLANO, Tipo.CALIBRACAO: Tipo.INSTRUMENTO}
+PAI = {Tipo.PONTO: Tipo.PLANO, Tipo.INSTRUMENTO: Tipo.PLANO, Tipo.CALIBRACAO: Tipo.INSTRUMENTO,
+       Tipo.CERTIFICADO: Tipo.CALIBRACAO}
 
 
 def bloqueio_restaurar(tipo: Tipo, pai_na_lixeira: bool) -> str | None:
@@ -41,6 +46,6 @@ def bloqueio_exclusao_permanente(tipo: Tipo, confirmacao: str,
     """
     if confirmacao.strip() != CONFIRMACAO_EXCLUSAO:
         return f"Para excluir permanentemente, digite {CONFIRMACAO_EXCLUSAO}."
-    if tem_dependencias and tipo != Tipo.CALIBRACAO:
+    if tem_dependencias and tipo not in (Tipo.CALIBRACAO, Tipo.CERTIFICADO):
         return "Não é possível excluir permanentemente: há registros ligados a este item."
     return None

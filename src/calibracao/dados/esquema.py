@@ -194,6 +194,25 @@ CREATE INDEX IF NOT EXISTS idx_correcoes_calibracao ON correcoes_calibracao(cali
 # Versão 7. Histórico da marca de orientação indicativa (a marca em si é o " - Orientação
 # indicativa" da localização). Linha de uma calibração na Lixeira deixa de valer, como nas
 # condições; `calibracao_id` preenchido = veio do parecer final.
+# PDF do certificado de cada calibração (pedido de 2026-11-10), sem mudar a versão do esquema: a
+# versão anterior do programa abre o banco e só não vê esta tabela. O arquivo fica na pasta
+# `certificados/` ao lado do banco; aqui, a ligação e a conferência (SHA-256).
+TABELA_CERTIFICADOS = """
+CREATE TABLE IF NOT EXISTS certificados (
+    id INTEGER PRIMARY KEY,
+    calibracao_id INTEGER NOT NULL REFERENCES calibracoes(id),
+    arquivo TEXT NOT NULL,          -- nome dentro da pasta certificados/
+    nome_original TEXT NOT NULL,    -- nome do arquivo que a pessoa escolheu
+    tamanho INTEGER NOT NULL,
+    sha256 TEXT NOT NULL,
+    enviado_em TEXT NOT NULL,
+    enviado_por TEXT,               -- "usuário - PC"
+    excluido_em TEXT,
+    motivo_exclusao TEXT
+);
+CREATE INDEX IF NOT EXISTS certificados_da_calibracao ON certificados(calibracao_id);
+"""
+
 TABELAS_V7 = """
 CREATE TABLE IF NOT EXISTS marcas_indicativa (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -266,6 +285,7 @@ def criar_tabelas(conexao: sqlite3.Connection) -> None:
     if "motivo_atraso_pendente" not in _colunas(conexao, "instrumentos"):
         conexao.execute("ALTER TABLE instrumentos ADD COLUMN motivo_atraso_pendente TEXT")
     conexao.executescript(TABELAS_V7)
+    conexao.executescript(TABELA_CERTIFICADOS)
     if "primeira_prevista" not in _colunas(conexao, "instrumentos"):
         conexao.execute("ALTER TABLE instrumentos ADD COLUMN primeira_prevista TEXT")
     for tabela in ("pontos_plano", "pontos_calibracao"):

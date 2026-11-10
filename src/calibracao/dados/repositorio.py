@@ -14,6 +14,7 @@ import uuid
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
+from calibracao.dados import certificados as arquivos_pdf
 from calibracao.dados.backup import fazer_backup_diario
 from calibracao.dados.esquema import conectar, criar_tabelas
 from calibracao.regras.avaliacao import (
@@ -41,7 +42,7 @@ from calibracao.regras.cronograma import (
     proxima_calibracao,
     situacao,
 )
-from calibracao.regras.lixeira import Tipo, bloqueio_exclusao_permanente, bloqueio_restaurar
+from calibracao.regras.lixeira import PAI, Tipo, bloqueio_exclusao_permanente, bloqueio_restaurar
 from calibracao.regras.localizacao import com_marcas, eh_indicativa, padronizar_localizacao
 from calibracao.regras.padronizacao import (
     localizacao_padrao,
@@ -337,11 +338,35 @@ class ItemLixeira:
     motivo: str | None
 
 
+@dataclass
+class Certificado:
+    """PDF do certificado de uma calibração (o arquivo fica em `certificados/`)."""
+    id: int
+    calibracao_id: int
+    arquivo: str
+    nome_original: str
+    tamanho: int
+    sha256: str
+    enviado_em: str
+    enviado_por: str | None
+
+
+@dataclass
+class LinhaCertificado:
+    """Uma linha da aba Certificados: código | nº do certificado | data da calibração."""
+    certificado_id: int
+    calibracao_id: int
+    codigo: str
+    numero: str | None
+    data_calibracao: datetime.date
+
+
 # Tabela de cada tipo e, quando há, a coluna que aponta para o "pai".
 _TABELA = {Tipo.INSTRUMENTO: "instrumentos", Tipo.PLANO: "planos",
-           Tipo.PONTO: "pontos_plano", Tipo.CALIBRACAO: "calibracoes"}
+           Tipo.PONTO: "pontos_plano", Tipo.CALIBRACAO: "calibracoes",
+           Tipo.CERTIFICADO: "certificados"}
 _COLUNA_PAI = {Tipo.INSTRUMENTO: "plano_id", Tipo.PONTO: "plano_id",
-               Tipo.CALIBRACAO: "instrumento_id"}
+               Tipo.CALIBRACAO: "instrumento_id", Tipo.CERTIFICADO: "calibracao_id"}
 
 ESCOLHAS_QUALITATIVAS = (Resultado.APROVADO, Resultado.REPROVADO)
 
@@ -445,6 +470,7 @@ class Repositorio:
         self.modo_consulta = False
         self.ao_gravar = None  # chamado depois de cada gravação que deu certo
         self._gravacoes_abertas = 0
+        self.pasta_dados: Path | None = None  # onde ficam os PDFs (ao lado do banco)
 
     @classmethod
     def abrir(cls, caminho: Path, hoje: datetime.date | None = None) -> "Repositorio":
@@ -454,7 +480,9 @@ class Repositorio:
         conexao = conectar(caminho)
         with conexao:
             criar_tabelas(conexao)
-        return cls(conexao)
+        repositorio = cls(conexao)
+        repositorio.pasta_dados = Path(caminho).parent
+        return repositorio
 
     def fechar(self) -> None:
         self._conexao.close()
@@ -1347,6 +1375,89 @@ class Repositorio:
 
     # ---------------------------------------------------------------- lixeira
 
+    # ---------------------------------------------------------------- certificados (PDF)
+
+    def certificado_da_calibracao(self, calibracao_id: int) -> Certificado | None:
+        """O PDF que vale para a calibração (fora da Lixeira), ou None."""
+        linha = self._conexao.execute(
+            "SELECT * FROM certificados WHERE calibracao_id = ? AND excluido_em IS NULL "
+            "ORDER BY id DESC LIMIT 1", (calibracao_id,)).fetchone()
+        if linha is None:
+            return None
+        return Certificado(linha["id"], linha["calibracao_id"], linha["arquivo"],
+                           linha["nome_original"], linha["tamanho"], linha["sha256"],
+                           linha["enviado_em"], linha["enviado_por"])
+
+    def caminho_do_certificado(self, certificado: Certificado) -> Path:
+        if self.pasta_dados is None:
+            raise ErroDeValidacao(["Banco aberto sem pasta: não há onde achar o PDF."])
+        return self.pasta_dados / arquivos_pdf.PASTA / certificado.arquivo
+
+    @_escrita
+    def anexar_certificado(self, calibracao_id: int, arquivo: Path, usuario: str | None,
+                           agora: datetime.datetime) -> int:
+        """Guarda o PDF do certificado da calibração. Se já havia um, o antigo vai para a
+        Lixeira ("trocado por outro PDF"). ErroDeValidacao se o arquivo não servir."""
+        if self.pasta_dados is None:
+            raise ErroDeValidacao(["Banco aberto sem pasta: não há onde guardar o PDF."])
+        if self.na_lixeira(Tipo.CALIBRACAO, calibracao_id):
+            raise ErroDeValidacao(["A calibração está na Lixeira: restaure-a antes."])
+        calibracao = self.obter_calibracao(calibracao_id)
+        codigo = self.obter_instrumento(calibracao.instrumento_id).codigo
+        nome = arquivos_pdf.nome_do_arquivo(codigo, calibracao.certificado,
+                                            calibracao.data_calibracao, agora)
+        try:
+            destino, resumo, tamanho = arquivos_pdf.guardar(Path(arquivo), self.pasta_dados, nome)
+        except arquivos_pdf.ErroDoArquivo as erro:
+            raise ErroDeValidacao([str(erro)]) from erro
+        anterior = self.certificado_da_calibracao(calibracao_id)
+        quando = agora.isoformat(timespec="seconds")
+        try:
+            with self._conexao:
+                if anterior is not None:
+                    self._conexao.execute(
+                        "UPDATE certificados SET excluido_em = ?, motivo_exclusao = ? "
+                        "WHERE id = ?", (quando, "Trocado por outro PDF", anterior.id))
+                cursor = self._conexao.execute(
+                    "INSERT INTO certificados (calibracao_id, arquivo, nome_original, tamanho, "
+                    "sha256, enviado_em, enviado_por) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (calibracao_id, nome, Path(arquivo).name, tamanho, resumo, quando, usuario))
+        except sqlite3.Error:
+            destino.unlink(missing_ok=True)  # o banco não gravou: o PDF copiado não fica solto
+            raise
+        return cursor.lastrowid
+
+    def conferir_certificado(self, certificado: Certificado) -> str | None:
+        """Problema com o arquivo guardado (sumiu ou foi mexido), ou None se está igual ao que
+        foi enviado (mesmo SHA-256)."""
+        caminho = self.caminho_do_certificado(certificado)
+        if not caminho.is_file():
+            return "O PDF não foi encontrado na pasta dos certificados."
+        if arquivos_pdf.sha256(caminho) != certificado.sha256:
+            return "O PDF na pasta não é o mesmo que foi enviado (foi alterado depois)."
+        return None
+
+    def listar_certificados(self) -> list[LinhaCertificado]:
+        """Todos os PDFs que valem (calibração e instrumento fora da Lixeira), mais recentes
+        primeiro: código | nº do certificado | data da calibração."""
+        linhas = self._conexao.execute("""
+            SELECT k.id, k.calibracao_id, i.codigo, c.certificado, c.data_calibracao
+              FROM certificados k JOIN calibracoes c ON c.id = k.calibracao_id
+              JOIN instrumentos i ON i.id = c.instrumento_id
+             WHERE k.excluido_em IS NULL AND c.excluido_em IS NULL AND i.excluido_em IS NULL
+             ORDER BY c.data_calibracao DESC, i.codigo""")
+        return [LinhaCertificado(linha[0], linha[1], linha[2], linha[3], _data(linha[4]))
+                for linha in linhas]
+
+    def obter_certificado(self, certificado_id: int) -> Certificado:
+        linha = self._conexao.execute(
+            "SELECT * FROM certificados WHERE id = ?", (certificado_id,)).fetchone()
+        if linha is None:
+            raise KeyError(f"Certificado {certificado_id} não existe.")
+        return Certificado(linha["id"], linha["calibracao_id"], linha["arquivo"],
+                           linha["nome_original"], linha["tamanho"], linha["sha256"],
+                           linha["enviado_em"], linha["enviado_por"])
+
     def na_lixeira(self, tipo: Tipo, item_id: int) -> bool:
         linha = self._conexao.execute(
             f"SELECT excluido_em FROM {_TABELA[tipo]} WHERE id = ?", (item_id,)
@@ -1372,12 +1483,17 @@ class Repositorio:
         pai_id = self._conexao.execute(
             f"SELECT {coluna} FROM {_TABELA[tipo]} WHERE id = ?", (item_id,)
         ).fetchone()[0]
-        pai = Tipo.INSTRUMENTO if tipo == Tipo.CALIBRACAO else Tipo.PLANO
-        return pai_id is not None and self.na_lixeira(pai, pai_id)
+        return pai_id is not None and self.na_lixeira(PAI[tipo], pai_id)
 
     @_escrita
     def restaurar(self, tipo: Tipo, item_id: int) -> None:
         bloqueio = bloqueio_restaurar(tipo, self._pai_na_lixeira(tipo, item_id))
+        if bloqueio is None and tipo == Tipo.CERTIFICADO and self.na_lixeira(tipo, item_id):
+            calibracao_id = self._conexao.execute(
+                "SELECT calibracao_id FROM certificados WHERE id = ?", (item_id,)).fetchone()[0]
+            if self.certificado_da_calibracao(calibracao_id) is not None:
+                bloqueio = ("Esta calibração já tem outro PDF. Para voltar este, troque o PDF "
+                            "pelo EDITAR da calibração (o atual vai para a Lixeira).")
         if bloqueio:
             raise ErroDeValidacao([bloqueio])
         voltando = self.na_lixeira(tipo, item_id)
@@ -1396,7 +1512,8 @@ class Repositorio:
                          "SELECT 1 FROM pontos_plano WHERE plano_id = ?"],
             Tipo.PONTO: ["SELECT 1 FROM pontos_calibracao WHERE ponto_plano_id = ?"],
             Tipo.INSTRUMENTO: ["SELECT 1 FROM calibracoes WHERE instrumento_id = ?"],
-            Tipo.CALIBRACAO: [],  # os pontos medidos são apagados junto
+            Tipo.CALIBRACAO: [],  # os pontos medidos (e os PDFs) são apagados junto
+            Tipo.CERTIFICADO: [],
         }[tipo]
         return any(self._conexao.execute(sql, (item_id,)).fetchone() for sql in consultas)
 
@@ -1409,13 +1526,24 @@ class Repositorio:
             tipo, confirmacao, self._tem_dependencias(tipo, item_id))
         if bloqueio:
             raise ErroDeValidacao([bloqueio])
+        pdfs = []  # arquivos a apagar da pasta depois que o banco apagou as linhas
+        if tipo in (Tipo.CALIBRACAO, Tipo.CERTIFICADO):
+            coluna = "calibracao_id" if tipo == Tipo.CALIBRACAO else "id"
+            pdfs = [linha[0] for linha in self._conexao.execute(
+                f"SELECT arquivo FROM certificados WHERE {coluna} = ?", (item_id,))]
         with self._conexao:
+            if tipo == Tipo.CALIBRACAO:
+                self._conexao.execute(
+                    "DELETE FROM certificados WHERE calibracao_id = ?", (item_id,))
             if tipo == Tipo.INSTRUMENTO:  # o histórico de condição e da marca vai junto
                 self._conexao.execute(
                     "DELETE FROM condicoes WHERE instrumento_id = ?", (item_id,))
                 self._conexao.execute(
                     "DELETE FROM marcas_indicativa WHERE instrumento_id = ?", (item_id,))
             self._conexao.execute(f"DELETE FROM {_TABELA[tipo]} WHERE id = ?", (item_id,))
+        if self.pasta_dados is not None:
+            for arquivo in pdfs:
+                arquivos_pdf.apagar(self.pasta_dados, arquivo)
 
     def listar_lixeira(self) -> list[ItemLixeira]:
         """Tudo o que está na Lixeira, mais recente primeiro."""
@@ -1436,6 +1564,14 @@ class Repositorio:
                    c.excluido_em, c.motivo_exclusao
               FROM calibracoes c JOIN instrumentos i ON i.id = c.instrumento_id
              WHERE c.excluido_em IS NOT NULL
+            UNION ALL
+            SELECT 'Certificado (PDF)', k.id,
+                   i.codigo || ' — PDF da calibração de '
+                   || strftime('%d/%m/%Y', c.data_calibracao) || ' (' || k.nome_original || ')',
+                   k.excluido_em, k.motivo_exclusao
+              FROM certificados k JOIN calibracoes c ON c.id = k.calibracao_id
+              JOIN instrumentos i ON i.id = c.instrumento_id
+             WHERE k.excluido_em IS NOT NULL
             ORDER BY excluido_em DESC
         """
         return [
