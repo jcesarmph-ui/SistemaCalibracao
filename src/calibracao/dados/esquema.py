@@ -213,6 +213,18 @@ CREATE TABLE IF NOT EXISTS certificados (
 CREATE INDEX IF NOT EXISTS certificados_da_calibracao ON certificados(calibracao_id);
 """
 
+# Painel de indicadores montado pelo usuário (pedido de 2026-11-10), sem mudar a versão do
+# esquema. Um painel só para todos; cada gráfico guarda a definição (JSON de
+# `regras.indicadores.DefinicaoGrafico`). Tirar = `excluido_em` (o "desfazer" volta).
+TABELA_PAINEL = """
+CREATE TABLE IF NOT EXISTS graficos_painel (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    definicao TEXT NOT NULL,
+    criado_em TEXT NOT NULL,
+    excluido_em TEXT
+);
+"""
+
 TABELAS_V7 = """
 CREATE TABLE IF NOT EXISTS marcas_indicativa (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -286,6 +298,8 @@ def criar_tabelas(conexao: sqlite3.Connection) -> None:
         conexao.execute("ALTER TABLE instrumentos ADD COLUMN motivo_atraso_pendente TEXT")
     conexao.executescript(TABELAS_V7)
     conexao.executescript(TABELA_CERTIFICADOS)
+    conexao.executescript(TABELA_PAINEL)
+    _painel_inicial(conexao)
     if "primeira_prevista" not in _colunas(conexao, "instrumentos"):
         conexao.execute("ALTER TABLE instrumentos ADD COLUMN primeira_prevista TEXT")
     for tabela in ("pontos_plano", "pontos_calibracao"):
@@ -371,3 +385,19 @@ def _migrar_condicao_indicativa(conexao: sqlite3.Connection) -> None:
                             (com_marcas(local, indicativa=True), instrumento_id))
     conexao.execute("UPDATE condicoes SET condicao = 'Em uso' "
                     "WHERE condicao = 'Orientação indicativa'")
+
+
+def _painel_inicial(conexao: sqlite3.Connection) -> None:
+    """Na 1ª vez, o painel começa com os gráficos escolhidos pelo usuário (uma vez só: se ele
+    tirar todos, o painel fica vazio — marcado em `metadados`)."""
+    import datetime
+
+    from calibracao.regras.indicadores import PAINEL_INICIAL
+
+    if conexao.execute("SELECT 1 FROM metadados WHERE chave = 'painel_iniciado'").fetchone():
+        return
+    agora = datetime.datetime.now().isoformat(timespec="seconds")
+    for definicao in PAINEL_INICIAL:
+        conexao.execute("INSERT INTO graficos_painel (definicao, criado_em) VALUES (?, ?)",
+                        (definicao.para_json(), agora))
+    conexao.execute("INSERT INTO metadados (chave, valor) VALUES ('painel_iniciado', 'sim')")

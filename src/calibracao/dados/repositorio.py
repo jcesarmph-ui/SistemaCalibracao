@@ -42,8 +42,18 @@ from calibracao.regras.cronograma import (
     proxima_calibracao,
     situacao,
 )
+from calibracao.regras.indicadores import (
+    COM_ATRASO_TXT,
+    NO_PRAZO_TXT,
+    SEM_LABORATORIO,
+    CalibracaoParaIndicador,
+    DefinicaoGrafico,
+    InstrumentoParaIndicador,
+    limite_usado,
+)
 from calibracao.regras.lixeira import PAI, Tipo, bloqueio_exclusao_permanente, bloqueio_restaurar
 from calibracao.regras.localizacao import com_marcas, eh_indicativa, padronizar_localizacao
+from calibracao.regras.padronizacao import locais as locais_da_localizacao
 from calibracao.regras.padronizacao import (
     localizacao_padrao,
     ordem,
@@ -1579,3 +1589,78 @@ class Repositorio:
             ItemLixeira(Tipo(linha[0]), linha[1], linha[2], linha[3], linha[4])
             for linha in self._conexao.execute(consulta)
         ]
+
+    # ---------------------------------------------------------------- indicadores (painel)
+
+    def dados_dos_indicadores(self) -> tuple[list[CalibracaoParaIndicador],
+                                             list[InstrumentoParaIndicador]]:
+        """As calibrações (fora da Lixeira, de todos os instrumentos, até os desativados) e os
+        instrumentos em uso, prontos para os gráficos. "Com atraso" = feita depois do mês
+        previsto (a prevista vem da calibração anterior ou da 1ª calibração prevista)."""
+        condicoes = self.condicoes_atuais()
+        calibracoes, instrumentos = [], []
+        for instrumento in self.listar_instrumentos(incluir_desativados=True):
+            locais = locais_da_localizacao(instrumento.localizacao)
+            condicao = condicoes.get(instrumento.id)
+            if condicao is None or condicao.condicao != Condicao.DESATIVADO:
+                instrumentos.append(InstrumentoParaIndicador(instrumento.codigo,
+                                                             instrumento.tipo, locais))
+            prevista = instrumento.primeira_prevista
+            for calibracao in self.listar_calibracoes(instrumento.id):
+                atrasada = prevista is not None and (
+                    calibracao.data_calibracao.year, calibracao.data_calibracao.month) > (
+                    prevista.year, prevista.month)
+                parecer = (calibracao.parecer_final.value if calibracao.parecer_final
+                           else calibracao.resultado.value)
+                calibracoes.append(CalibracaoParaIndicador(
+                    calibracao.data_calibracao, instrumento.codigo, instrumento.tipo, locais,
+                    (calibracao.laboratorio or "").strip() or SEM_LABORATORIO, parecer,
+                    COM_ATRASO_TXT if atrasada else NO_PRAZO_TXT, calibracao.custo or 0.0,
+                    limite_usado(self.pontos_da_calibracao(calibracao.id))))
+                prevista = calibracao.data_proxima or proxima_calibracao(
+                    calibracao.data_calibracao, instrumento.periodicidade_meses)
+        return calibracoes, instrumentos
+
+    def listar_graficos(self) -> list[tuple[int, DefinicaoGrafico]]:
+        """Os gráficos do painel, na ordem em que entraram (lugar fixo)."""
+        linhas = self._conexao.execute(
+            "SELECT id, definicao FROM graficos_painel WHERE excluido_em IS NULL ORDER BY id")
+        return [(linha[0], DefinicaoGrafico.de_json(linha[1])) for linha in linhas]
+
+    def obter_grafico(self, grafico_id: int) -> DefinicaoGrafico:
+        linha = self._conexao.execute(
+            "SELECT definicao FROM graficos_painel WHERE id = ?", (grafico_id,)).fetchone()
+        if linha is None:
+            raise KeyError(f"Gráfico {grafico_id} não existe.")
+        return DefinicaoGrafico.de_json(linha[0])
+
+    @_escrita
+    def incluir_grafico(self, definicao: DefinicaoGrafico,
+                        agora: datetime.datetime | None = None) -> int:
+        quando = (agora or datetime.datetime.now()).isoformat(timespec="seconds")
+        with self._conexao:
+            cursor = self._conexao.execute(
+                "INSERT INTO graficos_painel (definicao, criado_em) VALUES (?, ?)",
+                (definicao.para_json(), quando))
+        return cursor.lastrowid
+
+    @_escrita
+    def alterar_grafico(self, grafico_id: int, definicao: DefinicaoGrafico) -> None:
+        with self._conexao:
+            self._conexao.execute("UPDATE graficos_painel SET definicao = ? WHERE id = ?",
+                                  (definicao.para_json(), grafico_id))
+
+    @_escrita
+    def tirar_grafico(self, grafico_id: int, agora: datetime.datetime | None = None) -> None:
+        quando = (agora or datetime.datetime.now()).isoformat(timespec="seconds")
+        with self._conexao:
+            self._conexao.execute(
+                "UPDATE graficos_painel SET excluido_em = ? WHERE id = ? AND excluido_em IS NULL",
+                (quando, grafico_id))
+
+    @_escrita
+    def voltar_grafico(self, grafico_id: int) -> None:
+        """Desfazer o "Tirar": volta para o mesmo lugar (a ordem é a da criação)."""
+        with self._conexao:
+            self._conexao.execute(
+                "UPDATE graficos_painel SET excluido_em = NULL WHERE id = ?", (grafico_id,))
