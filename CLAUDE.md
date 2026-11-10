@@ -257,6 +257,29 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
    - **Painel de indicadores**: 3 exemplos (prazos; qualidade; custos e instrumentos). Se for
      feito, **usar os dados que já estão no banco** (calibrações feitas e instrumentos desde a
      implantação), para mostrar a melhoria.
+   **▶ ONDE PAREI (2026-11-10, fim do dia) — gráfico de tendência novo, branch
+   `grafico-tendencia-por-ponto`** (igual ao gráfico da planilha do usuário; aprovado por foto):
+   - **Eixo X = os pontos calibrados** (só os valores dos pontos, na ordem do plano; rótulo =
+     descrição do ponto); **eixo Y = DESVIO FINAL** (a mesma conta da tabela,
+     `regras.avaliacao.desvio_final`: desvio ± U do lado mais perto da tolerância; desvio zero
+     → **+U**); **sem barrinha da incerteza**. **Cada calibração = uma linha, uma cor por ano**
+     (legenda com o ano; dois no mesmo ano = mesma cor, legenda com a data); clicar no ano
+     esconde/mostra; pontos de cada ano um pouquinho para o lado (não se cobrem).
+   - **Tolerância = linha cinza CHEIA de ponta a ponta** (degrau onde muda de um ponto a outro).
+     Reprovado = anel vermelho. Dica do mouse continua. Título do eixo Y "Desvio final (unid.)".
+   - **Seções:** seção com vários pontos = um gráfico grande (em cima, um embaixo do outro: ex.
+     balança "Antes do ajuste" e "Após o ajuste"); **seção com um ponto só** (Face Interna 50,
+     Profundidade 50, Ressalto 50 do paquímetro) = **gráfico pequeno embaixo, ano a ano**, com a
+     faixa da tolerância pintada (`CORES["dentro"]`). Plano sem seção (trena) = um gráfico só.
+     Pontos qualitativos não entram. Sai o "Mostrar" (um ponto por vez) e o eixo em %.
+   - Fotos aprovadas e scripts das propostas: `dados/fotos/tendencia_nova/` e
+     `dados/fotos/proposta_*_desvio_final.png` (fora do Git).
+   - **Feito:** `Repositorio.tendencia` já entrega `final` (desvio final), `calibracao_id`,
+     `secao` e `descricao` (commit "Gráfico de tendência: dados…"). **Falta:** reescrever
+     `interface/grafico_tendencia.py` (canvas numa área com rolagem se houver muitas linhas de
+     gráficos), atualizar os testes em `tests/test_aba_calibracoes.py` (os de "todos juntos",
+     % da tolerância, datas no eixo e "Mostrar" deixam de valer), foto no programa nos modos
+     claro e escuro (cópia só leitura do banco da rede), versão 1.2.1 ou 1.3.0, PR.
 3. Pendências que continuam: confidencialidade do repositório público (só quando o usuário
    pedir); limpeza dos arquivos do protótipo na árvore (perguntar antes de remover).
 4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,

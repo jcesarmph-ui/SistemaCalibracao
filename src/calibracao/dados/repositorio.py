@@ -24,6 +24,7 @@ from calibracao.regras.avaliacao import (
     Resultado,
     avaliar_limite,
     avaliar_numerico,
+    desvio_final,
     resultado_geral,
 )
 from calibracao.regras.condicao import (
@@ -303,7 +304,8 @@ class MedicaoTendencia:
     """Um ponto numérico de uma calibração, para o gráfico de tendência.
 
     `erro` = medido − nominal (ou o erro digitado, se o ponto não tem nominal fixo); a tolerância
-    é a da "foto" guardada com a calibração.
+    é a da "foto" guardada com a calibração. `final` = desvio final, a mesma conta da tabela
+    (desvio ± U do lado mais perto da tolerância; desvio zero → +U); None sem U.
     """
 
     data: datetime.date
@@ -312,15 +314,22 @@ class MedicaoTendencia:
     tolerancia_inferior: float | None
     tolerancia_superior: float | None
     resultado: Resultado
+    final: float | None = None
+    calibracao_id: int | None = None
 
 
 @dataclass
 class SerieTendencia:
-    """Histórico de um ponto do plano ao longo das calibrações."""
+    """Histórico de um ponto do plano ao longo das calibrações.
+
+    `secao` (ex.: "Face Externa") separa os gráficos; `descricao` é o que vai embaixo do ponto.
+    """
 
     nome: str
     unidade: str | None
     medicoes: list[MedicaoTendencia]
+    secao: str | None = None
+    descricao: str = ""
 
 
 @dataclass
@@ -1287,7 +1296,7 @@ class Repositorio:
         (se a descrição do ponto mudou no plano, vale a atual).
         """
         linhas = self._conexao.execute(
-            """SELECT c.data_calibracao, p.*
+            """SELECT c.data_calibracao, c.id AS id_calibracao, p.*
                FROM pontos_calibracao p JOIN calibracoes c ON c.id = p.calibracao_id
                WHERE c.instrumento_id = ? AND c.excluido_em IS NULL AND p.tipo = 'NUMERICO'
                  AND p.valor IS NOT NULL AND p.resultado != ?
@@ -1300,13 +1309,18 @@ class Repositorio:
             nome = " — ".join(t for t in (linha["secao"], linha["descricao"]) if t)
             serie = series.setdefault(chave, SerieTendencia(nome, linha["unidade"], []))
             serie.nome, serie.unidade = nome, linha["unidade"]
+            serie.secao, serie.descricao = linha["secao"] or None, linha["descricao"]
             nominal = linha["valor_nominal"]
+            erro = linha["valor"] - nominal if nominal is not None else linha["valor"]
+            final = desvio_final(erro, linha["incerteza"], linha["tolerancia_inferior"],
+                                 linha["tolerancia_superior"],
+                                 bool(linha["incerteza_nao_aplica"]))
             serie.medicoes.append(MedicaoTendencia(
-                _data(linha["data_calibracao"]),
-                linha["valor"] - nominal if nominal is not None else linha["valor"],
+                _data(linha["data_calibracao"]), erro,
                 abs(linha["incerteza"]) if linha["incerteza"] is not None else None,
                 linha["tolerancia_inferior"], linha["tolerancia_superior"],
                 Resultado(linha["resultado"]),
+                final.valor if final else None, linha["id_calibracao"],
             ))
         return list(series.values())
 
