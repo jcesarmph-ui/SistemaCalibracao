@@ -18,16 +18,17 @@
 <p align="center">
   <img src="https://img.shields.io/badge/área-gestão_da_qualidade-blue?style=flat-square" alt="Área"/>
   <img src="https://img.shields.io/badge/tipo-aplicação_desktop-orange?style=flat-square" alt="Tipo"/>
-  <img src="https://img.shields.io/badge/testes-pytest_(325)-brightgreen?style=flat-square" alt="Testes"/>
+  <img src="https://img.shields.io/badge/testes-pytest_(410)-brightgreen?style=flat-square" alt="Testes"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
-  <img src="https://img.shields.io/badge/versão-1.1.0_em_uso-success?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/versão-1.2.0_em_uso-success?style=flat-square" alt="Versão"/>
   <img src="https://img.shields.io/badge/protótipo-Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white" alt="Protótipo"/>
 </p>
 
 <p align="center">
   Aplicativo desktop que substituiu uma planilha de cronograma de calibração por um sistema completo:
   cadastro de instrumentos e planos, registro das calibrações com avaliação automática pela incerteza
-  de medição, cronograma mensal, gráfico de tendência e uso simultâneo numa pasta de rede.
+  de medição, cronograma mensal, gráfico de tendência, certificados em PDF, painel de indicadores,
+  relatórios mensais automáticos, modo claro e escuro e uso simultâneo numa pasta de rede.
 </p>
 
 <p align="center">
@@ -64,6 +65,8 @@ administrativos e melhoria contínua em um cenário relacionado à **gestão da 
 | Vencimentos difíceis de enxergar. | **Cronograma por mês**, painéis no topo, projeção dos meses futuros e custo estimado. | Vencidas e pendentes do mês visíveis ao abrir o programa. |
 | Planilha aberta por várias pessoas ao mesmo tempo, sem servidor. | **Trava de edição** em pasta de rede: um edita, os outros consultam e podem pedir a vez. | Uso seguro por mais de um computador, sem servidor nem TI. |
 | Programa antigo (protótipo Streamlit) abria servidor local e navegador; pelo `.exe` levava 10–15 s. | `.exe` leve na rede que copia o programa para o PC uma vez por versão. | Abre em **~2 s** pela rede; atualizar = trocar uma pasta. |
+| Certificados guardados em **pasta física de papel**. | **PDF do certificado** anexado a cada calibração e aba **Certificados**. | Certificado aberto com **um clique**, conferido contra alteração (SHA-256). |
+| Nenhuma visão de **custos e prazos**; relatório montado à mão. | **Painel de indicadores** montado pelo próprio usuário + **relatório do mês em PDF**, guardado sozinho. | Custo, prazo e instrumentos **mais perto do limite** numa tela; relatório pronto no 1º dia do mês. |
 
 ```mermaid
 mindmap
@@ -97,6 +100,16 @@ mindmap
       Exclusão lógica
       Restauração segura
       Exclusão permanente protegida
+    Certificados
+      PDF por calibração
+      Conferência contra alteração
+    Indicadores e relatórios
+      Painel montado pelo usuário
+      Relatório do mês e do ano em PDF
+      Guardado sozinho
+    Aparência
+      Modo claro e escuro
+      Ícones Material Symbols
 ```
 
 ### 🎯 Objetivos
@@ -115,10 +128,10 @@ mindmap
 
 | | Número | O que significa |
 |---|---|---|
-| 🧪 | **325 testes automáticos** | Regras, banco, importador e telas testados com dados fictícios (pytest; telas em modo *offscreen*). |
-| 🐍 | **~7.300 linhas** de código + **~3.700** de testes | Programa final escrito do zero, em camadas. |
-| 🔀 | **16 pull requests** em **6 fases** | Cada fase numa branch própria, revisada e aprovada antes de juntar. |
-| 🏷️ | **2 versões entregues** (`v1.0.0`, `v1.1.0`) | Versionamento semântico, versão visível na tela. |
+| 🧪 | **410 testes automáticos** | Regras, banco, importador e telas testados com dados fictícios (pytest; telas em modo *offscreen*). |
+| 🐍 | **~11.000 linhas** de código + **~5.100** de testes | Programa final escrito do zero, em camadas. |
+| 🔀 | **20 pull requests** em **6 fases** + 2 versões de melhorias | Cada fase numa branch própria, revisada e aprovada antes de juntar. |
+| 🏷️ | **3 versões entregues** (`v1.0.0`, `v1.1.0`, `v1.2.0`) | Versionamento semântico, versão visível na tela. |
 | 📝 | **3 decisões de arquitetura** (ADRs) | Troca para PySide6, trava de edição em rede, lugar oficial do banco. |
 | 🗄️ | **9 versões da estrutura do banco** | Atualização automática do banco antigo, sem perder dados. |
 | ⚡ | **~2 s** para abrir pela rede | Antes, 10–15 s. |
@@ -157,6 +170,13 @@ mindmap
       <img src="docs/telas/05_pedido_de_edicao.png" alt="Trava de edição entre computadores"/>
       <br/><em>Uso em rede: quem abre primeiro edita; outro computador entra em modo consulta e
       pode pedir a edição.</em>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center">
+      <img src="docs/telas/06_indicadores_modo_claro.png" alt="Painel de indicadores no modo claro"/>
+      <br/><em>Versão 1.2.0: painel de indicadores montado pelo usuário (custo, prazo, laboratórios,
+      instrumentos mais perto do limite), aqui no modo claro — cada pessoa escolhe claro ou escuro.</em>
     </td>
   </tr>
 </table>
@@ -199,6 +219,37 @@ mindmap
 
 </td>
   </tr>
+  <tr>
+    <td valign="top" width="33%">
+
+**📄 Certificados**
+
+- **PDF do certificado** anexado na calibração (opcional, um por calibração, trocável).
+- Aba **Certificados**: código, nº do certificado e data; abre com um clique.
+- PDF **conferido contra alteração**: se alguém mexer no arquivo, aparece aviso.
+
+</td>
+    <td valign="top" width="33%">
+
+**📊 Indicadores e relatórios**
+
+- **Painel montado pelo usuário**, como num BI: escolhe o que ver, como separar e o tipo de gráfico.
+- Custo do mês, 12 meses e médio, **% no prazo**, custo por laboratório, **mais perto do limite**.
+- **Relatório do mês em PDF** (números, gráficos, calibrações e ALTERAÇÕES), guardado sozinho.
+- **Relatório do ano** com os números e os gráficos do painel.
+
+</td>
+    <td valign="top" width="33%">
+
+**🎨 Cadastro e aparência**
+
+- **Modo claro e escuro**, escolhido por cada pessoa, trocado na hora.
+- Tipo e localização **com sugestões** (sem ligar para maiúsculas e acentos): nada de nome repetido.
+- Código com **próximo número** da sigla (PAQ-018 → PAQ-019).
+- Ícones **Material Symbols** e calendário em todos os campos de data.
+
+</td>
+  </tr>
 </table>
 
 Na tela principal, quatro indicadores dão a visão do mês — clicar em um deles abre a lista dos
@@ -216,6 +267,9 @@ instrumentos daquele grupo —, seguidos das abas de trabalho:
 | 🔧 **Instrumentos** | Lista com filtros e busca, ficha do instrumento (só para ver; **EDITAR** abre a edição), plano de calibração (**VER PLANO** / **EDITAR PLANO**) e histórico de condição. |
 | 📏 **Calibrar** | A mesma lista, o botão **NOVA CALIBRAÇÃO** e as calibrações feitas; cada uma abre para ver, com **EDITAR**, gráfico de tendência e envio para a Lixeira. |
 | 📅 **Cronograma** | Situação de cada instrumento hoje ou em qualquer mês, parecer da última calibração, custo e motivo do atraso. |
+| 📄 **Certificados** | PDFs dos certificados das calibrações feitas no programa, com pesquisa e botão **Abrir certificado**. |
+| 📊 **Indicadores** | Números do mês e dos 12 meses + gráficos do painel; **ADICIONAR GRÁFICO** abre o montador com prévia; desfazer as últimas mudanças. |
+| 📑 **Relatórios** | Relatório do mês atual (muda a cada calibração), relatório do ano e a lista dos relatórios finais guardados. |
 | 🧺 **Lixeira** | Busca, restauração e exclusão permanente protegida do que foi registrado por engano. |
 
 ### 🧺 Lixeira
@@ -325,7 +379,9 @@ flowchart LR
 | Python | Implementação das regras, do banco e da interface. |
 | PySide6 | Interface desktop nativa, sem servidor nem navegador; tema escuro padronizado. |
 | SQLite | Banco preparado para pasta de rede (journal tradicional, espera automática, backup diário). |
-| Matplotlib | Gráfico de tendência embutido na janela, exportável em PNG. |
+| Matplotlib | Gráfico de tendência embutido na janela (exportável em PNG) e gráficos do painel de indicadores, na janela e nos relatórios. |
+| QPdfWriter (Qt) | Relatórios mensais e anuais em PDF, em folha A4, sem programa extra. |
+| Material Symbols | Ícones do Google (licença Apache 2.0), repintados na cor do tema claro ou escuro. |
 | openpyxl | Leitura da planilha de cronograma original, incluindo o formato de exibição das células. |
 | PyInstaller | Empacotamento em `.exe` (lançador leve + programa em pasta). |
 | pytest + ruff | Testes automáticos com dados fictícios e padronização do código. |
@@ -334,7 +390,8 @@ flowchart LR
 
 ## 💾 Modelo de dados
 
-Principais tabelas do programa final (estrutura na versão 9, atualizada sozinha a cada versão):
+Principais tabelas do programa final (estrutura na versão 9, atualizada sozinha a cada versão; as
+tabelas da 1.2.0 entraram sem mudar a versão, para a versão anterior ainda abrir o banco):
 
 ```mermaid
 erDiagram
@@ -346,6 +403,7 @@ erDiagram
     calibracoes ||--o{ pontos_calibracao : "registra (com foto do plano)"
     calibracoes ||--o{ correcoes_calibracao : "auditoria"
     pontos_plano |o--o{ pontos_calibracao : "origina"
+    calibracoes ||--o| certificados : "PDF do certificado"
 
     instrumentos {
         int id PK
@@ -423,6 +481,26 @@ erDiagram
         text ultimo_sinal
         text pedido_usuario
     }
+    certificados {
+        int id PK
+        int calibracao_id FK
+        text arquivo
+        text sha256
+        text enviado_por
+        text excluido_em
+    }
+    graficos_painel {
+        int id PK
+        text definicao
+        text excluido_em
+    }
+    relatorios {
+        int id PK
+        text periodo
+        text arquivo
+        text sha256
+        text gerado_em
+    }
 ```
 
 > [!TIP]
@@ -454,6 +532,8 @@ erDiagram
   cronograma de qualquer mês com custo estimado, motivo do atraso, proteção contra cópia)
 - [x] Fase 6 — Programa para a rede, teste de uso real e versão `1.0.0` em uso na empresa (novembro de 2026)
 - [x] Versão `1.1.0` — ajustes do primeiro uso real (teclado, colunas de desvio, gráfico, calendário)
+- [x] Versão `1.2.0` — certificados em PDF, modo claro e escuro, painel de indicadores, relatórios
+  mensais e anuais, cadastro sem nomes repetidos
 
 ## 🔄 Do protótipo ao programa final
 
@@ -648,6 +728,32 @@ flowchart LR
     D --> F{"± U (0,1)"}
     F -->|"−0,3 (mais perto de −0,5)"| R["Desvio final −0,3<br/>dentro de ± 0,5 → ✅"]
     F -.->|"−0,1 (mais longe)"| X["descartado"]
+```
+</details>
+
+<details>
+<summary><b>📊 Versão 1.2.0 — certificados, indicadores, relatórios e modo claro</b></summary>
+
+**Versão `1.2.0` — a maior desde a entrega.** Com o programa em uso, vieram as novidades pedidas
+pelo dia a dia da Qualidade, cada uma aprovada por foto e testada numa cópia do banco real antes de
+ir para a rede:
+
+| Novidade | O que faz |
+|---|---|
+| **Certificados em PDF** | Na nova calibração (ou no EDITAR) escolhe-se o PDF do certificado; ele é copiado para a pasta do programa e conferido por SHA-256. Trocar manda o anterior para a Lixeira. Aba **Certificados** com pesquisa e botão **Abrir certificado**; PDF mexido depois abre com aviso amarelo. |
+| **Modo claro e escuro** | Botão sol/lua no canto: cada pessoa escolhe, a troca é na hora e fica guardada por usuário do Windows. No claro, o logo ganha letra preta. |
+| **Painel de indicadores** | Montado pelo próprio usuário, sem IA: **ADICIONAR GRÁFICO** abre um montador com listas (o que ver, separado por, só os que…, cores, período, tipo de gráfico) e prévia na hora; o montador só oferece o que faz sentido e não deixa adicionar gráfico vazio. Um painel só para todos, guardado no banco; desfazer as 3 últimas mudanças. |
+| **Relatórios em PDF** | Relatório do mês atual (muda a cada calibração) e, no primeiro dia do mês novo, o **relatório final** do mês anterior é criado e guardado **sozinho**, conferido por SHA-256. Mês: números, gráficos do painel, calibrações e ALTERAÇÕES. Ano: números e gráficos. |
+| **Cadastro sem nomes repetidos** | Tipo e localização com sugestões enquanto se digita, sem ligar para maiúsculas e acentos; nome novo pede confirmação; nomes parecidos já existentes no banco foram juntados uma vez, ao abrir. |
+| **Código com sigla** | Lista "Tipo (SIGLA)" no campo do código e o **próximo número** já preenchido; código repetido em vermelho na hora. |
+| **Detalhes** | Título com o código do documento (DQ-05), ícones Material Symbols, calendário em toda data, dinheiro com centavos, linha inteira da lista clicável, botão para renomear plano. |
+
+```mermaid
+flowchart LR
+    C["📏 Calibração<br/>registrada"] --> P["📊 Painel de indicadores"]
+    C --> R["📑 Relatório do mês<br/>(muda sozinho)"]
+    P --> R
+    R -->|"1º dia do mês novo"| F["🔒 Relatório final<br/>guardado + SHA-256"]
 ```
 </details>
 
@@ -972,12 +1078,12 @@ conferem:
 ```text
 SistemaCalibracao/
 ├── src/calibracao/             # 🟢 programa final (PySide6)
-│   ├── interface/              #    janela, abas, componentes, gráfico de tendência, tema
-│   ├── regras/                 #    avaliação, cronograma, condição, lixeira, trava, localização
-│   ├── dados/                  #    repositório, estrutura do banco, backup, lugar oficial
+│   ├── interface/              #    janela, abas, componentes, gráficos, relatórios em PDF, temas, ícones
+│   ├── regras/                 #    avaliação, cronograma, condição, lixeira, trava, indicadores, relatório
+│   ├── dados/                  #    repositório, estrutura do banco, backup, lugar oficial, certificados
 │   ├── importacao/             #    leitura e interpretação da planilha original
 │   └── lancador.py             #    .exe leve que abre o programa pela rede
-├── tests/                      # 325 testes automáticos (pytest, dados fictícios)
+├── tests/                      # 410 testes automáticos (pytest, dados fictícios)
 ├── empacotamento/              # geração do .exe e montagem do pacote de entrega
 ├── docs/
 │   ├── decisoes/               # ADRs: decisões de arquitetura
@@ -1012,6 +1118,8 @@ SistemaCalibracao/
 | 🖥️ | Construção de interfaces com Streamlit (protótipo) e desktop com PySide6 (programa final). |
 | 🌐 | Uso simultâneo em pasta de rede sem servidor: trava de edição e banco preparado para rede. |
 | 📈 | Visualização de dados técnicos (gráfico de tendência com incerteza e tolerância). |
+| 📊 | Painel de indicadores configurável pelo usuário e relatórios automáticos em PDF. |
+| 🎨 | Interface com tema claro e escuro trocado na hora e ícones padronizados. |
 | 🗃️ | Modelagem e persistência de dados relacionais, com migração automática da estrutura. |
 | 📐 | Metrologia aplicada: avaliação de conformidade considerando a incerteza de medição. |
 | 🧪 | Testes automatizados e arquitetura em camadas, com regras independentes da tela. |
