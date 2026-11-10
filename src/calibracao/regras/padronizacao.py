@@ -1,8 +1,10 @@
 """Um nome só para o mesmo tipo ou local (pedido do usuário em 2026-11-10).
 
-- Tipos ou locais que só mudam nas maiúsculas ("Lâmina de Folga" × "Lâmina de folga") são o mesmo:
-  ficam com a grafia que a maioria dos instrumentos usa.
-- "Régua graduada para furos" passa a ser "Régua graduada" (decisão do usuário).
+- Tipos ou locais que só mudam nas maiúsculas ou nos acentos ("Lâmina de Folga" × "Lâmina de folga",
+  "Paquimetro" × "Paquímetro") são o mesmo: ficam com a grafia que a maioria dos instrumentos usa.
+- Tipos que o usuário mandou juntar (`TIPOS_JUNTADOS`): "Régua graduada para furos" vira "Régua
+  graduada", "Paquímetro analógico" vira "Paquímetro" e "Balança Suspensa - ULD-20000" vira
+  "Balança".
 - A localização pode ter mais de um local, separados por " / " ("Serralheria / Manutenção"): o
   instrumento aparece no filtro de cada um, e não num local novo "Serralheria / Manutenção".
 """
@@ -14,22 +16,37 @@ from collections.abc import Iterable
 
 from calibracao.regras.localizacao import local_do_filtro
 
-# Tipos que o usuário mandou juntar num só (chave já sem maiúsculas → nome que fica).
-TIPOS_JUNTADOS = {"régua graduada para furos": "Régua graduada"}
+# Tipos que o usuário mandou juntar num só (pedidos de 2026-11-10): nome antigo → nome que fica.
+_JUNTAR = {"Régua graduada para furos": "Régua graduada",
+           "Paquímetro analógico": "Paquímetro",
+           "Balança Suspensa - ULD-20000": "Balança"}
 
 SEPARADOR = " / "
 _SUFIXOS = re.compile(r"(\s*-\s*(orientação indicativa|reserva)\s*)+$", re.IGNORECASE)
 
 
 def chave(texto: str) -> str:
-    """O que decide se dois nomes são o mesmo: sem espaços repetidos e sem maiúsculas."""
-    return " ".join(texto.split()).casefold()
+    """O que decide se dois nomes são o mesmo: sem espaços repetidos, sem maiúsculas e sem
+    acentos ("Paquimetro" = "paquímetro")."""
+    sem_acento = unicodedata.normalize("NFD", " ".join(texto.split()).casefold())
+    return "".join(c for c in sem_acento if not unicodedata.combining(c))
 
 
 def ordem(texto: str) -> str:
     """Para pôr em ordem alfabética sem os acentos atrapalharem ("Máquina" antes de "Medidor")."""
-    sem_acento = unicodedata.normalize("NFD", chave(texto))
-    return "".join(c for c in sem_acento if not unicodedata.combining(c))
+    return chave(texto)
+
+
+TIPOS_JUNTADOS = {chave(antigo): novo for antigo, novo in _JUNTAR.items()}
+
+
+def tipo_juntado(tipo: str | None) -> bool:
+    """True se o tipo é um dos que o usuário mandou juntar a outro (o nome antigo some)."""
+    return bool(tipo) and chave(tipo) in TIPOS_JUNTADOS
+
+
+def _tem_acento(texto: str) -> bool:
+    return any(unicodedata.combining(c) for c in unicodedata.normalize("NFD", texto))
 
 
 def _limpo(texto: str) -> str:
@@ -37,13 +54,14 @@ def _limpo(texto: str) -> str:
 
 
 def grafias_preferidas(nomes: Iterable[str]) -> dict[str, str]:
-    """chave → grafia mais usada. Empate: a que começa com maiúscula e, entre essas, a com menos
-    maiúsculas ("Manutenção" e não "manutenção"; "Lâmina de folga" e não "Lâmina de Folga")."""
+    """chave → grafia mais usada. Empate: a que começa com maiúscula, depois a com acentos e,
+    entre essas, a com menos maiúsculas ("Manutenção" e não "manutenção"; "Lâmina de folga" e não
+    "Lâmina de Folga")."""
     por_chave: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     for nome in nomes:
         if nome and nome.strip():
             por_chave[chave(nome)][_limpo(nome)] += 1
-    return {k: min(contagem, key=lambda g: (-contagem[g], not g[:1].isupper(),
+    return {k: min(contagem, key=lambda g: (-contagem[g], not g[:1].isupper(), not _tem_acento(g),
                                             sum(c.isupper() for c in g), g))
             for k, contagem in por_chave.items()}
 

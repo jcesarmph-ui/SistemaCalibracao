@@ -18,10 +18,19 @@ HOJE = date(2026, 11, 10)
 
 def test_grafia_da_maioria_e_empate_com_menos_maiusculas():
     assert grafias_preferidas(["Lâmina de Folga"] * 3 + ["Lâmina de folga"] * 4) == {
-        "lâmina de folga": "Lâmina de folga"}
+        "lamina de folga": "Lâmina de folga"}
     assert grafias_preferidas(["CT-01", "ct-01", "CT-01"])["ct-01"] == "CT-01"
-    assert grafias_preferidas(["Lâmina de Folga", "Lâmina de folga"])["lâmina de folga"] == \
+    assert grafias_preferidas(["Lâmina de Folga", "Lâmina de folga"])["lamina de folga"] == \
         "Lâmina de folga"
+
+
+def test_tipos_juntados_pelo_usuario():
+    tipos = ["Paquímetro"] * 12 + ["Paquimetro analógico", "Balança",
+                                   "Balança Suspensa - ULD-20000"]
+    preferidas = preferidas_dos_tipos(tipos)
+    assert tipo_padrao("Paquimetro analógico", preferidas) == "Paquímetro"
+    assert tipo_padrao("Balança Suspensa - ULD-20000", preferidas) == "Balança"
+    assert tipo_padrao("paquimetro", preferidas) == "Paquímetro"
 
 
 def test_regua_para_furos_vira_regua_graduada():

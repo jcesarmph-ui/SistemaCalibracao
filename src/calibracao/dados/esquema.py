@@ -27,6 +27,7 @@ from calibracao.regras.padronizacao import (
     localizacao_padrao,
     preferidas_dos_locais,
     preferidas_dos_tipos,
+    tipo_juntado,
     tipo_padrao,
 )
 
@@ -287,15 +288,21 @@ def _unificar_nomes(conexao: sqlite3.Connection) -> None:
         "SELECT 1 FROM metadados WHERE chave = 'nomes_unificados'").fetchone()
     if feito:
         return
-    linhas = conexao.execute("SELECT id, tipo, localizacao FROM instrumentos").fetchall()
+    linhas = conexao.execute(
+        "SELECT id, tipo, localizacao, observacoes FROM instrumentos").fetchall()
     tipos = preferidas_dos_tipos(linha["tipo"] for linha in linhas)
     locais = preferidas_dos_locais(linha["localizacao"] for linha in linhas)
     for linha in linhas:
         tipo = tipo_padrao(linha["tipo"], tipos)
         local = localizacao_padrao(linha["localizacao"], locais)
-        if (tipo, local) != (linha["tipo"], linha["localizacao"]):
-            conexao.execute("UPDATE instrumentos SET tipo = ?, localizacao = ? WHERE id = ?",
-                            (tipo, local, linha["id"]))
+        observacoes = linha["observacoes"]
+        if tipo_juntado(linha["tipo"]):  # o nome antigo (ex.: o modelo da balança) não se perde
+            nota = f"Tipo antes da unificação: {linha['tipo']}"
+            observacoes = f"{observacoes} | {nota}" if observacoes else nota
+        if (tipo, local, observacoes) != (linha["tipo"], linha["localizacao"],
+                                          linha["observacoes"]):
+            conexao.execute("UPDATE instrumentos SET tipo = ?, localizacao = ?, observacoes = ? "
+                            "WHERE id = ?", (tipo, local, observacoes, linha["id"]))
     conexao.execute("INSERT INTO metadados (chave, valor) VALUES ('nomes_unificados', '1')")
 
 
