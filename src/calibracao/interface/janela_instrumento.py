@@ -34,6 +34,7 @@ from calibracao.dados.repositorio import (
 from calibracao.interface.componentes import (
     BotaoCalendario,
     CampoComSugestoes,
+    RotuloAviso,
     data_livre_para_banco,
     data_livre_para_tela,
     formatar_data,
@@ -41,6 +42,7 @@ from calibracao.interface.componentes import (
 )
 from calibracao.interface.estilo import CORES
 from calibracao.interface.painel_plano import numero
+from calibracao.interface.tema_icones import por_icone
 from calibracao.regras.localizacao import com_marcas, eh_indicativa, eh_reserva
 
 DICA_CODIGO = ("Clique na setinha para escolher o tipo na lista (ex.: Paquímetro (PAQ)): o código "
@@ -104,7 +106,7 @@ class JanelaEditarInstrumento(QDialog):
         coluna.addWidget(titulo)
         coluna.addWidget(faixa)
         coluna.addWidget(self._caixa_campos(), 1)
-        self.avisos = QLabel(wordWrap=True, objectName="avisos")
+        self.avisos = RotuloAviso(wordWrap=True, objectName="avisos")
         coluna.addWidget(self.avisos)
         self.cancelar = QPushButton("Cancelar")
         self.cancelar.clicked.connect(self.reject)
@@ -134,7 +136,7 @@ class JanelaEditarInstrumento(QDialog):
             "Escolha o tipo na setinha ou digite (ex.: PAQ-019)")
         self.campos["codigo"].textChanged.connect(self._codigo_mudou)
         self.campos["codigo"].returnPressed.connect(self.usar_proximo_codigo)
-        self.dica_codigo = QLabel(objectName="dica", wordWrap=True)
+        self.dica_codigo = RotuloAviso(objectName="dica", wordWrap=True)
         self._proximo_codigo: str | None = None
         self._codigos: dict[str, int] = {}
         # Tipo e localização com sugestões, como a pesquisa do Google (pedido de 2026-11-10).
@@ -142,7 +144,7 @@ class JanelaEditarInstrumento(QDialog):
         self.campos["tipo"].setPlaceholderText("Comece a escrever e escolha na lista")
         self.campos["tipo"].setToolTip("Escolha um tipo da lista, para o mesmo tipo não aparecer "
                                        "com dois nomes. Tipo novo: é só escrever.")
-        self.aviso_tipo = QLabel(wordWrap=True)
+        self.aviso_tipo = RotuloAviso(wordWrap=True)
         self.aviso_tipo.setStyleSheet(f"color: {CORES['aviso']};")
         self.campos["tipo"].textChanged.connect(
             lambda: _mostrar(self.aviso_tipo, self.campos["tipo"].aviso_de_novos("um tipo")))
@@ -153,7 +155,8 @@ class JanelaEditarInstrumento(QDialog):
         self.mais_um_local.setToolTip("Para instrumento usado em mais de um lugar: põe uma / e "
                                       "mostra os locais da lista.")
         self.mais_um_local.clicked.connect(self.campos["localizacao"].mais_um)
-        self.aviso_local = QLabel(wordWrap=True)
+        por_icone(self.mais_um_local, "add_location_alt", CORES["titulo"])
+        self.aviso_local = RotuloAviso(wordWrap=True)
         self.aviso_local.setStyleSheet(f"color: {CORES['aviso']};")
         self.campos["localizacao"].textChanged.connect(
             lambda: _mostrar(self.aviso_local,
@@ -193,6 +196,7 @@ class JanelaEditarInstrumento(QDialog):
         self.novo_plano.setToolTip("Cria um plano vazio; depois de salvar, inclua os pontos em "
                                    "Plano de calibração.")
         self.novo_plano.clicked.connect(self.pedir_nome_do_plano)
+        por_icone(self.novo_plano, "add", CORES["titulo"])
 
         self.campos["data_compra"].setPlaceholderText("dd/mm/aaaa")
         self.calendario_compra = BotaoCalendario(self.campos["data_compra"])

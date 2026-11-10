@@ -41,6 +41,7 @@ from calibracao.dados.repositorio import (
     Repositorio,
 )
 from calibracao.interface.componentes import (
+    RotuloAviso,
     aplicar_destaques,
     celula,
     dinheiro,
@@ -50,6 +51,7 @@ from calibracao.interface.componentes import (
 )
 from calibracao.interface.estilo import CORES, CORES_PARECER, CORES_RESULTADO
 from calibracao.interface.painel_plano import numero, numero_em_texto
+from calibracao.interface.tema_icones import por_icone
 from calibracao.regras.avaliacao import Resultado, desvio_final, resultado_geral
 from calibracao.regras.condicao import pareceres_permitidos, so_qualitativos
 from calibracao.regras.lixeira import Tipo
@@ -214,7 +216,7 @@ class JanelaNovaCalibracao(QDialog):
             grade.setColumnStretch(coluna * 2 + 1, 1)
         # Feita depois do mês previsto: campo opcional para o motivo (sem alarde).
         self.prevista = self._prevista_antes()
-        self.aviso_atraso = QLabel(objectName="avisos")
+        self.aviso_atraso = RotuloAviso(objectName="avisos")
         self.motivo_atraso = QLineEdit(placeholderText="Motivo do atraso (opcional)")
         if self.corrigindo is None:
             pendente = self.repo.motivos_atraso_pendentes().get(self.instrumento.id)
@@ -358,7 +360,7 @@ class JanelaNovaCalibracao(QDialog):
                                 "indicativa → Em uso e com a marca de orientação indicativa; "
                                 "Reprovado - Desativado → sai do cronograma.")
         self.motivo = QLineEdit(placeholderText="Motivo / observação do parecer (opcional)")
-        self.avisos = QLabel(wordWrap=True, objectName="avisos")
+        self.avisos = RotuloAviso(wordWrap=True, objectName="avisos")
         self.cancelar = QPushButton("Cancelar")
         self.cancelar.clicked.connect(self.reject)
         self.salvar = QPushButton("SALVAR CORREÇÃO" if self.corrigindo
@@ -654,6 +656,7 @@ class JanelaVerCalibracao(QDialog):
         caixa_correcoes.setVisible(bool(correcoes))
 
         self.editar = QPushButton("EDITAR")
+        por_icone(self.editar, "edit", CORES["titulo"])
         self.editar.setToolTip("Corrigir valores, U, parecer ou dados do certificado desta "
                                "calibração (a data não muda). A correção fica registrada.")
         self.editar.clicked.connect(lambda: self.done(self.EDITAR))
@@ -702,19 +705,22 @@ class PainelCalibracoes(QWidget):
         self.tabela.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.tabela.horizontalHeader().setStretchLastSection(True)
         self.tabela.clicked.connect(self.ver_calibracao)
-        self.avisos = QLabel(wordWrap=True, objectName="avisos")
+        self.avisos = RotuloAviso(wordWrap=True, objectName="avisos")
 
         self.registrar = QPushButton("NOVA CALIBRAÇÃO", objectName="principal")
         self.registrar.clicked.connect(self.registrar_calibracao)
         self.ver = QPushButton("Ver calibração")
+        por_icone(self.ver, "visibility", CORES["titulo"])
         self.ver.setToolTip("Abre a calibração escolhida (a mais recente, se nenhuma estiver "
                             "escolhida). Também abre clicando na linha.")
         self.ver.clicked.connect(self.ver_calibracao)
         self.grafico = QPushButton("Gráfico de tendência")
+        por_icone(self.grafico, "show_chart", CORES["titulo"])
         self.grafico.setToolTip("Erro de cada ponto ao longo das calibrações, com a Incerteza "
                                 "(U) e a tolerância.")
         self.grafico.clicked.connect(self.abrir_grafico)
         self.lixeira = QPushButton("Enviar para a Lixeira")
+        por_icone(self.lixeira, "delete", CORES["titulo"])
         self.lixeira.setToolTip("Para calibração registrada por engano. A mudança de condição "
                                 "que ela fez é desfeita.")
         self.lixeira.clicked.connect(self.enviar_para_lixeira)

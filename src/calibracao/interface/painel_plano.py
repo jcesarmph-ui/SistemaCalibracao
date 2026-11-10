@@ -26,7 +26,9 @@ from PySide6.QtWidgets import (
 )
 
 from calibracao.dados.repositorio import ErroDeValidacao, PontoPlano, Repositorio
-from calibracao.interface.componentes import enter_desce
+from calibracao.interface.componentes import RotuloAviso, enter_desce
+from calibracao.interface.estilo import CORES
+from calibracao.interface.tema_icones import por_icone
 from calibracao.regras.lixeira import Tipo
 
 # Tipos de ponto com nome amigável (o banco guarda a sigla da esquerda).
@@ -122,10 +124,13 @@ class PainelPlano(QWidget):
         self.descartar_plano.setToolTip("Para plano criado por engano. Instrumentos ligados a "
                                         "ele não podem ser calibrados até restaurar.")
         self.descartar_plano.clicked.connect(self.enviar_plano_para_lixeira)
+        for botao, nome in ((self.adicionar, "add"), (self.remover, "delete"),
+                            (self.descartar_plano, "delete")):
+            por_icone(botao, nome, CORES["titulo"])
         botoes.addWidget(self.descartar_plano)
         botoes.addStretch()
         botoes.addWidget(self.salvar)
-        self.avisos = QLabel(wordWrap=True)
+        self.avisos = RotuloAviso(wordWrap=True)
 
         coluna = QVBoxLayout(self)
         coluna.addWidget(self.titulo)
@@ -357,6 +362,7 @@ class JanelaEditarPlano(QDialog):
         self.renomear_plano.setToolTip("Troca o nome deste plano (vale para todos os "
                                        "instrumentos que usam este plano).")
         self.renomear_plano.clicked.connect(self.pedir_novo_nome)
+        por_icone(self.renomear_plano, "edit", CORES["titulo"])
         self.painel.botoes.insertWidget(2, self.renomear_plano)
         self.titulo = QLabel(f"EDITAR PLANO — {nome}", objectName="titulo",
                              alignment=Qt.AlignCenter)
@@ -436,6 +442,7 @@ class JanelaVerPlano(QDialog):
         sem_u = sum(1 for p in pontos if falta_incerteza(p))
 
         self.editar = QPushButton("EDITAR PLANO", objectName="principal")
+        por_icone(self.editar, "edit", CORES["titulo"])
         self.editar.clicked.connect(lambda: self.done(self.EDITAR))
         self.editar.setVisible(pode_editar)
         fechar = QPushButton("Fechar")
@@ -470,12 +477,14 @@ class ResumoPlano(QWidget):
         self.janela_edicao: JanelaEditarPlano | None = None
 
         self.titulo = QLabel(wordWrap=True)
-        self.avisos = QLabel(wordWrap=True, objectName="avisos")
+        self.avisos = RotuloAviso(wordWrap=True, objectName="avisos")
         self.ver = QPushButton("VER PLANO")
+        por_icone(self.ver, "visibility", CORES["titulo"])
         self.ver.setToolTip("Abre o plano inteiro numa janela grande, só para ver.")
         self.ver.setStyleSheet("font-size: 16pt; font-weight: bold; padding: 14px;")
         self.ver.clicked.connect(self.ver_plano)
         self.editar = QPushButton("EDITAR PLANO", objectName="principal")
+        por_icone(self.editar, "edit", CORES["titulo"])
         self.editar.setToolTip("Abre a janela para mudar os pontos, tolerâncias e incertezas.")
         self.editar.clicked.connect(self.editar_plano)
         botoes = QHBoxLayout()

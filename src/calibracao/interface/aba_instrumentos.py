@@ -33,6 +33,7 @@ from calibracao.dados.repositorio import (
     Repositorio,
 )
 from calibracao.interface.componentes import (
+    RotuloAviso,
     aplicar_destaques,
     celula,
     data_livre_para_tela,
@@ -40,10 +41,11 @@ from calibracao.interface.componentes import (
     formatar_data,
     tabela_somente_leitura,
 )
-from calibracao.interface.estilo import CORES_CONDICAO, destacar, tem_destaque
+from calibracao.interface.estilo import CORES, CORES_CONDICAO, destacar, tem_destaque
 from calibracao.interface.janela_instrumento import JanelaEditarInstrumento
 from calibracao.interface.lista_instrumentos import ListaInstrumentos
 from calibracao.interface.painel_plano import ResumoPlano
+from calibracao.interface.tema_icones import por_icone
 from calibracao.regras.condicao import Condicao
 from calibracao.regras.lixeira import Tipo
 
@@ -201,6 +203,9 @@ class AbaInstrumentos(QWidget):
         self.mudar_condicao.clicked.connect(self.mudar_condicao_instrumento)
         self.lixeira = QPushButton("Enviar para a Lixeira")
         self.lixeira.clicked.connect(self.enviar_para_lixeira)
+        for botao, nome in ((self.editar, "edit"), (self.novo, "add"),
+                            (self.mudar_condicao, "swap_horiz"), (self.lixeira, "delete")):
+            por_icone(botao, nome, CORES["titulo"])
         botoes = QHBoxLayout()
         botoes.addWidget(self.novo, 1)
         botoes.addWidget(self.mudar_condicao, 1)
@@ -208,7 +213,7 @@ class AbaInstrumentos(QWidget):
         botoes.addWidget(self.editar, 2)
 
         self.titulo_dados = QLabel(objectName="dica")
-        self.avisos = QLabel(wordWrap=True, objectName="avisos")
+        self.avisos = RotuloAviso(wordWrap=True, objectName="avisos")
         caixa = QGroupBox("Dados do instrumento")
         coluna = QVBoxLayout(caixa)
         coluna.addWidget(self.titulo_dados)

@@ -16,7 +16,7 @@ consulta, com aviso amarelo; clicar no aviso e digitar MUDAR torna este o lugar 
 import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, Qt, QTimer
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -52,6 +52,7 @@ from calibracao.interface.aba_lixeira import AbaLixeira
 from calibracao.interface.componentes import (
     ListaFlutuante,
     PainelClicavel,
+    RotuloAviso,
     RotuloClicavel,
     aplicar_destaques,
     celula,
@@ -68,6 +69,7 @@ from calibracao.interface.estilo import (
     estilo,
 )
 from calibracao.interface.recursos import recurso
+from calibracao.interface.tema_icones import icone, pixmap, por_icone
 from calibracao.regras.cronograma import Situacao, SituacaoNoMes, meses_do_seletor, somar_meses
 from calibracao.regras.trava import (
     INTERVALO_CONSULTA,
@@ -154,6 +156,10 @@ class JanelaPrincipal(QMainWindow):
         self.aba_lixeira = AbaLixeira(repositorio)
         self.aba_lixeira.alterado.connect(self._lixeira_mudou)
         self.abas.addTab(self.aba_lixeira, "Lixeira")
+        # Ícones nas abas (aprovados por foto em 2026-11-10).
+        for indice, nome in enumerate(["straighten", "tune", "event_note", "delete"]):
+            self.abas.setTabIcon(indice, icone(nome, CORES["titulo"]))
+        self.abas.setIconSize(QSize(22, 22))
         self.abas.setCurrentWidget(self.aba_cronograma)  # abre no Cronograma
 
         tela = QVBoxLayout()
@@ -190,7 +196,8 @@ class JanelaPrincipal(QMainWindow):
         # 2026-11-03); some sozinho.
         # O mesmo lugar mostra a resposta do pedido de edição (verde/vermelho, item 7) e o
         # "Atualizado" do botão Atualizar (item 8).
-        self.aviso_salvo = QLabel("✔ Salvo", self, objectName="aviso_salvo")
+        self.aviso_salvo = RotuloAviso("✔ Salvo", self, cor_icone="#ffffff",
+                                       objectName="aviso_salvo")
         self.aviso_salvo.hide()
         self.relogio_salvo = QTimer(self, singleShot=True, interval=3500)
         self.relogio_salvo.timeout.connect(self._apagar_aviso)
@@ -262,6 +269,11 @@ class JanelaPrincipal(QMainWindow):
         self.botao_pedir = QPushButton("Pedir edição", objectName="canto")
         self.botao_pedir.setToolTip("Pede para quem está editando liberar a edição para você.")
         self.botao_pedir.clicked.connect(self.pedir_edicao)
+        por_icone(self.botao_atualizar, "refresh", CORES["titulo"])
+        por_icone(self.botao_pedir, "back_hand", CORES["titulo"])
+        # Cadeado aberto (edição) ou fechado (consulta) antes do texto do canto.
+        self.cadeado = QLabel()
+        self.cadeado.setPixmap(pixmap("lock_open", CORES["titulo"], 16))
         for botao in (self.botao_atualizar, self.botao_pedir):
             botao.setCursor(Qt.PointingHandCursor)
             botao.hide()
@@ -269,6 +281,7 @@ class JanelaPrincipal(QMainWindow):
         canto.setSpacing(8)
         canto.addWidget(self.botao_atualizar)
         canto.addWidget(self.botao_pedir)
+        canto.addWidget(self.cadeado)
         canto.addWidget(self.rotulo_modo)
         grade.addLayout(canto, 0, 2, Qt.AlignRight | Qt.AlignTop)
         grade.setColumnStretch(0, 1)
@@ -415,6 +428,7 @@ class JanelaPrincipal(QMainWindow):
     def aplicar_modo(self, dono: Trava | None) -> None:
         """dono None = esta janela edita; senão, modo consulta mostrando quem edita."""
         pode = dono is None and not self.repo.modo_consulta
+        self.cadeado.setPixmap(pixmap("lock_open" if pode else "lock", CORES["titulo"], 16))
         estava_consultando = not self._pode_editar
         for aba in (self.aba_instrumentos, self.aba_calibrar, self.aba_lixeira):
             aba.definir_edicao(pode)

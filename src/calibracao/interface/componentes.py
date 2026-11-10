@@ -41,7 +41,7 @@ from PySide6.QtWidgets import (
 )
 
 from calibracao.interface.estilo import CORES, abreviar_indicativa, destacar, tem_destaque
-from calibracao.interface.tema_icones import icone
+from calibracao.interface.tema_icones import html_com_icones, icone
 from calibracao.regras.padronizacao import chave, locais
 
 
@@ -501,3 +501,33 @@ class CampoComSugestoes(QLineEdit):
                       if parecidos else "")
             partes.append(f"⚠ \"{nome}\" é {oque} novo (nenhum instrumento usa).{parece}")
         return "\n".join(partes)
+
+
+# Símbolos dos avisos → ícone do Google na cor do aviso (aprovado por foto em 2026-11-10).
+SIMBOLOS = {"✔": ("check_circle", CORES["certo"]), "✖": ("error", CORES["erro"]),
+            "⚠": ("warning", CORES["aviso"])}
+
+
+class RotuloAviso(QLabel):
+    """Rótulo de aviso: ✔ ✖ ⚠ no começo da frase aparecem como ícone (verde, vermelho, amarelo).
+
+    O texto continua guardado como foi escrito (`text()` devolve com o símbolo); só a tela mostra
+    o ícone. `cor_icone` pinta todos de uma cor só (ex.: branco no aviso flutuante colorido).
+    """
+
+    def __init__(self, texto: str = "", parent=None, cor_icone: str | None = None, **kw) -> None:
+        super().__init__(parent, **kw)
+        self.cor_icone = cor_icone
+        self._original = ""
+        self.setText(texto)
+
+    def setText(self, texto: str) -> None:  # noqa: N802 — nome do Qt
+        self._original = texto
+        simbolos = ({s: (nome, self.cor_icone) for s, (nome, _) in SIMBOLOS.items()}
+                    if self.cor_icone else SIMBOLOS)
+        com_icones = html_com_icones(texto, simbolos)
+        self.setTextFormat(Qt.RichText if com_icones else Qt.AutoText)
+        super().setText(com_icones if com_icones else texto)
+
+    def text(self) -> str:
+        return self._original

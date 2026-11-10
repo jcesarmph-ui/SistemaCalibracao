@@ -37,9 +37,13 @@ from PySide6.QtWidgets import (  # noqa: E402
 )
 
 from calibracao.dados.repositorio import MedicaoTendencia, SerieTendencia  # noqa: E402
-from calibracao.interface.componentes import formatar_data  # noqa: E402
+from calibracao.interface.componentes import (
+    RotuloAviso,
+    formatar_data,  # noqa: E402
+)
 from calibracao.interface.estilo import CORES  # noqa: E402
 from calibracao.interface.painel_plano import numero_em_texto  # noqa: E402
+from calibracao.interface.tema_icones import por_icone
 from calibracao.regras.avaliacao import Resultado  # noqa: E402
 
 # Cores do gráfico no tema escuro: série em azul (1ª cor da paleta categórica validada para fundo
@@ -140,6 +144,7 @@ class JanelaTendencia(QDialog):
             self.ponto.addItem(f"{serie.nome} ({len(serie.medicoes)} calibração(ões))", indice)
         self.ponto.currentIndexChanged.connect(self.desenhar)
         self.exportar = QPushButton("Salvar imagem (PNG)")
+        por_icone(self.exportar, "download", CORES["titulo"])
         self.exportar.clicked.connect(self._escolher_arquivo)
         self.exportar.setEnabled(bool(series))
         fechar = QPushButton("Fechar")
@@ -154,7 +159,7 @@ class JanelaTendencia(QDialog):
         self.tela = FigureCanvasQTAgg(self.figura)
         self.tela.mpl_connect("motion_notify_event", self._passou_o_mouse)
         self.tela.mpl_connect("pick_event", self._clicou_na_legenda)
-        self.aviso = QLabel(objectName="dica", wordWrap=True)
+        self.aviso = RotuloAviso(objectName="dica", wordWrap=True)
 
         coluna = QVBoxLayout(self)
         coluna.addLayout(topo)

@@ -29,6 +29,7 @@ from calibracao.interface.componentes import (
     preenchendo,
 )
 from calibracao.interface.estilo import CORES, CORES_CONDICAO, CORES_SITUACAO
+from calibracao.interface.tema_icones import lupa
 from calibracao.regras.condicao import Condicao
 from calibracao.regras.localizacao import eh_indicativa
 from calibracao.regras.padronizacao import (
@@ -78,6 +79,7 @@ class ListaInstrumentos(QGroupBox):
             filtro.currentTextChanged.connect(self.preencher)
         self.busca = QLineEdit(placeholderText="Buscar por código, tipo ou localização")
         self.busca.textChanged.connect(self.preencher)
+        lupa(self.busca, "#9e9e9e")
 
         colunas = ["Código", "Localização", "Condição", "Desde", "Situação"]
         self.tabela = QTableWidget(0, len(colunas))

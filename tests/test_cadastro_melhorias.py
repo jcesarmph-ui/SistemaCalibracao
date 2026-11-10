@@ -195,3 +195,23 @@ def test_icone_de_calendario_do_google_em_todos_os_campos_de_data(janela):
     edicao = novo_cadastro(janela)
     for botao in (edicao.calendario_compra, edicao.calendario_primeira):
         assert botao.text() == "" and not botao.icon().isNull()
+
+
+def test_icones_aprovados_nos_botoes_abas_e_avisos(janela):
+    from calibracao.interface.componentes import RotuloAviso
+
+    aba = janela.aba_instrumentos
+    for botao in (aba.novo, aba.editar, aba.mudar_condicao, aba.lixeira,
+                  aba.painel_plano.ver, aba.painel_plano.editar,
+                  janela.aba_lixeira.restaurar, janela.aba_lixeira.excluir,
+                  janela.aba_calibrar.painel_calibracoes.grafico):
+        assert not botao.icon().isNull() and botao.text()  # ícone + texto
+    assert all(not janela.abas.tabIcon(i).isNull() for i in range(janela.abas.count()))
+    assert aba.busca.actions()  # lupa
+    assert janela.cadeado.pixmap() is not None and not janela.cadeado.pixmap().isNull()
+    aviso = RotuloAviso()
+    aviso.setText("✔ PAQ-018 salvo.")
+    assert aviso.text() == "✔ PAQ-018 salvo."  # o texto guardado continua o mesmo
+    assert "<img" in super(RotuloAviso, aviso).text()  # na tela, o ícone verde
+    aviso.setText("Sem símbolo")
+    assert super(RotuloAviso, aviso).text() == "Sem símbolo"

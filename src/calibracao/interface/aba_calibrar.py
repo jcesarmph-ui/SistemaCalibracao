@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QGridLayout, QGroupBox, QHBoxLayout, QLabel, QVBox
 
 from calibracao.dados.repositorio import Instrumento, Repositorio
 from calibracao.interface.aba_calibracoes import PainelCalibracoes
-from calibracao.interface.componentes import formatar_data
+from calibracao.interface.componentes import RotuloAviso, formatar_data
 from calibracao.interface.estilo import CORES_SITUACAO, destacar, tem_destaque
 from calibracao.interface.lista_instrumentos import ListaInstrumentos
 from calibracao.regras.condicao import so_qualitativos
@@ -47,7 +47,7 @@ class AbaCalibrar(QWidget):
             grade.addWidget(QLabel(f"{rotulo}:"), linha, coluna * 2)
             grade.addWidget(self.valores[chave], linha, coluna * 2 + 1)
             grade.setColumnStretch(coluna * 2 + 1, 1)
-        self.aviso_trena = QLabel(objectName="dica", wordWrap=True)
+        self.aviso_trena = RotuloAviso(objectName="dica", wordWrap=True)
         caixa_instrumento = QGroupBox("Instrumento escolhido")
         coluna_instrumento = QVBoxLayout(caixa_instrumento)
         coluna_instrumento.addWidget(QLabel(
