@@ -17,6 +17,8 @@ from pathlib import Path
 from calibracao.dados import certificados as arquivos_pdf
 from calibracao.dados.backup import fazer_backup_diario
 from calibracao.dados.esquema import conectar, criar_tabelas
+from calibracao.regras import indicadores as regras_indicadores
+from calibracao.regras import relatorio as regras_relatorio
 from calibracao.regras.avaliacao import (
     Avaliacao,
     Resultado,
@@ -61,6 +63,7 @@ from calibracao.regras.padronizacao import (
     preferidas_dos_tipos,
     tipo_padrao,
 )
+from calibracao.regras.relatorio import ConteudoRelatorio, LinhaDoRelatorio, Numero, Periodo
 from calibracao.regras.trava import sinal_antigo
 
 MENSAGEM_CONSULTA = ("Modo consulta: outra pessoa está editando. Nada foi salvo.")
@@ -337,6 +340,20 @@ class LinhaDoMes:
 
     instrumento: Instrumento
     prevista: PrevistaNoMes
+
+
+PASTA_RELATORIOS = "relatorios"
+
+
+@dataclass
+class RelatorioGuardado:
+    """Um relatório final guardado (o PDF fica em `relatorios/`; não muda mais)."""
+    id: int
+    periodo: Periodo
+    arquivo: str
+    sha256: str
+    gerado_em: datetime.datetime
+    gerado_por: str | None
 
 
 @dataclass
@@ -1664,3 +1681,195 @@ class Repositorio:
         with self._conexao:
             self._conexao.execute(
                 "UPDATE graficos_painel SET excluido_em = NULL WHERE id = ?", (grafico_id,))
+
+    # ---------------------------------------------------------------- relatórios
+
+    def relatorios_guardados(self) -> list[RelatorioGuardado]:
+        """Os relatórios finais guardados, do mais novo para o mais antigo."""
+        linhas = self._conexao.execute(
+            "SELECT * FROM relatorios ORDER BY gerado_em DESC, id DESC")
+        return [RelatorioGuardado(linha["id"], Periodo.da_chave(linha["periodo"]),
+                                  linha["arquivo"], linha["sha256"],
+                                  datetime.datetime.fromisoformat(linha["gerado_em"]),
+                                  linha["gerado_por"]) for linha in linhas]
+
+    def relatorios_pendentes(self, hoje: datetime.date) -> list[Periodo]:
+        """Meses (e anos) que já acabaram e ainda não têm o relatório final guardado."""
+        guardados = {r.periodo.chave for r in self.relatorios_guardados()}
+        return regras_relatorio.pendentes(self.data_implantacao(), hoje, guardados)
+
+    def caminho_do_relatorio(self, relatorio: RelatorioGuardado) -> Path:
+        if self.pasta_dados is None:
+            raise ErroDeValidacao(["Banco aberto sem pasta: não há onde achar o PDF."])
+        return self.pasta_dados / PASTA_RELATORIOS / relatorio.arquivo
+
+    def conferir_relatorio(self, relatorio: RelatorioGuardado) -> str | None:
+        """Problema com o PDF guardado (sumiu ou foi mexido), ou None."""
+        caminho = self.caminho_do_relatorio(relatorio)
+        if not caminho.is_file():
+            return "O PDF não foi encontrado na pasta dos relatórios."
+        if arquivos_pdf.sha256(caminho) != relatorio.sha256:
+            return "O PDF na pasta não é o mesmo que foi guardado (foi alterado depois)."
+        return None
+
+    @_escrita
+    def guardar_relatorio(self, periodo: Periodo, arquivo: Path, usuario: str | None,
+                          agora: datetime.datetime) -> int:
+        """Guarda o PDF do relatório final (copiado para `relatorios/` e conferido). Um por
+        período: depois de guardado, não muda mais."""
+        if self.pasta_dados is None:
+            raise ErroDeValidacao(["Banco aberto sem pasta: não há onde guardar o PDF."])
+        if self._conexao.execute("SELECT 1 FROM relatorios WHERE periodo = ?",
+                                 (periodo.chave,)).fetchone():
+            raise ErroDeValidacao([f"O relatório de {periodo.nome} já está guardado."])
+        try:
+            destino, resumo, _ = arquivos_pdf.guardar(Path(arquivo), self.pasta_dados,
+                                                      periodo.nome_do_arquivo(),
+                                                      PASTA_RELATORIOS)
+        except arquivos_pdf.ErroDoArquivo as erro:
+            raise ErroDeValidacao([str(erro)]) from erro
+        try:
+            with self._conexao:
+                cursor = self._conexao.execute(
+                    "INSERT INTO relatorios (periodo, arquivo, sha256, gerado_em, gerado_por) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (periodo.chave, destino.name, resumo, agora.isoformat(timespec="seconds"),
+                     usuario))
+        except sqlite3.Error:
+            destino.unlink(missing_ok=True)
+            raise
+        return cursor.lastrowid
+
+    def conteudo_do_relatorio(self, periodo: Periodo, hoje: datetime.date,
+                              agora: datetime.datetime) -> ConteudoRelatorio:
+        """Números, calibrações e ALTERAÇÕES do período (os gráficos vêm do painel)."""
+        final = periodo.acabou(hoje)
+        referencia = periodo.fim if final else hoje
+        situacao_em = periodo.fim + datetime.timedelta(days=1) if final else hoje
+        conteudo = ConteudoRelatorio(periodo, final, referencia, agora)
+        calibracoes_ind, _ = self.dados_dos_indicadores()
+        atrasadas = {(c.instrumento, c.data) for c in calibracoes_ind
+                     if c.prazo == COM_ATRASO_TXT}
+
+        feitas = []
+        for instrumento in self.listar_instrumentos(incluir_desativados=True):
+            for calibracao in self.listar_calibracoes(instrumento.id):
+                if periodo.inicio <= calibracao.data_calibracao <= referencia:
+                    feitas.append((instrumento, calibracao))
+        feitas.sort(key=lambda par: (par[1].data_calibracao, par[0].codigo))
+        previstas = [linha for mes in periodo.meses() if mes <= referencia
+                     for linha in self.cronograma_do_mes(mes, situacao_em)]
+        nao_feitas = [linha for linha in previstas
+                      if linha.prevista.situacao in (SituacaoNoMes.PENDENTE,
+                                                     SituacaoNoMes.VENCIDA)]
+        pendentes = sum(linha.prevista.situacao == SituacaoNoMes.PENDENTE for linha in nao_feitas)
+        vencidas = len(nao_feitas) - pendentes
+
+        custo = sum(c.custo or 0 for _, c in feitas)
+        no_prazo = [(i.codigo, c.data_calibracao) not in atrasadas for i, c in feitas]
+        mensal = periodo.tipo == regras_relatorio.MENSAL
+        numeros = regras_indicadores.numeros(calibracoes_ind, referencia,
+                                             self.data_implantacao())
+        dinheiro = regras_relatorio.dinheiro
+        conteudo.numeros = [
+            Numero("Previstas no mês" if mensal else "Previstas no ano", str(len(previstas))),
+            Numero("Feitas", str(len(feitas)), "certo" if feitas else ""),
+            Numero("Pendentes", str(pendentes), "aviso" if pendentes else ""),
+            Numero("Vencidas", str(vencidas), "erro" if vencidas else ""),
+            Numero("No prazo", f"{100 * sum(no_prazo) / len(no_prazo):.0f}%" if no_prazo
+                   else "—"),
+            Numero("Custo do mês" if mensal else "Custo do ano", dinheiro(custo)),
+        ]
+        if mensal:
+            conteudo.numeros += [Numero("Custo 12 meses", dinheiro(numeros.custo_12_meses)),
+                                 Numero("Custo médio/mês", dinheiro(numeros.custo_medio_mes))]
+        else:
+            implantacao = self.data_implantacao() or periodo.inicio
+            primeiro = max(periodo.inicio, implantacao.replace(day=1))
+            meses = max(1, (referencia.year - primeiro.year) * 12
+                        + referencia.month - primeiro.month + 1)
+            conteudo.numeros.append(Numero("Custo médio/mês", dinheiro(custo / meses)))
+
+        for instrumento, c in feitas:
+            parecer = c.parecer_final.value if c.parecer_final else c.resultado.value
+            conteudo.linhas.append(LinhaDoRelatorio(
+                instrumento.codigo, instrumento.tipo, instrumento.localizacao or "—",
+                f"{c.data_calibracao:%d/%m/%Y}", c.certificado or "—", c.laboratorio or "—",
+                parecer, dinheiro(c.custo) if c.custo is not None else "—"))
+        for linha in nao_feitas:
+            situacao = ("Pendente" if linha.prevista.situacao == SituacaoNoMes.PENDENTE
+                        else "Vencida")
+            conteudo.linhas.append(LinhaDoRelatorio(
+                linha.instrumento.codigo, linha.instrumento.tipo,
+                linha.instrumento.localizacao or "—", "—", "—", "—", situacao, "—"))
+        conteudo.alteracoes = self._alteracoes(periodo.inicio, referencia, feitas, nao_feitas,
+                                               atrasadas)
+        return conteudo
+
+    def _alteracoes(self, inicio, fim, feitas, nao_feitas, atrasadas) -> list[tuple[str, str]]:
+        """O que mudou no período: reprovados, orientação indicativa, atrasos, vencidas,
+        instrumentos novos, mudanças de condição feitas à mão e correções de calibração."""
+        def dia(data) -> str:
+            return f"{data:%d/%m/%Y}"
+
+        def com_motivo(texto: str, motivo: str | None) -> str:
+            return f"{texto} — {motivo}" if motivo else f"{texto}."
+
+        itens: list[tuple[str, str]] = []
+        for instrumento, c in feitas:
+            if c.parecer_final == ParecerFinal.REPROVADO_DESATIVADO:
+                itens.append(("erro", com_motivo(f"{instrumento.codigo} reprovado e desativado "
+                                                 f"em {dia(c.data_calibracao)}",
+                                                 c.motivo_parecer)))
+            elif c.parecer_final == ParecerFinal.ORIENTACAO_INDICATIVA:
+                itens.append(("aviso", com_motivo(f"{instrumento.codigo} passou a ser "
+                                                  "Orientação indicativa em "
+                                                  f"{dia(c.data_calibracao)}", c.motivo_parecer)))
+            if (instrumento.codigo, c.data_calibracao) in atrasadas:
+                itens.append(("aviso", com_motivo(f"{instrumento.codigo} calibrado com atraso "
+                                                  f"em {dia(c.data_calibracao)}",
+                                                  c.motivo_atraso)))
+        for linha in nao_feitas:
+            if linha.prevista.situacao == SituacaoNoMes.VENCIDA:
+                itens.append(("erro", com_motivo(f"{linha.instrumento.codigo} vencido (previsto "
+                                                 f"para {dia(linha.prevista.prevista)})",
+                                                 linha.prevista.motivo_atraso)))
+        periodo = (inicio.isoformat(), fim.isoformat())
+        novos = self._conexao.execute(
+            "SELECT codigo, tipo, localizacao, criado_em FROM instrumentos "
+            "WHERE excluido_em IS NULL AND date(criado_em) BETWEEN ? AND ? ORDER BY codigo",
+            periodo).fetchall()
+        if len(novos) > regras_relatorio.MAXIMO_DE_NOVOS_LISTADOS:
+            itens.append(("info", f"{len(novos)} instrumentos novos cadastrados."))
+        else:
+            for codigo, tipo, local, criado in novos:
+                onde = f", {local}" if local else ""
+                quando = dia(datetime.date.fromisoformat(criado[:10]))
+                itens.append(("info", f"Instrumento novo cadastrado: {codigo} ({tipo}{onde}) "
+                                      f"em {quando}."))
+        condicoes = self._conexao.execute(
+            "SELECT i.codigo, c.condicao, c.data, c.motivo FROM condicoes c "
+            "JOIN instrumentos i ON i.id = c.instrumento_id "
+            "WHERE c.calibracao_id IS NULL AND c.data BETWEEN ? AND ? ORDER BY c.data, i.codigo",
+            periodo).fetchall()
+        if len(condicoes) > regras_relatorio.MAXIMO_DE_NOVOS_LISTADOS:
+            itens.append(("info", f"{len(condicoes)} mudanças de condição feitas na ficha."))
+        else:
+            for codigo, condicao, data, motivo in condicoes:
+                quando = dia(datetime.date.fromisoformat(data))
+                if condicao == Condicao.DESATIVADO.value:
+                    itens.append(("erro", com_motivo(f"{codigo} desativado em {quando}", motivo)))
+                else:
+                    itens.append(("info", com_motivo(f"{codigo} voltou a ser usado em {quando}",
+                                                     motivo)))
+        correcoes = self._conexao.execute(
+            "SELECT i.codigo, cal.data_calibracao, k.mudancas FROM correcoes_calibracao k "
+            "JOIN calibracoes cal ON cal.id = k.calibracao_id "
+            "JOIN instrumentos i ON i.id = cal.instrumento_id "
+            "WHERE cal.excluido_em IS NULL AND date(k.quando) BETWEEN ? AND ? ORDER BY k.quando",
+            periodo).fetchall()
+        for codigo, data, mudancas in correcoes:
+            quando = dia(datetime.date.fromisoformat(data))
+            itens.append(("info", f"Correção na calibração de {codigo} de {quando}: "
+                                  f"{'; '.join(mudancas.splitlines())}."))
+        return itens

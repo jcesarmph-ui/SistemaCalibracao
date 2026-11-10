@@ -52,6 +52,7 @@ from calibracao.interface.aba_certificados import AbaCertificados
 from calibracao.interface.aba_indicadores import AbaIndicadores
 from calibracao.interface.aba_instrumentos import AbaInstrumentos
 from calibracao.interface.aba_lixeira import AbaLixeira
+from calibracao.interface.aba_relatorios import AbaRelatorios, guardar_pendentes
 from calibracao.interface.componentes import (
     ListaFlutuante,
     PainelClicavel,
@@ -129,7 +130,7 @@ def celula_motivo(motivo: str | None):
 
 
 ICONES_DAS_ABAS = ["straighten", "tune", "event_note", "picture_as_pdf", "bar_chart",
-                   "delete"]
+                   "description", "delete"]
 INICIO_DAS_LETRAS = 0.30  # o símbolo vai até ~27% da largura; o traço (31%) e as letras mudam
 
 
@@ -181,6 +182,9 @@ class JanelaPrincipal(QMainWindow):
         # Aba Indicadores (pedido de 2026-11-10): painel de gráficos montado pelo usuário.
         self.aba_indicadores = AbaIndicadores(repositorio, self.hoje)
         self.abas.addTab(self.aba_indicadores, "Indicadores")
+        # Aba Relatórios (pedido de 2026-11-10): do mês atual, finais guardados e do ano.
+        self.aba_relatorios = AbaRelatorios(repositorio, self.hoje)
+        self.abas.addTab(self.aba_relatorios, "Relatórios")
         self.aba_lixeira = AbaLixeira(repositorio)
         self.aba_lixeira.alterado.connect(self._lixeira_mudou)
         self.abas.addTab(self.aba_lixeira, "Lixeira")
@@ -438,6 +442,7 @@ class JanelaPrincipal(QMainWindow):
         self.aba_calibrar.atualizar(situacoes)
         self.aba_certificados.atualizar()
         self.aba_indicadores.atualizar()
+        self.aba_relatorios.atualizar()
         self.aba_lixeira.atualizar()
 
     # --- Trava de edição ---------------------------------------------------------------------
@@ -495,10 +500,12 @@ class JanelaPrincipal(QMainWindow):
         self.cadeado.setPixmap(pixmap("lock_open" if pode else "lock", CORES["titulo"], 16))
         estava_consultando = not self._pode_editar
         for aba in (self.aba_instrumentos, self.aba_calibrar, self.aba_certificados,
-                    self.aba_indicadores, self.aba_lixeira):
+                    self.aba_indicadores, self.aba_relatorios, self.aba_lixeira):
             aba.definir_edicao(pode)
         self._pode_editar = pode
         self._ligar_informar_motivo()
+        if pode:
+            self.guardar_relatorios_pendentes()
         self.setWindowTitle(self.titulo_janela if pode
                             else f"{self.titulo_janela} — SOMENTE CONSULTA")
         # Quem consulta relê os dados a cada 10 s; quem edita dá sinal a cada 30 s (item 8).
@@ -682,6 +689,18 @@ class JanelaPrincipal(QMainWindow):
         if self.identidade is not None and not self.repo.modo_consulta:
             self.repo.liberar_trava()
         super().closeEvent(evento)
+
+    def guardar_relatorios_pendentes(self) -> None:
+        """Relatório final de cada mês (e ano) que acabou: guardado sozinho, sem perguntar,
+        por quem está no modo edição (pedido de 2026-11-10). Sem conseguir (rede, banco
+        ocupado), tenta de novo na próxima vez."""
+        usuario = " - ".join(self.identidade) if getattr(self, "identidade", None) else None
+        try:
+            guardados = guardar_pendentes(self.repo, self.hoje, usuario)
+        except (ErroDeValidacao, OSError):
+            return
+        if guardados:
+            self.aba_relatorios.atualizar()
 
     def _calibracoes_mudaram(self) -> None:
         """Calibração registrada, corrigida ou na Lixeira: muda cronograma, condição e

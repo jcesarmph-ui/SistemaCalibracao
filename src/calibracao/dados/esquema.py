@@ -225,6 +225,19 @@ CREATE TABLE IF NOT EXISTS graficos_painel (
 );
 """
 
+# Relatórios finais guardados (pedido de 2026-11-10), sem mudar a versão do esquema: um por
+# mês que acabou e um por ano que acabou. O PDF fica em `relatorios/` ao lado do banco.
+TABELA_RELATORIOS = """
+CREATE TABLE IF NOT EXISTS relatorios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    periodo TEXT NOT NULL UNIQUE,   -- "2027-10" (mês) ou "2027" (ano)
+    arquivo TEXT NOT NULL,          -- nome dentro da pasta relatorios/
+    sha256 TEXT NOT NULL,
+    gerado_em TEXT NOT NULL,
+    gerado_por TEXT
+);
+"""
+
 TABELAS_V7 = """
 CREATE TABLE IF NOT EXISTS marcas_indicativa (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -299,6 +312,7 @@ def criar_tabelas(conexao: sqlite3.Connection) -> None:
     conexao.executescript(TABELAS_V7)
     conexao.executescript(TABELA_CERTIFICADOS)
     conexao.executescript(TABELA_PAINEL)
+    conexao.executescript(TABELA_RELATORIOS)
     _painel_inicial(conexao)
     if "primeira_prevista" not in _colunas(conexao, "instrumentos"):
         conexao.execute("ALTER TABLE instrumentos ADD COLUMN primeira_prevista TEXT")

@@ -37,9 +37,10 @@ def fazer_backup_diario(banco: Path, hoje: datetime.date,
     copias = sorted(pasta.glob(f"{banco.stem}_????-??-??{banco.suffix}"))
     for antiga in copias[:-manter]:
         antiga.unlink()
-    if nova is not None:  # uma vez por dia: os PDFs novos dos certificados também
+    if nova is not None:  # uma vez por dia: os PDFs novos (certificados e relatórios) também
         try:
             espelhar_no_backup(banco.parent)
+            espelhar_no_backup(banco.parent, "relatorios")
         except OSError:
             pass  # sem conseguir copiar os PDFs, o programa abre do mesmo jeito
     return nova

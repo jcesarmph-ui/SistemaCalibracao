@@ -104,7 +104,8 @@ def test_mais_perto_do_limite_no_painel_e_no_relatorio():
     painel = ind.calcular(definicao, CALIBRACOES, [], HOJE)  # última de cada instrumento
     assert painel.categorias == ["MIC-001", "PAQ-001", "PAQ-002"]
     assert painel.series[""] == [120, 96, 50]
-    relatorio = ind.calcular(definicao, CALIBRACOES, [], date(2027, 9, 30), so_do_mes=True)
+    relatorio = ind.calcular(definicao, CALIBRACOES, [], date(2027, 9, 30),
+                             intervalo=(date(2027, 9, 1), date(2027, 9, 30)))
     assert relatorio.vazio  # em setembro só a trena, sem ponto numérico
 
 

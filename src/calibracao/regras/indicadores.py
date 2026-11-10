@@ -287,14 +287,14 @@ def _cortar(categorias, series, total):
 
 def calcular(definicao: DefinicaoGrafico, calibracoes: list[CalibracaoParaIndicador],
              instrumentos: list[InstrumentoParaIndicador], referencia: datetime.date,
-             so_do_mes: bool = False) -> ResultadoGrafico:
+             intervalo: tuple[datetime.date, datetime.date] | None = None) -> ResultadoGrafico:
     """Categorias e séries do gráfico. `referencia` = o dia que conta como "hoje" (no relatório,
-    o último dia do mês). `so_do_mes`: no relatório, "Mais perto do limite" usa só as
-    calibrações do mês; no painel, a última de cada instrumento."""
+    o último dia do período). `intervalo`: no relatório, "Mais perto do limite" usa só as
+    calibrações do período (mês ou ano); no painel, a última de cada instrumento."""
     definicao = ajustar(definicao)
     medida = definicao.medida
     if medida == PERTO_DO_LIMITE:
-        return _perto_do_limite(calibracoes, referencia, so_do_mes)
+        return _perto_do_limite(calibracoes, referencia, intervalo)
     if medida == QTD_INSTRUMENTOS:
         return _instrumentos(definicao, instrumentos)
     linhas = [c for c in calibracoes if no_periodo(c.data, definicao.periodo, referencia)
@@ -342,10 +342,9 @@ ORDEM_DAS_SERIES = {"Aprovado": 0, "Orientação indicativa": 1, "Reprovado - De
                     NO_PRAZO_TXT: 0, COM_ATRASO_TXT: 1}
 
 
-def _perto_do_limite(calibracoes, referencia, so_do_mes) -> ResultadoGrafico:
-    if so_do_mes:
-        escolhidas = [c for c in calibracoes
-                      if (c.data.year, c.data.month) == (referencia.year, referencia.month)]
+def _perto_do_limite(calibracoes, referencia, intervalo) -> ResultadoGrafico:
+    if intervalo:
+        escolhidas = [c for c in calibracoes if intervalo[0] <= c.data <= intervalo[1]]
     else:
         ultima = {}
         for c in sorted(calibracoes, key=lambda c: c.data):

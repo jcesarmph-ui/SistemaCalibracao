@@ -64,13 +64,15 @@ def conferir_pdf(arquivo: Path) -> None:
                                 "renomeado para .pdf).")
 
 
-def guardar(origem: Path, pasta_dados: Path, nome: str) -> tuple[Path, str, int]:
-    """Copia o PDF para a pasta dos certificados e confere. Devolve (destino, sha256, tamanho).
+def guardar(origem: Path, pasta_dados: Path, nome: str,
+            subpasta: str = PASTA) -> tuple[Path, str, int]:
+    """Copia o PDF para a pasta dos certificados (ou outra `subpasta`, ex.: relatorios) e
+    confere. Devolve (destino, sha256, tamanho).
 
     Copia primeiro com nome provisório e só renomeia no fim: uma cópia interrompida (rede caiu)
     nunca aparece como certificado."""
     conferir_pdf(origem)
-    pasta = pasta_dados / PASTA
+    pasta = pasta_dados / subpasta
     pasta.mkdir(exist_ok=True)
     destino = pasta / nome
     provisorio = destino.with_suffix(".copiando")
@@ -93,13 +95,13 @@ def apagar(pasta_dados: Path, nome: str) -> None:
     (pasta_dados / PASTA / nome).unlink(missing_ok=True)
 
 
-def espelhar_no_backup(pasta_dados: Path) -> int:
-    """Copia para `backup/certificados/` os PDFs que ainda não estão lá (os guardados nunca
+def espelhar_no_backup(pasta_dados: Path, subpasta: str = PASTA) -> int:
+    """Copia para `backup/<subpasta>/` os PDFs que ainda não estão lá (os guardados nunca
     mudam, então basta copiar os novos). Devolve quantos copiou."""
-    origem = pasta_dados / PASTA
+    origem = pasta_dados / subpasta
     if not origem.is_dir():
         return 0
-    destino = pasta_dados / "backup" / PASTA
+    destino = pasta_dados / "backup" / subpasta
     destino.mkdir(parents=True, exist_ok=True)
     copiados = 0
     for pdf in origem.glob("*.pdf"):
