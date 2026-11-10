@@ -111,8 +111,9 @@ def _imagem_do_grafico(definicao, resultado, largura_mm: float, altura_mm: float
 def gerar_pdf(conteudo: ConteudoRelatorio, graficos: list[ind.DefinicaoGrafico],
               calibracoes: list[ind.CalibracaoParaIndicador],
               instrumentos: list[ind.InstrumentoParaIndicador], destino: Path) -> Path:
-    """Escreve o PDF em `destino` e devolve o caminho. O do ano tem só os gráficos do painel
-    (pedido do usuário em 2026-11-10); o do mês tem também números, calibrações e ALTERAÇÕES."""
+    """Escreve o PDF em `destino` e devolve o caminho. O do ano tem só os números do topo e os
+    gráficos do painel (pedido do usuário em 2026-11-10); o do mês tem também as calibrações e as
+    ALTERAÇÕES."""
     anual = conteudo.periodo.tipo != MENSAL
     folha = _Folha(destino, "DQ-05 Calibração de Instrumentos · MG Centro de Serviços")
     f = folha
@@ -122,8 +123,8 @@ def gerar_pdf(conteudo: ConteudoRelatorio, graficos: list[ind.DefinicaoGrafico],
     f.texto(MARGEM, f.y + 8, LARGURA, 5, conteudo.subtitulo, 7.5, cor="#555555")
     f.linha(f.y + 14)
     f.y += 17
-    # --- números (só no do mês)
-    numeros = [] if anual else conteudo.numeros
+    # --- números (quantidade de calibrações e custos)
+    numeros = conteudo.numeros
     quantos = max(len(numeros), 1)
     largura = (LARGURA - 2 * (quantos - 1)) / quantos
     for n, numero in enumerate(numeros):

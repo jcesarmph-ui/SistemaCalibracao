@@ -222,8 +222,8 @@ def test_orientacao_indicativa_nao_entra_nas_alteracoes(repo):
 
 
 def test_relatorio_do_ano_so_com_os_graficos(app, repo, tmp_path, monkeypatch):
-    """Pedido do usuário (2026-11-10): o do ano tem só os gráficos do painel (sem números,
-    tabela de calibrações e ALTERAÇÕES); o do mês continua completo."""
+    """Pedido do usuário (2026-11-10): o do ano tem só os números do topo e os gráficos do
+    painel (sem tabela de calibrações e ALTERAÇÕES); o do mês continua completo."""
     from calibracao.interface import relatorio_pdf
 
     escritos: list[str] = []
@@ -239,7 +239,7 @@ def test_relatorio_do_ano_so_com_os_graficos(app, repo, tmp_path, monkeypatch):
     ano = repo.conteudo_do_relatorio(Periodo(ANUAL, 2026), HOJE, AGORA)
     relatorio_pdf.gerar_pdf(ano, graficos, *dados, tmp_path / "ano.pdf")
     assert graficos and "ALTERAÇÕES" not in escritos and "Calibrações do ano" not in escritos
-    assert "Custo médio/mês" not in escritos
+    assert "Custo do ano" in escritos and "Previstas no ano" in escritos
     escritos.clear()
     mes = repo.conteudo_do_relatorio(OUTUBRO, HOJE, AGORA)
     relatorio_pdf.gerar_pdf(mes, graficos, *dados, tmp_path / "mes.pdf")
