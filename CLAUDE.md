@@ -278,9 +278,11 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
      `interface/grafico_tendencia.py` reescrito (área com rolagem; `calibracoes_do_grafico`,
      `separar_por_secao`); aprovado pelo usuário por foto no programa (claro e escuro, cópia só
      leitura da rede): `dados/fotos/foto_tendencia_nova.py` → `dados/fotos/tendencia_programa/`.
-     Sem README e sem cópia no `programas-executaveis` (mudança pequena). Pacote gerado em
-     `dist/Calibração de Instrumentos`; trocar a pasta `programa` na rede **só com o "pode" do
-     usuário**.
+     Sem README e sem cópia no `programas-executaveis` (mudança pequena). **Rede atualizada por
+     mim em 2026-11-11** (com o "pode" do usuário): pasta `programa` = 1.3.0 (972 arquivos
+     conferidos; a 1.2.0 guardada como `programa 1.2.0`); `dados` e lançador sem mudança.
+     Conferido abrindo o `.exe` da pasta `programa` da rede em modo foto com uma cópia só
+     leitura do banco (`CALIBRACAO_DADOS` + `CALIBRACAO_FOTO`): versão 1.3.0 na tela.
 3. Pendências que continuam: confidencialidade do repositório público (só quando o usuário
    pedir); limpeza dos arquivos do protótipo na árvore (perguntar antes de remover).
 4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,
