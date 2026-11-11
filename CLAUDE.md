@@ -274,12 +274,13 @@ vazio `streamlit`; scripts de uso único (`corrigir_datas.py`, `adicionar_respon
      Pontos qualitativos não entram. Sai o "Mostrar" (um ponto por vez) e o eixo em %.
    - Fotos aprovadas e scripts das propostas: `dados/fotos/tendencia_nova/` e
      `dados/fotos/proposta_*_desvio_final.png` (fora do Git).
-   - **Feito:** `Repositorio.tendencia` já entrega `final` (desvio final), `calibracao_id`,
-     `secao` e `descricao` (commit "Gráfico de tendência: dados…"). **Falta:** reescrever
-     `interface/grafico_tendencia.py` (canvas numa área com rolagem se houver muitas linhas de
-     gráficos), atualizar os testes em `tests/test_aba_calibracoes.py` (os de "todos juntos",
-     % da tolerância, datas no eixo e "Mostrar" deixam de valer), foto no programa nos modos
-     claro e escuro (cópia só leitura do banco da rede), versão 1.2.1 ou 1.3.0, PR.
+   - **FEITO — versão `1.3.0` (2026-11-11, PR #22 juntado, tag `v1.3.0`, 411 testes):**
+     `interface/grafico_tendencia.py` reescrito (área com rolagem; `calibracoes_do_grafico`,
+     `separar_por_secao`); aprovado pelo usuário por foto no programa (claro e escuro, cópia só
+     leitura da rede): `dados/fotos/foto_tendencia_nova.py` → `dados/fotos/tendencia_programa/`.
+     Sem README e sem cópia no `programas-executaveis` (mudança pequena). Pacote gerado em
+     `dist/Calibração de Instrumentos`; trocar a pasta `programa` na rede **só com o "pode" do
+     usuário**.
 3. Pendências que continuam: confidencialidade do repositório público (só quando o usuário
    pedir); limpeza dos arquivos do protótipo na árvore (perguntar antes de remover).
 4. Perguntas: o usuário não gosta da caixa de perguntas (botões em inglês) — perguntar em texto,
