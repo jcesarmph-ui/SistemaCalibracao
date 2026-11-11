@@ -176,58 +176,99 @@ def test_grafico_salva_png(app, repo, paquimetro, tmp_path):
     registrar(repo, paquimetro, date(2026, 10, 1), valores=(30.045, 60.0),
               parecer=ParecerFinal.ORIENTACAO_INDICATIVA)
     janela = JanelaTendencia(repo.tendencia(paquimetro.id), "PAQ-900")
-    assert janela.ponto.count() == 3                  # todos juntos + 1 por ponto
-    assert janela.ponto.currentText().startswith("Todos os pontos juntos")  # o principal
-    assert janela.todos and len(janela._desenhados) == 4  # 2 pontos x 2 calibrações
-    janela.salvar_png(tmp_path / "todos.png")
-    janela.ponto.setCurrentIndex(2)
-    assert not janela.todos and len(janela._desenhados) == 2
+    assert len(janela.eixos) == 1 and len(janela._desenhados) == 4  # 2 pontos x 2 calibrações
     imagem = tmp_path / "tendencia.png"
     janela.salvar_png(imagem)
     assert imagem.read_bytes()[:4] == b"\x89PNG"
 
 
-def test_todos_juntos_mesma_tolerancia_fica_em_desvio(app, repo, paquimetro):
-    from calibracao.interface.grafico_tendencia import JanelaTendencia, tolerancia_comum
+def test_eixo_x_sao_os_pontos_e_y_o_desvio_final(app, repo, paquimetro):
+    """Pedido de 2026-11-10: X = pontos calibrados; Y = desvio final (desvio ± U do lado mais
+    perto da tolerância), sem barrinha da incerteza."""
+    from calibracao.interface.grafico_tendencia import JanelaTendencia
+    registrar(repo, paquimetro, date(2026, 10, 1), valores=(30.02, 59.98))
+    janela = JanelaTendencia(repo.tendencia(paquimetro.id), "PAQ-900")
+    eixo = janela.eixos[0]
+    assert [t.get_text() for t in eixo.get_xticklabels()] == ["30.00", "60.00"]
+    assert "Desvio final" in eixo.get_ylabel()
+    # 0,02 + U 0,01 = 0,03 ; −0,02 − 0,01 = −0,03
+    assert [round(d.y, 4) for d in janela._desenhados] == [0.03, -0.03]
+    assert not eixo.containers  # sem barra de erro
+
+
+def test_desvio_zero_fica_com_mais_u(app, repo, paquimetro):
+    from calibracao.interface.grafico_tendencia import JanelaTendencia
+    registrar(repo, paquimetro, date(2026, 10, 1), valores=(30.0, 60.0))
+    janela = JanelaTendencia(repo.tendencia(paquimetro.id), "PAQ-900")
+    assert [round(d.y, 4) for d in janela._desenhados] == [0.01, 0.01]
+
+
+def test_uma_cor_por_ano_e_mesmo_ano_mesma_cor(app):
+    from calibracao.dados.repositorio import MedicaoTendencia, SerieTendencia
+    from calibracao.interface.grafico_tendencia import calibracoes_do_grafico
+    ok = Resultado.APROVADO
+    datas = [date(2024, 3, 1), date(2025, 3, 1), date(2025, 9, 1)]
+    serie = SerieTendencia("10", "mm", [MedicaoTendencia(d, 0, 0.01, -1, 1, ok, 0.01, i)
+                                        for i, d in enumerate(datas)])
+    calibracoes = calibracoes_do_grafico([serie])
+    assert [c.rotulo for c in calibracoes] == ["2024", "01/03/2025", "01/09/2025"]
+    assert calibracoes[1].cor == calibracoes[2].cor != calibracoes[0].cor
+    assert calibracoes[1].marcador != calibracoes[2].marcador
+
+
+def test_secoes_grandes_e_ponto_sozinho_pequeno(app):
+    """Seção com vários pontos = gráfico grande; seção de um ponto = pequeno, ano a ano."""
+    from calibracao.dados.repositorio import MedicaoTendencia, SerieTendencia
+    from calibracao.interface.grafico_tendencia import JanelaTendencia, separar_por_secao
+    ok, ruim = Resultado.APROVADO, Resultado.REPROVADO
+
+    def serie(secao, descricao, final, resultado=ok):
+        return SerieTendencia(f"{secao} — {descricao}", "mm", [MedicaoTendencia(
+            date(2026, 1, 5), final, 0.01, -0.03, 0.03, resultado, final, 1)], secao, descricao)
+
+    series = [serie("Face Externa", "0", 0.01), serie("Face Externa", "150", 0.02),
+              serie("Face Interna", "50", 0.04, ruim), serie("Ressalto", "50", 0.01)]
+    grandes, pequenos = separar_por_secao(series)
+    assert [s for s, _ in grandes] == ["Face Externa"]
+    assert [s.secao for s in pequenos] == ["Face Interna", "Ressalto"]
+    janela = JanelaTendencia(series, "PAQ-900")
+    assert len(janela.eixos) == 3
+    assert janela.eixos[0].get_title().startswith("Face Externa")
+    assert "Face Interna" in janela.eixos[1].get_title()
+    assert [t.get_text() for t in janela.eixos[1].get_xticklabels()] == ["2026"]
+    textos = [t.get_text() for t in janela.caixa_legenda.get_texts()]
+    assert "Reprovado" in textos and "Dentro da tolerância" in textos
+
+
+def test_clicar_no_ano_esconde_a_calibracao(app, repo, paquimetro):
+    from calibracao.interface.grafico_tendencia import JanelaTendencia
     registrar(repo, paquimetro, date(2025, 10, 1))
     registrar(repo, paquimetro, date(2026, 10, 1))
-    series = repo.tendencia(paquimetro.id)
-    assert tolerancia_comum(series)
-    janela = JanelaTendencia(series, "PAQ-900")
-    assert "eixo em desvio" in janela._eixo.get_title()
-    # os pontos da mesma calibração ficam na mesma vertical (pedido de 2026-11-04)
-    mesma_data = [d.x for d in janela._desenhados if d.medicao.data == date(2025, 10, 1)]
-    assert len(mesma_data) == 2 and len(set(mesma_data)) == 1
-    # clicar no nome na legenda esconde o ponto; clicar de novo mostra
+    janela = JanelaTendencia(repo.tendencia(paquimetro.id), "PAQ-900")
+    assert [c.rotulo for c in janela.calibracoes] == ["2025", "2026"]
     janela.esconder_ou_mostrar(0)
     assert not any(a.get_visible() for a in janela._grupos[0])
+    assert all(a.get_visible() for a in janela._grupos[1])
     assert janela._itens_legenda[0][1].get_alpha() == 0.3
     janela.esconder_ou_mostrar(0)
     assert all(a.get_visible() for a in janela._grupos[0])
 
 
-def test_todos_juntos_tolerancias_diferentes_fica_em_porcentagem(app):
-    from calibracao.dados.repositorio import MedicaoTendencia, SerieTendencia
-    from calibracao.interface.grafico_tendencia import JanelaTendencia, em_porcentagem
-    assert em_porcentagem(0.01, -0.02, 0.05) == pytest.approx(20)    # lado de cima: 0,05
-    assert em_porcentagem(-0.01, -0.02, 0.05) == pytest.approx(-50)  # lado de baixo: 0,02
-    assert em_porcentagem(-0.01, None, 0.05) == pytest.approx(-20)   # falta um lado: o outro
-    assert em_porcentagem(0.01, None, None) is None
-    ok, dia = Resultado.APROVADO, date(2025, 1, 1)
-    series = [
-        SerieTendencia("1 kg", "g", [MedicaoTendencia(dia, 0.5, 0.1, -1, 1, ok)]),
-        SerieTendencia("20 kg", "g", [MedicaoTendencia(dia, 5, 1, -10, 10, ok)]),
-        SerieTendencia("Sem tol.", "g", [MedicaoTendencia(dia, 1, 1, None, None, ok)]),
-    ]
-    janela = JanelaTendencia(series, "BAL-900")
-    assert "% da tolerância" in janela._eixo.get_title()
-    assert [round(d.y) for d in janela._desenhados] == [50, 50]
-    assert "Sem tol." in janela.aviso.text()   # sem tolerância: fora, e avisado
+def test_pontos_de_cada_ano_um_pouco_para_o_lado(app, repo, paquimetro):
+    from calibracao.interface.grafico_tendencia import JanelaTendencia
+    registrar(repo, paquimetro, date(2025, 10, 1))
+    registrar(repo, paquimetro, date(2026, 10, 1))
+    janela = JanelaTendencia(repo.tendencia(paquimetro.id), "PAQ-900")
+    do_primeiro_ponto = sorted(d.x for d in janela._desenhados if d.serie.descricao == "30.00")
+    assert len(do_primeiro_ponto) == 2 and do_primeiro_ponto[0] < 0 < do_primeiro_ponto[1]
 
 
-def test_cor_e_marcador_nao_se_repetem():
-    from calibracao.interface.grafico_tendencia import cor_e_marcador
-    assert len({cor_e_marcador(i) for i in range(20)}) == 20
+def test_dica_mostra_o_desvio_final(app, repo, paquimetro):
+    from calibracao.interface.grafico_tendencia import JanelaTendencia
+    registrar(repo, paquimetro, date(2026, 10, 1))
+    janela = JanelaTendencia(repo.tendencia(paquimetro.id), "PAQ-900")
+    texto = janela.texto_da_dica(janela._desenhados[0])
+    assert "Desvio final: 0,02" in texto and "Incerteza (U): 0,01" in texto
 
 
 def test_grafico_sem_dados(app):
@@ -384,28 +425,3 @@ def test_enter_confirma_e_desce_para_a_celula_de_baixo(app, repo, paquimetro):
     assert tabela.state() == QAbstractItemView.EditingState
     assert janela.isVisible()
     janela.close()
-
-
-def test_dezessete_pontos_com_cores_diferentes():
-    """O maior plano tem 17 pontos: nenhuma cor se repete até lá (pedido de 2026-11-04)."""
-    from calibracao.interface.grafico_tendencia import cor_e_marcador
-    assert len({cor_e_marcador(i)[0] for i in range(17)}) == 17
-
-
-def test_pontos_da_mesma_calibracao_na_mesma_vertical(app, repo, paquimetro):
-    from calibracao.interface.grafico_tendencia import JanelaTendencia
-    registrar(repo, paquimetro, date(2026, 10, 20))
-    janela = JanelaTendencia(repo.tendencia(paquimetro.id), "PAQ-900")
-    assert janela.todos
-    assert len({d.x for d in janela._desenhados}) == 1
-
-
-def test_eixo_mostra_as_datas_das_calibracoes(app, repo, paquimetro):
-    from matplotlib import dates as mdates
-
-    from calibracao.interface.grafico_tendencia import JanelaTendencia
-    registrar(repo, paquimetro, date(2025, 10, 1))
-    registrar(repo, paquimetro, date(2026, 10, 1))
-    janela = JanelaTendencia(repo.tendencia(paquimetro.id), "PAQ-900")
-    marcas = [mdates.num2date(x).date() for x in janela._eixo.get_xticks()]
-    assert marcas == [date(2025, 10, 1), date(2026, 10, 1)]
