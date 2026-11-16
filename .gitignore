@@ -34,3 +34,6 @@ data/*.db
 
 # Configurações pessoais do Claude Code (não versionar)
 .claude/settings.local.json
+
+# instruções do Claude Code: ficam só no PC (cópia no repositório privado claude-config)
+CLAUDE.md
