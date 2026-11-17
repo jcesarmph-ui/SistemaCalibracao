@@ -320,6 +320,10 @@ def criar_tabelas(conexao: sqlite3.Connection) -> None:
         if "incerteza_nao_aplica" not in _colunas(conexao, tabela):
             conexao.execute(f"ALTER TABLE {tabela} ADD COLUMN incerteza_nao_aplica "
                             "INTEGER NOT NULL DEFAULT 0")
+    # Valor encontrado do ponto sem nominal fixo (ex.: durômetro): só registro, a avaliação usa o
+    # desvio. Coluna nova sem mudar a versão do esquema, para a versão anterior ainda abrir.
+    if "valor_encontrado" not in _colunas(conexao, "pontos_calibracao"):
+        conexao.execute("ALTER TABLE pontos_calibracao ADD COLUMN valor_encontrado REAL")
     _migrar_condicao_indicativa(conexao)
     _unificar_nomes(conexao)
     conexao.execute(

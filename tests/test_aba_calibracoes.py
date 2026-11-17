@@ -366,10 +366,14 @@ def test_sem_nominal_digita_o_desvio(app, repo):
     dur = repo.obter_instrumento(repo.incluir_instrumento(Instrumento(
         "DUR-901", "Durômetro", plano_id=plano, periodicidade_meses=12)))
     janela = JanelaNovaCalibracao(repo, dur, HOJE)
-    assert not janela.tabela.item(0, J.ENCONTRADO).flags() & Qt.ItemIsEditable
+    # o valor encontrado pode ser anotado (pedido de 2026-11-17), mas não entra na conta
+    assert janela.tabela.item(0, J.ENCONTRADO).flags() & Qt.ItemIsEditable
+    janela.tabela.item(0, J.ENCONTRADO).setText("74,5")
     janela.tabela.item(0, J.DESVIO).setText("1,2")
     assert janela.tabela.item(0, J.DESVIO_FINAL).text() == "1,7"
     assert janela.resultados() == [Resultado.APROVADO]
+    medido = janela.medido_da_linha(0)
+    assert (medido.valor, medido.valor_encontrado) == (1.2, 74.5)
     janela.tabela.item(0, J.DESVIO).setText("1,8")
     assert janela.resultados() == [Resultado.REPROVADO]
 
@@ -425,3 +429,21 @@ def test_enter_confirma_e_desce_para_a_celula_de_baixo(app, repo, paquimetro):
     assert tabela.state() == QAbstractItemView.EditingState
     assert janela.isVisible()
     janela.close()
+
+
+def test_sem_nominal_guarda_o_valor_encontrado(app, repo):
+    plano = repo.incluir_plano(Plano("Plano DUR-903"))
+    repo.incluir_ponto(PontoPlano(plano, "NUMERICO", "67 a 80 HR15T", tolerancia_inferior=-2.0,
+                                  tolerancia_superior=2.0, incerteza=0.5))
+    dur_id = repo.incluir_instrumento(Instrumento(
+        "DUR-903", "Durômetro", plano_id=plano, periodicidade_meses=12))
+    ponto = repo.listar_pontos(plano)[0]
+    calibracao = repo.registrar_calibracao(NovaCalibracao(
+        dur_id, HOJE, [PontoMedido(ponto.id, valor=1.2, incerteza=0.5, valor_encontrado=74.5)],
+        parecer_final=ParecerFinal.APROVADO), HOJE)
+    registrado = repo.pontos_da_calibracao(calibracao)[0]
+    assert (registrado.valor, registrado.valor_encontrado) == (1.2, 74.5)
+    janela = JanelaNovaCalibracao(repo, repo.obter_instrumento(dur_id), HOJE,
+                                  corrigir=repo.obter_calibracao(calibracao))
+    assert janela.tabela.item(0, J.ENCONTRADO).text() == "74,5"
+    assert janela.medido_da_linha(0).valor == 1.2
