@@ -65,6 +65,8 @@ DICA_U = ("Incerteza expandida de medição (U), do certificado: quanto o result
           "para mais ou para menos. Já vem a do plano; troque se o certificado trouxer outra.")
 DICA_SEM_NOMINAL = ("Ponto sem nominal fixo (ex.: durômetro, laboratório externo): digite o "
                     "DESVIO que está no certificado, na coluna Desvio encontrado.")
+DICA_ENCONTRADO_SEM_NOMINAL = ("Opcional: o valor encontrado fica só anotado. A avaliação usa o "
+                               "Desvio encontrado do certificado.")
 DICA_DESVIO = "Valor encontrado − exigido (calculado sozinho)."
 DICA_DESVIO_FINAL = ("Desvio encontrado ± Incerteza (U), do lado que fica mais perto da "
                      "tolerância (ex.: desvio −0,2 e U 0,1 → −0,3). É o que decide o resultado.")
@@ -342,8 +344,10 @@ class JanelaNovaCalibracao(QDialog):
         self._fixo(linha, self.REFERENCIA, referencia(ponto))
         if ponto.tipo in NUMERICOS:
             if ponto.tipo == "NUMERICO" and ponto.valor_nominal is None:
-                # sem nominal fixo: o certificado já traz o desvio
-                self._fixo(linha, self.ENCONTRADO, "—")
+                # sem nominal fixo: o certificado já traz o desvio; o valor encontrado é só
+                # anotado (pedido de 2026-11-17, durômetro DUR-001)
+                self._editavel(linha, self.ENCONTRADO)
+                self.tabela.item(linha, self.ENCONTRADO).setToolTip(DICA_ENCONTRADO_SEM_NOMINAL)
                 self._editavel(linha, self.DESVIO)
                 self.tabela.item(linha, self.DESVIO).setToolTip(DICA_SEM_NOMINAL)
             else:
@@ -426,7 +430,9 @@ class JanelaNovaCalibracao(QDialog):
             if ponto.resultado == Resultado.NAO_APLICAVEL:
                 self.tabela.item(linha, self.NAO_APLICAVEL).setCheckState(Qt.Checked)
             if ponto.tipo in NUMERICOS:
-                for coluna, valor in [(self.ENCONTRADO, ponto.valor),
+                sem_nominal = ponto.tipo == "NUMERICO" and ponto.valor_nominal is None
+                for coluna, valor in [(self.ENCONTRADO, ponto.valor_encontrado if sem_nominal
+                                       else ponto.valor),
                                       (self.DESVIO, ponto.valor),
                                       (self.INCERTEZA, ponto.incerteza),
                                       (self.PADRAO, ponto.valor_padrao),
@@ -466,12 +472,16 @@ class JanelaNovaCalibracao(QDialog):
             medido.escolha = Resultado.NAO_APLICAVEL
             return medido
         if ponto.tipo in NUMERICOS:
-            # o valor é o encontrado ou, sem nominal fixo, o desvio (só uma das duas é editável)
-            valor = self._texto(linha, self.ENCONTRADO) or self._texto(linha, self.DESVIO)
-            nome_valor = ("Desvio encontrado" if self._editavel_em(linha, self.DESVIO)
-                          else "Valor encontrado")
+            # o valor é o encontrado ou, sem nominal fixo, o desvio (o encontrado vira só registro)
+            sem_nominal = self._editavel_em(linha, self.DESVIO)
+            if sem_nominal:
+                valor, nome_valor = self._texto(linha, self.DESVIO), "Desvio encontrado"
+            else:
+                valor, nome_valor = self._texto(linha, self.ENCONTRADO), "Valor encontrado"
+            anotado = self._texto(linha, self.ENCONTRADO) if sem_nominal else ""
             for texto, campo, nome in [
                     (valor, "valor", nome_valor),
+                    (anotado, "valor_encontrado", "Valor encontrado"),
                     (self._texto(linha, self.INCERTEZA), "incerteza", "Incerteza (U)"),
                     (self._texto(linha, self.PADRAO), "valor_padrao", "Padrão"),
                     (self._texto(linha, self.INDICACAO), "valor_medido", "Indicação")]:
@@ -716,8 +726,11 @@ class JanelaVerCalibracao(QDialog):
         for linha, ponto in enumerate(pontos):
             sem_nominal = ponto.tipo == "NUMERICO" and ponto.valor_nominal is None
             numerico = ponto.tipo in NUMERICOS
-            encontrado = (_texto_numero(ponto.valor) if numerico and not sem_nominal
-                          else "—")
+            if sem_nominal:
+                encontrado = numero_em_texto(ponto.valor_encontrado) or "—"
+            else:
+                encontrado = _texto_numero(ponto.valor) if numerico else "—"
+
             itens = [celula(str(ponto.ordem)), celula(ponto.secao or ""),
                      celula(ponto.descricao), celula(referencia(ponto)), celula(encontrado),
                      celula(NAO_SE_APLICA if ponto.incerteza_nao_aplica

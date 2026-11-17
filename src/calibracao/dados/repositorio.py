@@ -208,6 +208,7 @@ class PontoMedido:
     escolha: Resultado | None = None
     valor_padrao: float | None = None  # só registro
     valor_medido: float | None = None  # só registro
+    valor_encontrado: float | None = None  # só registro (ponto sem nominal fixo)
     observacao: str | None = None
 
 
@@ -268,6 +269,7 @@ class PontoRegistrado:
     resultado: Resultado
     observacao: str | None
     incerteza_nao_aplica: bool = False
+    valor_encontrado: float | None = None  # só registro (ponto sem nominal fixo)
     id: int | None = None  # linha de pontos_calibracao (usado para corrigir)
 
 
@@ -1101,6 +1103,7 @@ class Repositorio:
                 foto = {c: getattr(ponto, c) for c in _CAMPOS_REGISTRADO if hasattr(ponto, c)}
                 foto.update(valor=medido.valor, incerteza=medido.incerteza,
                             valor_padrao=medido.valor_padrao, valor_medido=medido.valor_medido,
+                            valor_encontrado=medido.valor_encontrado,
                             resultado=str(avaliacao.resultado), observacao=medido.observacao)
                 self._conexao.execute(
                     f"INSERT INTO pontos_calibracao (calibracao_id, ponto_plano_id, "
@@ -1202,6 +1205,7 @@ class Repositorio:
                 ("U", registrado.incerteza, medido.incerteza),
                 ("padrão", registrado.valor_padrao, medido.valor_padrao),
                 ("medido", registrado.valor_medido, medido.valor_medido),
+                ("encontrado", registrado.valor_encontrado, medido.valor_encontrado),
                 ("resultado", registrado.resultado, avaliacao.resultado),
                 ("observação", _limpo(registrado.observacao), _limpo(medido.observacao)),
             ) if antes != depois]
@@ -1241,8 +1245,10 @@ class Repositorio:
             for registrado, medido, avaliacao in avaliacoes:
                 self._conexao.execute(
                     """UPDATE pontos_calibracao SET valor = ?, incerteza = ?, valor_padrao = ?,
-                           valor_medido = ?, resultado = ?, observacao = ? WHERE id = ?""",
+                           valor_medido = ?, valor_encontrado = ?, resultado = ?,
+                           observacao = ? WHERE id = ?""",
                     (medido.valor, medido.incerteza, medido.valor_padrao, medido.valor_medido,
+                     medido.valor_encontrado,
                      str(avaliacao.resultado), _limpo(medido.observacao), registrado.id),
                 )
             if mudou_parecer:
