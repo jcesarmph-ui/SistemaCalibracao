@@ -29,8 +29,15 @@ TRABALHO = PROJETO / "dist" / "_gerando"
 PACOTE = PROJETO / "dist" / NOME
 
 # Módulos que o programa não usa (entravam junto e só deixavam a cópia mais pesada).
-SEM_USO = ["calibracao.importacao", "openpyxl", "pytest", "pandas", "tkinter",
+SEM_USO = ["calibracao.importacao", "pytest", "pandas", "tkinter",
            "PySide6.QtQuick", "PySide6.QtQml", "PySide6.QtPdf", "PySide6.QtNetwork"]
+# O leitor de certificados com IA (projeto LeitorCertificadosIA) só é carregado ao clicar no
+# botão: o PyInstaller não o acha sozinho. Vai inteiro, com os modelos do OCR e a assinatura.
+LEITOR = ["leitor_certificados", "rapidocr", "onnxruntime", "sklearn", "pyhanko",
+          "pyhanko_certvalidator", "pypdfium2", "reportlab"]
+# Modelo e correções iniciais do leitor (fora do Git: treinados com certificados reais).
+# Vão ao lado do programa; na 1ª leitura são copiados para dados/leitor_ia na rede.
+LEITOR_INICIAL = PROJETO / "dados" / "leitor_ia_inicial"
 # Arquivos do Qt sem uso numa tela comum: OpenGL por software e traduções.
 SOBRAS_QT = ["opengl32sw.dll", "translations"]
 
@@ -45,6 +52,9 @@ def gerar(script: Path, saida: Path, excluir: list[str], dados: list[str]) -> Pa
     for arquivo in dados:
         argumentos += ["--add-data", f"{PROJETO / 'dados' / arquivo};recursos"]
     # Ícones do Google (Material Symbols) com a licença Apache 2.0, que precisa ir junto.
+    if dados:  # só o programa (o lançador não leva o leitor)
+        for pacote in LEITOR:
+            argumentos += ["--collect-all", pacote]
     icones = PROJETO / "src" / "calibracao" / "interface" / "icones"
     argumentos += ["--add-data", f"{icones};calibracao/interface/icones"]
     PyInstaller.__main__.run(argumentos)
@@ -64,6 +74,10 @@ def main() -> int:
             shutil.rmtree(caminho)
         elif caminho.is_file():
             caminho.unlink()
+    if not (LEITOR_INICIAL / "modelos" / "modelo_atual.joblib").is_file():
+        print(f"Falta o modelo inicial do leitor: {LEITOR_INICIAL}")
+        return 1
+    shutil.copytree(LEITOR_INICIAL, programa / LEITOR_INICIAL.name)
     versao = f"{__version__}_{datetime.datetime.now():%Y%m%d-%H%M%S}"
     (programa / "versao.txt").write_text(versao, encoding="utf-8")
 
