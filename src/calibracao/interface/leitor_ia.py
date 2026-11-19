@@ -82,11 +82,17 @@ def abrir_leitor(pai: QWidget, pdf: Path, banco: Path, ao_registrar: Callable[[d
                  inicial: Path | None = None):
     """Abre a janela do leitor já com o PDF. `ao_registrar` recebe a saída quando a pessoa
     registra no leitor; a janela do leitor fecha sozinha."""
+    from leitor_certificados.interface.estilo import montar_estilo
     from leitor_certificados.interface.janela import Janela
+    from PySide6.QtCore import QTimer
+
+    from calibracao.interface.estilo import tema_claro
 
     janela = Janela(servico_do_leitor(banco, inicial))
-    janela.setParent(pai, Qt.Window)
-    janela.setWindowModality(Qt.ApplicationModal)  # a Nova calibração espera o leitor
+    # Janela de cima, sem "pai": presa à Nova calibração, o Windows dizia "maximizada" mas
+    # deixava a janela pequena (medido: 1403 × 638 numa tela de 1920 × 1032). Quem abriu
+    # guarda a referência; a modalidade faz a Nova calibração esperar o leitor.
+    janela.setWindowModality(Qt.ApplicationModal)
     janela.setAttribute(Qt.WA_DeleteOnClose)
 
     def registrou(saida: dict) -> None:
@@ -95,14 +101,24 @@ def abrir_leitor(pai: QWidget, pdf: Path, banco: Path, ao_registrar: Callable[[d
 
     janela.registrado.connect(registrou)
     # O estilo do leitor na janela dele: o do programa deixava contornos brancos nos painéis.
-    from leitor_certificados.interface.estilo import montar_estilo
-
-    from calibracao.interface.estilo import tema_claro
+    # Aplicado antes de medir a tela (o leitor mede ao montar; o estilo muda os tamanhos).
     janela.setStyleSheet(montar_estilo("cinza_claro" if tema_claro() else "preto"))
-    # Tela cheia, como todas as janelas do programa
-    janela.setWindowFlags(janela.windowFlags() | Qt.WindowMaximizeButtonHint)
-    janela.setWindowState(Qt.WindowMaximized)
-    janela.show()
+    janela.ensurePolished()
+    janela.centralWidget().layout().activate()
+    tela = (pai.screen() if pai is not None else janela.screen()).availableGeometry()
+    janela.setGeometry(tela)
+    janela.showMaximized()
+
+    def conferir_tamanho() -> None:
+        """Se o Windows "perdeu" o maximizar, ocupa a tela à força e maximiza de novo."""
+        area = janela.screen().availableGeometry()
+        if janela.width() < area.width() - 20 or janela.height() < area.height() - 60:
+            janela.showNormal()
+            janela.setGeometry(area)
+            janela.showMaximized()
+
+    for espera in (0, 300, 1000):
+        QTimer.singleShot(espera, janela, conferir_tamanho)
     if janela.servico.modelo is None:
         janela.iniciar()
     # o modelo é preparado em segundo plano; o PDF abre assim que ele ficar pronto
