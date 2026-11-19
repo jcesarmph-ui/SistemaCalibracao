@@ -447,3 +447,35 @@ def test_sem_nominal_guarda_o_valor_encontrado(app, repo):
                                   corrigir=repo.obter_calibracao(calibracao))
     assert janela.tabela.item(0, J.ENCONTRADO).text() == "74,5"
     assert janela.medido_da_linha(0).valor == 1.2
+
+
+def test_ia_so_aparece_depois_do_pdf_e_preenche_os_pontos(app, repo, paquimetro, tmp_path):
+    """Leitor com IA (2026-11-19): botão só com PDF escolhido; a saída do leitor preenche a
+    tabela pelo id do ponto do plano, a data e o PDF carimbado (que fica travado)."""
+    from reportlab.pdfgen import canvas
+
+    original, carimbado = tmp_path / "cert.pdf", tmp_path / "carimbado.pdf"
+    for arquivo in (original, carimbado):
+        folha = canvas.Canvas(str(arquivo))
+        folha.drawString(100, 750, "certificado")
+        folha.save()
+    janela = J(repo, paquimetro, HOJE)
+    assert janela.ler_com_ia.isHidden()
+    assert janela.usar_pdf(original)
+    assert not janela.ler_com_ia.isHidden()
+    assert janela.escolher_pdf.text() == "Trocar PDF"
+    ids = [p.id for p in janela.pontos]
+    janela.usar_saida_do_leitor({
+        "versao_saida": 1, "certificado": "CAL-123.pdf", "pdf_final": str(carimbado),
+        "data_calibracao": "2026-10-20",
+        "pontos": [{"id_ponto_plano": ids[0], "encontrado": 30.01, "incerteza": 0.01,
+                    "erro": 0.01, "resultado": "Aprovado"},
+                   {"id_ponto_plano": ids[1], "encontrado": 60.02, "incerteza": 0.012,
+                    "erro": 0.02, "resultado": "Aprovado"}]})
+    assert janela.tabela.item(0, J.ENCONTRADO).text() == "30,01"
+    assert janela.tabela.item(1, J.INCERTEZA).text() == "0,012"
+    assert janela.data.date().toPython() == date(2026, 10, 20)
+    assert janela.certificado.text() == "CAL-123"
+    assert janela.pdf_escolhido == carimbado
+    assert not janela.escolher_pdf.isEnabled() and janela.ler_com_ia.isHidden()
+    assert "2 de 3" in janela.avisos.text()
