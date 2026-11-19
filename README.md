@@ -521,7 +521,7 @@ erDiagram
 | Prática | Como foi aplicada |
 |---|---|
 | 🧭 **Fases com entrega** | Roteiro em 6 fases; cada uma numa **branch** com **pull request**, juntada só depois de aprovada. |
-| 📸 **Aprovação por foto** | Cada mudança de tela gerou "fotos" da janela (sem abri-la) para o usuário aprovar antes de seguir. |
+| 📸 **Aprovação por foto** | Cada mudança de tela gerou "fotos" da janela (sem abri-la) para aprovação antes de seguir. |
 | 🧪 **Testes primeiro nas regras** | Regras de avaliação, cronograma e lixeira refeitas do zero com testes; dados sempre fictícios. |
 | 📝 **Decisões registradas** | Escolhas de arquitetura em ADRs (`docs/decisoes/`): o porquê fica guardado. |
 | 🏷️ **Versionamento semântico** | `0.x` durante o desenvolvimento (uma versão por fase), `1.0.0` na entrada em uso, tag Git por versão. |
