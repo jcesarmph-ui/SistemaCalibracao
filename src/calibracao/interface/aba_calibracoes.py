@@ -243,9 +243,22 @@ class JanelaNovaCalibracao(QDialog):
             "PDF do certificado (opcional). Ele é copiado para a pasta dos certificados do "
             "programa; o seu arquivo continua onde está. Trocar manda o anterior para a Lixeira.")
         self.escolher_pdf.clicked.connect(self.procurar_pdf)
+        # Leitor de certificados com IA (pedido de 2026-11-19): perto de onde sobe o PDF.
+        self.ler_com_ia = QPushButton("Preencher os pontos com IA")
+        por_icone(self.ler_com_ia, "document_scanner", CORES["titulo"])
+        self.ler_com_ia.setToolTip(
+            "Lê o PDF escolhido com a IA e preenche os pontos sozinho (opcional). "
+            "Nada é salvo antes de você conferir.")
+        # Só aparece depois de escolher o PDF: a ordem fica óbvia (sobe o PDF, a IA é opcional).
+        self.ler_com_ia.hide()
+        self.ler_com_ia.clicked.connect(self.ler_pdf_com_ia)
+        self.veio_do_leitor = False  # o PDF carimbado veio do leitor: não dá para trocar
+        botoes_pdf = QHBoxLayout()
+        botoes_pdf.addWidget(self.escolher_pdf)
+        botoes_pdf.addWidget(self.ler_com_ia)
         grade.addWidget(QLabel("Certificado (PDF)"), 3, 0)
-        grade.addWidget(self.nome_pdf, 3, 1, 1, 3)
-        grade.addWidget(self.escolher_pdf, 3, 4, 1, 2)
+        grade.addWidget(self.nome_pdf, 3, 1, 1, 2)
+        grade.addLayout(botoes_pdf, 3, 3, 1, 3)
         # A caixa primeiro: mostrar um campo ainda sem "pai" pisca uma janela solta na tela.
         caixa = QGroupBox("Dados da calibração")
         caixa.setLayout(grade)
@@ -624,6 +637,70 @@ class JanelaNovaCalibracao(QDialog):
         else:
             texto = f'<span style="color:{CORES["dica"]}"><i>Nenhum PDF (opcional)</i></span>'
         self.nome_pdf.setText(texto)
+        self.ler_com_ia.setVisible(self.pdf_escolhido is not None and not self.veio_do_leitor)
+        if self.pdf_escolhido is not None:
+            self.escolher_pdf.setText("Trocar PDF")
+        if self.veio_do_leitor:
+            self.escolher_pdf.setEnabled(False)
+            self.escolher_pdf.setToolTip(
+                "O PDF veio do leitor com a IA (com o carimbo da conferência). Para usar outro, "
+                "cancele e comece a calibração de novo.")
+            self.nome_pdf.setText(f"<b>{self.pdf_escolhido.name}</b> — lido pela IA e "
+                                  "carimbado; será guardado ao salvar")
+
+    def ler_pdf_com_ia(self) -> None:
+        """Abre o leitor com o PDF escolhido; ao registrar lá, os pontos entram aqui."""
+        from . import leitor_ia
+
+        if self.pdf_escolhido is None:
+            return
+        try:
+            banco = leitor_ia.caminho_do_banco(self.repo._conexao)
+            self._leitor = leitor_ia.abrir_leitor(
+                self, self.pdf_escolhido, banco, self.usar_saida_do_leitor,
+                leitor_ia.pasta_inicial())
+        except Exception as erro:  # biblioteca ausente, pasta sem permissão…
+            self._aviso([f"Não consegui abrir o leitor com IA: {erro}"])
+
+    def usar_saida_do_leitor(self, saida: dict) -> None:
+        """Preenche os pontos com o que o leitor leu. A pessoa confere e salva."""
+        por_id = {p["id_ponto_plano"]: p for p in saida.get("pontos", [])}
+        data = saida.get("data_calibracao")
+        if data and self.corrigindo is None:
+            dia = datetime.date.fromisoformat(data)
+            self.data.setDate(QDate(dia.year, dia.month, dia.day))
+        if saida.get("certificado") and not self.certificado.text().strip():
+            self.certificado.setText(Path(saida["certificado"]).stem)
+        preenchidos = 0
+        self.tabela.blockSignals(True)
+        for linha, ponto in enumerate(self.pontos):
+            lido = por_id.get(getattr(ponto, "ponto_plano_id", None) or ponto.id)
+            if lido is None:
+                continue
+            preenchidos += 1
+            if ponto.tipo in NUMERICOS:
+                sem_nominal = self._editavel_em(linha, self.DESVIO)
+                valores = [(self.ENCONTRADO, lido.get("encontrado")),
+                           (self.INCERTEZA, lido.get("incerteza"))]
+                if sem_nominal:
+                    valores.append((self.DESVIO, lido.get("erro")))
+                for coluna, valor in valores:
+                    if valor is not None and self._editavel_em(linha, coluna):
+                        self.tabela.item(linha, coluna).setText(numero_em_texto(valor))
+            else:
+                escolha = self.tabela.cellWidget(linha, self.ENCONTRADO)
+                if escolha.findText(str(lido.get("resultado"))) >= 0:
+                    escolha.setCurrentText(str(lido.get("resultado")))
+        self.tabela.blockSignals(False)
+        for linha in range(len(self.pontos)):
+            self._avaliar_linha(linha)
+        if saida.get("pdf_final"):
+            self.pdf_escolhido = Path(saida["pdf_final"])
+            self.veio_do_leitor = True
+        self._mostrar_pdf()
+        self.avisos.setStyleSheet(f"color: {CORES['aviso']};")
+        self.avisos.setText(f"⚠ A IA preencheu {preenchidos} de {len(self.pontos)} pontos. "
+                            "Confira cada um antes de salvar.")
 
     def procurar_pdf(self) -> None:
         arquivo, _ = QFileDialog.getOpenFileName(

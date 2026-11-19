@@ -20,7 +20,7 @@
   <img src="https://img.shields.io/badge/tipo-aplicação_desktop-orange?style=flat-square" alt="Tipo"/>
   <img src="https://img.shields.io/badge/testes-pytest_(410)-brightgreen?style=flat-square" alt="Testes"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
-  <img src="https://img.shields.io/badge/versão-1.2.0_em_uso-success?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/versão-1.4.0_em_uso-success?style=flat-square" alt="Versão"/>
   <img src="https://img.shields.io/badge/protótipo-Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white" alt="Protótipo"/>
 </p>
 
@@ -128,10 +128,10 @@ mindmap
 
 | | Número | O que significa |
 |---|---|---|
-| 🧪 | **410 testes automáticos** | Regras, banco, importador e telas testados com dados fictícios (pytest; telas em modo *offscreen*). |
+| 🧪 | **413 testes automáticos** | Regras, banco, importador e telas testados com dados fictícios (pytest; telas em modo *offscreen*). |
 | 🐍 | **~11.000 linhas** de código + **~5.100** de testes | Programa final escrito do zero, em camadas. |
-| 🔀 | **20 pull requests** em **6 fases** + 2 versões de melhorias | Cada fase numa branch própria, revisada e aprovada antes de juntar. |
-| 🏷️ | **3 versões entregues** (`v1.0.0`, `v1.1.0`, `v1.2.0`) | Versionamento semântico, versão visível na tela. |
+| 🔀 | **23 pull requests** em **6 fases** + 5 versões de melhorias | Cada fase numa branch própria, revisada e aprovada antes de juntar. |
+| 🏷️ | **6 versões entregues** (`v1.0.0` a `v1.4.0`) | Versionamento semântico, versão visível na tela. |
 | 📝 | **3 decisões de arquitetura** (ADRs) | Troca para PySide6, trava de edição em rede, lugar oficial do banco. |
 | 🗄️ | **9 versões da estrutura do banco** | Atualização automática do banco antigo, sem perder dados. |
 | ⚡ | **~2 s** para abrir pela rede | Antes, 10–15 s. |
@@ -213,6 +213,7 @@ mindmap
 - Colunas de **desvio encontrado** e **desvio final** (desvio ± U).
 - **Parecer final** de quem analisa, que muda a condição do instrumento.
 - **Correção** de calibração salva, com registro de quem, quando e o que mudou.
+- 🤖 **Preencher os pontos com IA**: o [Leitor de Certificados com IA](https://github.com/jcesarmph-ui/LeitorCertificadosIA) lê o PDF do certificado e preenche os pontos sozinho; o PDF sai carimbado e com **assinatura digital** (lacre contra alteração). A pessoa confere e salva.
 - **Gráfico de tendência** com todos os pontos ou um por vez, exportável em PNG.
 
 </td>
@@ -388,6 +389,8 @@ flowchart LR
 | Python | Implementação das regras, do banco e da interface. |
 | PySide6 | Interface desktop nativa, sem servidor nem navegador; tema escuro padronizado. |
 | SQLite | Banco preparado para pasta de rede (journal tradicional, espera automática, backup diário). |
+| Leitor de Certificados com IA | Projeto próprio (scikit-learn + OCR local, gratuito) usado como biblioteca: lê o certificado e preenche os pontos. |
+| pyHanko | Assinatura digital do PDF aprovado pelo leitor (lacre contra alteração). |
 | Matplotlib | Gráfico de tendência embutido na janela (exportável em PNG) e gráficos do painel de indicadores, na janela e nos relatórios. |
 | QPdfWriter (Qt) | Relatórios mensais e anuais em PDF, em folha A4, sem programa extra. |
 | Material Symbols | Ícones do Google (licença Apache 2.0), repintados na cor do tema claro ou escuro. |
@@ -542,6 +545,8 @@ erDiagram
 - [x] Fase 6 — Programa para a rede, teste de uso real e versão `1.0.0` em uso na empresa (novembro de 2026)
 - [x] Versão `1.1.0` — ajustes do primeiro uso real (teclado, colunas de desvio, gráfico, calendário)
 - [x] Versão `1.2.0` — certificados em PDF, modo claro e escuro, painel de indicadores, relatórios
+- [x] Versão `1.3.0` — gráfico de tendência por ponto (desvio final, uma cor por ano)
+- [x] Versão `1.4.0` — leitor de certificados com IA dentro da Nova calibração
   mensais e anuais, cadastro sem nomes repetidos
 
 ## 🔄 Do protótipo ao programa final
