@@ -157,7 +157,7 @@ mindmap
     </td>
     <td width="50%" align="center">
       <img src="docs/telas/03_nova_calibracao.png" alt="Registro de calibração"/>
-      <br/><em>Nova calibração: cada ponto é avaliado na hora, considerando a incerteza (U) —
+      <br/><em>Nova calibração: cada ponto é avaliado em tempo real, considerando a incerteza (U) —
       o ponto 4 reprova porque a faixa medida ± U passa da tolerância.</em>
     </td>
   </tr>
@@ -236,7 +236,7 @@ mindmap
 
 - **PDF do certificado** anexado na calibração (opcional, um por calibração, trocável).
 - Aba **Certificados**: código, nº do certificado e data; abre com um clique.
-- PDF **conferido contra alteração**: se alguém mexer no arquivo, aparece aviso.
+- PDF **conferido contra alteração**: se o arquivo for alterado, aparece aviso.
 
 </td>
     <td valign="top" width="33%">
@@ -253,8 +253,8 @@ mindmap
 
 **🎨 Cadastro e aparência**
 
-- **Modo claro e escuro**, escolhido por cada pessoa, trocado na hora.
-- Tipo e localização **com sugestões** (sem ligar para maiúsculas e acentos): nada de nome repetido.
+- **Modo claro e escuro**, escolhido por cada pessoa, trocado em tempo real.
+- Tipo e localização **com sugestões** (sem distinguir maiúsculas e acentos): sem nomes repetidos.
 - Código com **próximo número** da sigla (PAQ-018 → PAQ-019).
 - Ícones **Material Symbols** e calendário em todos os campos de data.
 
@@ -524,11 +524,11 @@ erDiagram
 | Prática | Como foi aplicada |
 |---|---|
 | 🧭 **Fases com entrega** | Roteiro em 6 fases; cada uma numa **branch** com **pull request**, juntada só depois de aprovada. |
-| 📸 **Aprovação por foto** | Cada mudança de tela gerou "fotos" da janela (sem abri-la) para o usuário aprovar antes de seguir. |
+| 📸 **Aprovação por foto** | Cada mudança de tela gerou "fotos" da janela (sem abri-la) para aprovação antes de seguir. |
 | 🧪 **Testes primeiro nas regras** | Regras de avaliação, cronograma e lixeira refeitas do zero com testes; dados sempre fictícios. |
 | 📝 **Decisões registradas** | Escolhas de arquitetura em ADRs (`docs/decisoes/`): o porquê fica guardado. |
 | 🏷️ **Versionamento semântico** | `0.x` durante o desenvolvimento (uma versão por fase), `1.0.0` na entrada em uso, tag Git por versão. |
-| 🧑‍🔬 **Teste de uso real** | Antes da entrega, uma cópia de teste foi usada de verdade; cada achado virou correção. |
+| 🧑‍🔬 **Teste de uso real** | Antes da entrega, uma cópia de teste foi usada em condições reais; cada achado virou correção. |
 | 🔒 **Dados protegidos** | A planilha original só é lida (de uma cópia, conferida por SHA-256); nenhum dado real no repositório. |
 | 🤖 **IA como ferramenta** | Desenvolvimento com Claude Code: o autor define as regras de negócio, revisa e aprova cada etapa. |
 
@@ -704,7 +704,7 @@ o protótipo:
 
 **Fase 6 — Programa pronto para a rede e versão `1.0.0`.** Antes de entrar em uso, o programa
 passou por um **teste de uso real** numa cópia separada (o "programa de TESTE", com faixa amarela,
-para mexer à vontade sem bagunçar o banco oficial). Cada achado virou uma correção, mostrada por
+para uso livre sem afetar o banco oficial). Cada achado virou uma correção, mostrada por
 foto e aprovada antes de seguir:
 
 | Melhoria | O que faz |
@@ -718,7 +718,7 @@ foto e aprovada antes de seguir:
 | **Incerteza "não se aplica"** | Onde a planilha diz "-" ou "N/A", o ponto é avaliado só pelo valor — diferente de incerteza esquecida, que continua bloqueando. |
 | **Dois computadores** | No modo consulta, botões **Pedir edição** e **Atualizar** no canto; a resposta volta em **verde** (liberado) ou **vermelho** (recusado); a tela se atualiza sozinha a cada 10 s. |
 | **Gráfico de tendência com todos os pontos** | Abre com **todos os pontos juntos**, cada um com sua cor. Tolerâncias iguais → eixo no desvio; diferentes → eixo em **% da tolerância usada** (100% = no limite). Clicar no nome do ponto na legenda esconde/mostra; um ponto por vez continua disponível, na medida normal. |
-| **Cronograma a partir da implantação** | O seletor de mês começa no mês atual e nos próximos; os meses que já passaram ficam embaixo, como registro, sem nada de antes da implantação. |
+| **Cronograma a partir da implantação** | O seletor de mês começa no mês atual e nos próximos; os meses que já passaram ficam embaixo, como registro, sem registros anteriores à implantação. |
 | **Rolagem** | Roda do mouse só rola (nunca muda opção sem querer); **Shift + roda** rola para os lados. |
 </details>
 
@@ -754,12 +754,12 @@ ir para a rede:
 
 | Novidade | O que faz |
 |---|---|
-| **Certificados em PDF** | Na nova calibração (ou no EDITAR) escolhe-se o PDF do certificado; ele é copiado para a pasta do programa e conferido por SHA-256. Trocar manda o anterior para a Lixeira. Aba **Certificados** com pesquisa e botão **Abrir certificado**; PDF mexido depois abre com aviso amarelo. |
-| **Modo claro e escuro** | Botão sol/lua no canto: cada pessoa escolhe, a troca é na hora e fica guardada por usuário do Windows. No claro, o logo ganha letra preta. |
-| **Painel de indicadores** | Montado pelo próprio usuário, sem IA: **ADICIONAR GRÁFICO** abre um montador com listas (o que ver, separado por, só os que…, cores, período, tipo de gráfico) e prévia na hora; o montador só oferece o que faz sentido e não deixa adicionar gráfico vazio. Um painel só para todos, guardado no banco; desfazer as 3 últimas mudanças. |
+| **Certificados em PDF** | Na nova calibração (ou no EDITAR) escolhe-se o PDF do certificado; ele é copiado para a pasta do programa e conferido por SHA-256. Trocar manda o anterior para a Lixeira. Aba **Certificados** com pesquisa e botão **Abrir certificado**; PDF alterado depois abre com aviso amarelo. |
+| **Modo claro e escuro** | Botão sol/lua no canto: cada pessoa escolhe, a troca é em tempo real e fica guardada por usuário do Windows. No claro, o logo ganha letra preta. |
+| **Painel de indicadores** | Montado pelo próprio usuário, sem IA: **ADICIONAR GRÁFICO** abre um montador com listas (o que ver, separado por, só os que…, cores, período, tipo de gráfico) e prévia em tempo real; o montador só oferece o que faz sentido e não deixa adicionar gráfico vazio. Um painel só para todos, guardado no banco; desfazer as 3 últimas mudanças. |
 | **Relatórios em PDF** | Relatório do mês atual (muda a cada calibração) e, no primeiro dia do mês novo, o **relatório final** do mês anterior é criado e guardado **sozinho**, conferido por SHA-256. Mês: números, gráficos do painel, calibrações e ALTERAÇÕES. Ano: números e gráficos. |
-| **Cadastro sem nomes repetidos** | Tipo e localização com sugestões enquanto se digita, sem ligar para maiúsculas e acentos; nome novo pede confirmação; nomes parecidos já existentes no banco foram juntados uma vez, ao abrir. |
-| **Código com sigla** | Lista "Tipo (SIGLA)" no campo do código e o **próximo número** já preenchido; código repetido em vermelho na hora. |
+| **Cadastro sem nomes repetidos** | Tipo e localização com sugestões enquanto se digita, sem distinguir maiúsculas e acentos; nome novo pede confirmação; nomes parecidos já existentes no banco foram juntados uma vez, ao abrir. |
+| **Código com sigla** | Lista "Tipo (SIGLA)" no campo do código e o **próximo número** já preenchido; código repetido em vermelho em tempo real. |
 | **Detalhes** | Título com o código do documento (DQ-05), ícones Material Symbols, calendário em toda data, dinheiro com centavos, linha inteira da lista clicável, botão para renomear plano. |
 
 ```mermaid
@@ -1133,7 +1133,7 @@ SistemaCalibracao/
 | 🌐 | Uso simultâneo em pasta de rede sem servidor: trava de edição e banco preparado para rede. |
 | 📈 | Visualização de dados técnicos (gráfico de tendência com incerteza e tolerância). |
 | 📊 | Painel de indicadores configurável pelo usuário e relatórios automáticos em PDF. |
-| 🎨 | Interface com tema claro e escuro trocado na hora e ícones padronizados. |
+| 🎨 | Interface com tema claro e escuro trocado em tempo real e ícones padronizados. |
 | 🗃️ | Modelagem e persistência de dados relacionais, com migração automática da estrutura. |
 | 📐 | Metrologia aplicada: avaliação de conformidade considerando a incerteza de medição. |
 | 🧪 | Testes automatizados e arquitetura em camadas, com regras independentes da tela. |
