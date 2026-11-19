@@ -20,7 +20,7 @@
   <img src="https://img.shields.io/badge/tipo-aplicação_desktop-orange?style=flat-square" alt="Tipo"/>
   <img src="https://img.shields.io/badge/testes-pytest_(410)-brightgreen?style=flat-square" alt="Testes"/>
   <img src="https://img.shields.io/badge/idioma-pt--BR-green?style=flat-square" alt="Idioma"/>
-  <img src="https://img.shields.io/badge/versão-1.4.0_em_uso-success?style=flat-square" alt="Versão"/>
+  <img src="https://img.shields.io/badge/versão-1.4.1_em_uso-success?style=flat-square" alt="Versão"/>
   <img src="https://img.shields.io/badge/protótipo-Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white" alt="Protótipo"/>
 </p>
 
